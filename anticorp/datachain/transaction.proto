@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package datachain;
+
+option go_package = "datachain";
+
+message Transaction {
+    int64 seq = 1;
+    string timestamp = 2;
+    string type = 3;
+    string address = 4;
+    string previous = 5;
+    map<string, string> properties = 6;
+    bytes data = 7;
+    int32 powTarget = 8;
+    int64 powNonce = 9;
+    string hash = 10;
+    string pubKey = 11;
+    string signature = 12;
+}
