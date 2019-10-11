@@ -1,4 +1,4 @@
-package pulpit
+package timeline
 
 import (
 	"context"
@@ -47,7 +47,7 @@ func (p pulpit) GetFrom(ctx context.Context, key string, count int) ([]Message, 
 	}
 	i := 0
 	msgs := []Message{}
-	for it.HasNext() && i < count{
+	for it.HasNext() && i < count {
 		data := Message{}
 		er := it.Next(ctx, &data)
 		if er != nil {

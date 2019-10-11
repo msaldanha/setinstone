@@ -1,4 +1,4 @@
-package pulpit
+package timeline
 
 import (
 	"context"

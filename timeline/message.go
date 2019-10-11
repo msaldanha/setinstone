@@ -1,4 +1,4 @@
-package pulpit
+package timeline
 
 type MimeTypeData struct {
 	MimeType string `json:"mime_type,omitempty"`

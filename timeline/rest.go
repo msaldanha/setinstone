@@ -1,4 +1,4 @@
-package pulpit
+package timeline
 
 import (
 	"context"
@@ -190,7 +190,7 @@ func (s server) getPulpit(addr string) (Pulpit, error) {
 		return pulp, nil
 	}
 
-	a := &address.Address{Address:addr}
+	a := &address.Address{Address: addr}
 	buf, found, er := s.store.Get(addr)
 	if er != nil {
 		return nil, er
@@ -203,11 +203,11 @@ func (s server) getPulpit(addr string) (Pulpit, error) {
 	}
 
 	ds := datastore.NewLocalFileStore()
-	ld := datachain.NewLocalLedger("pulpit", ds)
+	ld := datachain.NewLocalLedger("timeline", ds)
 	m := dmap.NewMap(ld, a)
 
 	if a.Keys != nil {
-		_, er = m.Init(context.Background(), "pulpit-"+addr)
+		_, er = m.Init(context.Background(), "timeline-"+addr)
 		if er != nil && er != dmap.ErrAlreadyInitialized {
 			return nil, er
 		}

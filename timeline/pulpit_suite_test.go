@@ -1,4 +1,4 @@
-package pulpit_test
+package timeline_test
 
 import (
 	. "github.com/onsi/ginkgo"

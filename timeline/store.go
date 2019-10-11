@@ -1,4 +1,4 @@
-package pulpit
+package timeline
 
 import (
 	"github.com/coreos/bbolt"
@@ -11,10 +11,9 @@ const (
 	ErrInvalidBucketName                = err.Error("invalid bucket name")
 )
 
-
 type KeyValueStore interface {
-	Init(options interface{}) (error)
-	Put(key string, value []byte) (error)
+	Init(options interface{}) error
+	Put(key string, value []byte) error
 	Get(key string) ([]byte, bool, error)
 	GetAll() ([][]byte, error)
 	Delete(key string) error
@@ -60,7 +59,7 @@ func (st *BoltKeyValueStore) Init(options interface{}) error {
 	return nil
 }
 
-func (st *BoltKeyValueStore) Put(key string, value []byte) (error) {
+func (st *BoltKeyValueStore) Put(key string, value []byte) error {
 	return st.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(st.BucketName))
 		er := b.Put([]byte(key), value)
@@ -107,5 +106,3 @@ func (st *BoltKeyValueStore) Delete(key string) error {
 		return er
 	})
 }
-
-
