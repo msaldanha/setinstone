@@ -26,7 +26,7 @@ type server struct {
 	app         *iris.Application
 	opts        ServerOptions
 	store       KeyValueStore
-	pulps       map[string]Timeline
+	timelines   map[string]Timeline
 }
 
 type ServerOptions struct {
@@ -54,7 +54,7 @@ func NewServer(opts ServerOptions) (Server, error) {
 		initialized: true,
 		app:         app,
 		store:       store,
-		pulps:       map[string]Timeline{},
+		timelines:   map[string]Timeline{},
 	}
 
 	app.Get("/randomaddress", srv.getRandomAddress)
@@ -139,14 +139,14 @@ func (s server) getNews(ctx iris.Context) {
 	from := ctx.URLParam("from")
 	count := ctx.URLParamIntDefault("count", defaultCount)
 
-	pulp, er := s.getPulpit(addr)
+	timeline, er := s.getPulpit(addr)
 	if er != nil {
 		returnError(ctx, er, 500)
 		return
 	}
 
 	c := context.Background()
-	news, er := pulp.GetFrom(c, from, count)
+	news, er := timeline.GetFrom(c, from, count)
 	if er != nil {
 		returnError(ctx, er, 500)
 		return
@@ -168,14 +168,14 @@ func (s server) createNews(ctx iris.Context) {
 		return
 	}
 
-	pulp, er := s.getPulpit(addr)
+	timeline, er := s.getPulpit(addr)
 	if er != nil {
 		returnError(ctx, er, 500)
 		return
 	}
 
 	c := context.Background()
-	key, er := pulp.Add(c, msg)
+	key, er := timeline.Add(c, msg)
 	if er != nil {
 		returnError(ctx, er, 500)
 		return
@@ -185,9 +185,9 @@ func (s server) createNews(ctx iris.Context) {
 }
 
 func (s server) getPulpit(addr string) (Timeline, error) {
-	pulp, found := s.pulps[addr]
+	timeline, found := s.timelines[addr]
 	if found {
-		return pulp, nil
+		return timeline, nil
 	}
 
 	a := &address.Address{Address: addr}
@@ -213,10 +213,10 @@ func (s server) getPulpit(addr string) (Timeline, error) {
 		}
 	}
 
-	pulp = NewTimeline(m)
-	s.pulps[addr] = pulp
+	timeline = NewTimeline(m)
+	s.timelines[addr] = timeline
 
-	return pulp, nil
+	return timeline, nil
 }
 
 func returnError(ctx iris.Context, er error, statusCode int) {
