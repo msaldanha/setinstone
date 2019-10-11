@@ -35,7 +35,7 @@ var _ = Describe("Map", func() {
 
 		p := NewPulpit(distMap)
 
-		msg := Message{ Body: MimeTypeData{MimeType:"plain/text", Data:"some text"}}
+		msg := Message{Body: MimeTypeData{MimeType: "plain/text", Data: "some text"}}
 		key, er := p.Add(ctx, msg)
 		Expect(er).To(BeNil())
 		Expect(key).ToNot(Equal(""))
@@ -47,14 +47,14 @@ var _ = Describe("Map", func() {
 
 		p := NewPulpit(distMap)
 
-		expectedMsg := Message{ Body: MimeTypeData{MimeType: "plain/text", Data:"some text"}}
+		expectedMsg := Message{Body: MimeTypeData{MimeType: "plain/text", Data: "some text"}}
 		key, er := p.Add(ctx, expectedMsg)
 		Expect(er).To(BeNil())
 		Expect(key).ToNot(Equal(""))
 
 		text, er := p.Get(ctx, key)
 		Expect(er).To(BeNil())
-		Expect(text).To(Equal(expectedMsg))
+		Expect(text.Body).To(Equal(expectedMsg.Body))
 	})
 
 	It("Should get messages by key and count", func() {
@@ -67,7 +67,7 @@ var _ = Describe("Map", func() {
 		keys := []string{}
 		n := 10
 		for i := 0; i < n; i++ {
-			expectedMsg := Message{ Body: MimeTypeData{MimeType: "plain/text", Data:"some text " +
+			expectedMsg := Message{Body: MimeTypeData{MimeType: "plain/text", Data: "some text " +
 				strconv.Itoa(i)}}
 			key, er := p.Add(ctx, expectedMsg)
 			Expect(er).To(BeNil())
@@ -81,8 +81,8 @@ var _ = Describe("Map", func() {
 
 		Expect(er).To(BeNil())
 		Expect(len(messages)).To(Equal(count))
-		Expect(messages[0]).To(Equal(msgs[5]))
-		Expect(messages[1]).To(Equal(msgs[4]))
-		Expect(messages[2]).To(Equal(msgs[3]))
+		Expect(messages[0].Body).To(Equal(msgs[5].Body))
+		Expect(messages[1].Body).To(Equal(msgs[4].Body))
+		Expect(messages[2].Body).To(Equal(msgs[3].Body))
 	})
 })

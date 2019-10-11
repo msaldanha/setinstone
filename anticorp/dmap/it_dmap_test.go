@@ -96,7 +96,6 @@ var _ = Describe("Map", func() {
 			keys = append(keys, key)
 		}
 
-
 		it, er := distMap.GetIterator(ctx, "")
 		Expect(er).To(BeNil())
 		Expect(it).NotTo(BeNil())
@@ -109,7 +108,7 @@ var _ = Describe("Map", func() {
 			Expect(data).To(Equal(dataAdded[i]))
 			i--
 		}
-		Expect(i).To(Equal(-1))
+		Expect(i).To(Equal(0))
 	})
 
 	It("Should return iterator from desired key", func() {
@@ -135,7 +134,6 @@ var _ = Describe("Map", func() {
 			keys = append(keys, key)
 		}
 
-
 		it, er := distMap.GetIterator(ctx, keys[5])
 		Expect(er).To(BeNil())
 		Expect(it).NotTo(BeNil())
@@ -148,6 +146,6 @@ var _ = Describe("Map", func() {
 			Expect(data).To(Equal(dataAdded[i]))
 			i--
 		}
-		Expect(i).To(Equal(-1))
+		Expect(i).To(Equal(0))
 	})
 })
