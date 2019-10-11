@@ -7,41 +7,36 @@ import (
 	"time"
 )
 
-type Pulpit interface {
+type Timeline interface {
 	Add(ctx context.Context, msg Message) (string, error)
 	Get(ctx context.Context, key string) (Message, error)
 	GetFrom(ctx context.Context, key string, count int) ([]Message, error)
 }
 
-type pulpit struct {
+type timeline struct {
 	dmap dmap.Map
 	addr *address.Address
 }
 
-type Pulp struct {
-	Likes string
-	Text  string
-}
-
-func NewPulpit(dmap dmap.Map) Pulpit {
-	return pulpit{
+func NewTimeline(dmap dmap.Map) Timeline {
+	return timeline{
 		dmap: dmap,
 	}
 }
 
-func (p pulpit) Add(ctx context.Context, msg Message) (string, error) {
+func (t timeline) Add(ctx context.Context, msg Message) (string, error) {
 	msg.Timestamp = time.Now().UTC().Format(time.RFC3339)
-	return p.dmap.Add(ctx, msg)
+	return t.dmap.Add(ctx, msg)
 }
 
-func (p pulpit) Get(ctx context.Context, key string) (Message, error) {
+func (t timeline) Get(ctx context.Context, key string) (Message, error) {
 	data := Message{}
-	_, er := p.dmap.Get(ctx, key, &data)
+	_, er := t.dmap.Get(ctx, key, &data)
 	return data, er
 }
 
-func (p pulpit) GetFrom(ctx context.Context, key string, count int) ([]Message, error) {
-	it, er := p.dmap.GetIterator(ctx, key)
+func (t timeline) GetFrom(ctx context.Context, key string, count int) ([]Message, error) {
+	it, er := t.dmap.GetIterator(ctx, key)
 	if er != nil {
 		return nil, er
 	}

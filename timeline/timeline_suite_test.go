@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestPulpit(t *testing.T) {
+func TestTimeline(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Pulpit Suite")
+	RunSpecs(t, "Timeline Suite")
 }

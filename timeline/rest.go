@@ -26,7 +26,7 @@ type server struct {
 	app         *iris.Application
 	opts        ServerOptions
 	store       KeyValueStore
-	pulps       map[string]Pulpit
+	pulps       map[string]Timeline
 }
 
 type ServerOptions struct {
@@ -54,7 +54,7 @@ func NewServer(opts ServerOptions) (Server, error) {
 		initialized: true,
 		app:         app,
 		store:       store,
-		pulps:       map[string]Pulpit{},
+		pulps:       map[string]Timeline{},
 	}
 
 	app.Get("/randomaddress", srv.getRandomAddress)
@@ -184,7 +184,7 @@ func (s server) createNews(ctx iris.Context) {
 	ctx.JSON(Response{Payload: key})
 }
 
-func (s server) getPulpit(addr string) (Pulpit, error) {
+func (s server) getPulpit(addr string) (Timeline, error) {
 	pulp, found := s.pulps[addr]
 	if found {
 		return pulp, nil
@@ -213,7 +213,7 @@ func (s server) getPulpit(addr string) (Pulpit, error) {
 		}
 	}
 
-	pulp = NewPulpit(m)
+	pulp = NewTimeline(m)
 	s.pulps[addr] = pulp
 
 	return pulp, nil

@@ -12,7 +12,7 @@ import (
 	"strconv"
 )
 
-var _ = Describe("Map", func() {
+var _ = Describe("Timeline", func() {
 
 	var ld datachain.Ledger
 	var ctx context.Context
@@ -33,7 +33,7 @@ var _ = Describe("Map", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		p := NewPulpit(distMap)
+		p := NewTimeline(distMap)
 
 		msg := Message{Body: MimeTypeData{MimeType: "plain/text", Data: "some text"}}
 		key, er := p.Add(ctx, msg)
@@ -45,7 +45,7 @@ var _ = Describe("Map", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		p := NewPulpit(distMap)
+		p := NewTimeline(distMap)
 
 		expectedMsg := Message{Body: MimeTypeData{MimeType: "plain/text", Data: "some text"}}
 		key, er := p.Add(ctx, expectedMsg)
@@ -61,7 +61,7 @@ var _ = Describe("Map", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		p := NewPulpit(distMap)
+		p := NewTimeline(distMap)
 
 		msgs := []Message{}
 		keys := []string{}
