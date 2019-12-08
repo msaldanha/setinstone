@@ -1,4 +1,4 @@
-package timeline
+package pulpit
 
 import (
 	"github.com/coreos/bbolt"
@@ -47,7 +47,7 @@ func (st *BoltKeyValueStore) Init(options interface{}) error {
 		return er
 	}
 
-	db.Update(func(tx *bolt.Tx) error {
+	_ = db.Update(func(tx *bolt.Tx) error {
 		_, er := tx.CreateBucketIfNotExists([]byte(opt.BucketName))
 		if er != nil {
 			return er
@@ -88,7 +88,7 @@ func (st *BoltKeyValueStore) GetAll() ([][]byte, error) {
 	all := make([][]byte, 0)
 	er := st.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(st.BucketName))
-		b.ForEach(func(k, v []byte) error {
+		_ = b.ForEach(func(k, v []byte) error {
 			ret := make([]byte, len(v))
 			copy(ret, v)
 			all = append(all, ret)

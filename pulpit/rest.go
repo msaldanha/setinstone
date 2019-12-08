@@ -1,4 +1,4 @@
-package timeline
+package pulpit
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"github.com/msaldanha/setinstone/anticorp/datastore"
 	"github.com/msaldanha/setinstone/anticorp/dmap"
 	"github.com/msaldanha/setinstone/anticorp/err"
+	"github.com/msaldanha/setinstone/timeline"
 )
 
 const (
@@ -26,7 +27,7 @@ type server struct {
 	app         *iris.Application
 	opts        ServerOptions
 	store       KeyValueStore
-	timelines   map[string]Timeline
+	timelines   map[string]timeline.Timeline
 }
 
 type ServerOptions struct {
@@ -54,7 +55,7 @@ func NewServer(opts ServerOptions) (Server, error) {
 		initialized: true,
 		app:         app,
 		store:       store,
-		timelines:   map[string]Timeline{},
+		timelines:   map[string]timeline.Timeline{},
 	}
 
 	app.Get("/randomaddress", srv.getRandomAddress)
@@ -62,6 +63,7 @@ func NewServer(opts ServerOptions) (Server, error) {
 	addresses := app.Party("/addresses")
 
 	addresses.Get("/{addr:string}/news", srv.getNews)
+	addresses.Get("/{addr:string}/news/{hash:string}", srv.getNewsByHash)
 	addresses.Post("/{addr:string}/news", srv.createNews)
 	addresses.Delete("/{addr:string}", srv.deleteAddress)
 
@@ -128,7 +130,7 @@ func (s server) getAddresses(ctx iris.Context) {
 	addresses := []*address.Address{}
 	for _, v := range all {
 		a := &address.Address{}
-		a.FromBytes(v)
+		_ = a.FromBytes(v)
 		addresses = append(addresses, a)
 	}
 	_, _ = ctx.JSON(Response{Payload: addresses})
@@ -139,14 +141,14 @@ func (s server) getNews(ctx iris.Context) {
 	from := ctx.URLParam("from")
 	count := ctx.URLParamIntDefault("count", defaultCount)
 
-	timeline, er := s.getPulpit(addr)
+	tl, er := s.getPulpit(addr)
 	if er != nil {
 		returnError(ctx, er, 500)
 		return
 	}
 
 	c := context.Background()
-	news, er := timeline.GetFrom(c, from, count)
+	news, er := tl.GetFrom(c, from, count)
 	if er != nil {
 		returnError(ctx, er, 500)
 		return
@@ -159,35 +161,64 @@ func (s server) getNews(ctx iris.Context) {
 	}
 }
 
-func (s server) createNews(ctx iris.Context) {
+func (s server) getNewsByHash(ctx iris.Context) {
 	addr := ctx.Params().Get("addr")
-	msg := Message{}
-	er := ctx.ReadJSON(&msg)
-	if er != nil {
-		returnError(ctx, er, 400)
-		return
-	}
+	hash := ctx.Params().Get("hash")
 
-	timeline, er := s.getPulpit(addr)
+	tl, er := s.getPulpit(addr)
 	if er != nil {
 		returnError(ctx, er, 500)
 		return
 	}
 
 	c := context.Background()
-	key, er := timeline.Add(c, msg)
+	news, er := tl.GetFrom(c, hash, 1)
 	if er != nil {
 		returnError(ctx, er, 500)
 		return
 	}
 
-	ctx.JSON(Response{Payload: key})
+	resp := Response{}
+	if len(news) > 0 {
+		resp.Payload = news[0]
+	}
+
+	_, er = ctx.JSON(resp)
+	if er != nil {
+		returnError(ctx, er, 500)
+		return
+	}
 }
 
-func (s server) getPulpit(addr string) (Timeline, error) {
-	timeline, found := s.timelines[addr]
+func (s server) createNews(ctx iris.Context) {
+	addr := ctx.Params().Get("addr")
+	msg := timeline.Message{}
+	er := ctx.ReadJSON(&msg)
+	if er != nil {
+		returnError(ctx, er, 400)
+		return
+	}
+
+	tl, er := s.getPulpit(addr)
+	if er != nil {
+		returnError(ctx, er, 500)
+		return
+	}
+
+	c := context.Background()
+	key, er := tl.Add(c, msg)
+	if er != nil {
+		returnError(ctx, er, 500)
+		return
+	}
+
+	_, _ = ctx.JSON(Response{Payload: key})
+}
+
+func (s server) getPulpit(addr string) (timeline.Timeline, error) {
+	tl, found := s.timelines[addr]
 	if found {
-		return timeline, nil
+		return tl, nil
 	}
 
 	a := &address.Address{Address: addr}
@@ -213,10 +244,10 @@ func (s server) getPulpit(addr string) (Timeline, error) {
 		}
 	}
 
-	timeline = NewTimeline(m)
-	s.timelines[addr] = timeline
+	tl = timeline.NewTimeline(m)
+	s.timelines[addr] = tl
 
-	return timeline, nil
+	return tl, nil
 }
 
 func returnError(ctx iris.Context, er error, statusCode int) {

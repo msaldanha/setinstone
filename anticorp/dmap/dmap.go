@@ -5,13 +5,15 @@ import (
 	"encoding/json"
 	"github.com/msaldanha/setinstone/anticorp/address"
 	"github.com/msaldanha/setinstone/anticorp/datachain"
+	"github.com/msaldanha/setinstone/anticorp/datastore"
 	"github.com/msaldanha/setinstone/anticorp/err"
 )
 
 const (
-	ErrAlreadyOpen = err.Error("already open")
+	ErrAlreadyOpen          = err.Error("already open")
 	ErrInvalidIteratorState = err.Error("invalid iterator state")
-	ErrAlreadyInitialized = err.Error("already initialized")
+	ErrAlreadyInitialized   = err.Error("already initialized")
+	ErrNotFound             = err.Error("not found")
 )
 
 type Iterator interface {
@@ -39,7 +41,7 @@ type dmap struct {
 }
 
 type iterator struct {
-	next func(ictx context.Context, data interface{}) error
+	next    func(ictx context.Context, data interface{}) error
 	hasNext func() bool
 }
 
@@ -131,10 +133,10 @@ func (d dmap) GetIterator(ctx context.Context, from string) (Iterator, error) {
 	} else {
 		tx, er = d.get(ctx, from)
 	}
-	if er != nil {
+	if er != nil && er != ErrNotFound {
 		return nil, er
 	}
-	hasNext = tx.Type != datachain.TransactionTypes.Open
+	hasNext = tx != nil && tx.Type != datachain.TransactionTypes.Open
 	return iterator{
 		hasNext: func() bool {
 			return hasNext
@@ -190,6 +192,8 @@ func (d dmap) translateError(er error) error {
 	switch er {
 	case datachain.ErrLedgerAlreadyInitialized:
 		return ErrAlreadyInitialized
+	case datastore.ErrNotFound:
+		return ErrNotFound
 	}
 	return er
 }
