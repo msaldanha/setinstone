@@ -40,7 +40,7 @@ type Response struct {
 	Error   string      `json:"error,omitempty"`
 }
 
-func NewServer(opts ServerOptions) (Server, error) {
+func NewServer(_ ServerOptions) (Server, error) {
 	store := NewBoltKeyValueStore()
 	er := store.Init(BoltKeyValueStoreOptions{BucketName: "addresses", DbFile: "server.dat"})
 	if er != nil {
@@ -238,7 +238,7 @@ func (s server) getPulpit(addr string) (timeline.Timeline, error) {
 	m := dmap.NewMap(ld, a)
 
 	if a.Keys != nil {
-		_, er = m.Init(context.Background(), "timeline-"+addr)
+		_, er = m.Init(context.Background(), []byte("timeline-"+addr))
 		if er != nil && er != dmap.ErrAlreadyInitialized {
 			return nil, er
 		}

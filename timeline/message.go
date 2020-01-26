@@ -9,6 +9,7 @@ type MimeTypeData struct {
 type Link struct {
 }
 type Message struct {
+	Id          string         `json:"id,omitempty"`
 	Timestamp   string         `json:"timestamp,omitempty"`
 	Body        MimeTypeData   `json:"body,omitempty"`
 	Links       []MimeTypeData `json:"links,omitempty"`

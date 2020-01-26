@@ -2,7 +2,6 @@ package dmap
 
 import (
 	"context"
-	"encoding/json"
 	"github.com/msaldanha/setinstone/anticorp/address"
 	"github.com/msaldanha/setinstone/anticorp/datachain"
 	"github.com/msaldanha/setinstone/anticorp/datastore"
@@ -17,7 +16,7 @@ const (
 )
 
 type Iterator interface {
-	Next(ctx context.Context, data interface{}) error
+	Next(ctx context.Context) (string, []byte, error)
 	HasNext() bool
 }
 
@@ -25,10 +24,10 @@ type Map interface {
 	GetName() string
 	GetMetaData() string
 	Open(ctx context.Context) error
-	Init(ctx context.Context, metaData interface{}) (string, error)
+	Init(ctx context.Context, metaData []byte) (string, error)
 	Close(ctx context.Context) error
-	Get(ctx context.Context, key string, data interface{}) (bool, error)
-	Add(ctx context.Context, data interface{}) (string, error)
+	Get(ctx context.Context, key string) ([]byte, bool, error)
+	Add(ctx context.Context, data []byte) (string, error)
 	GetIterator(ctx context.Context, from string) (Iterator, error)
 }
 
@@ -41,7 +40,7 @@ type dmap struct {
 }
 
 type iterator struct {
-	next    func(ictx context.Context, data interface{}) error
+	next    func(ictx context.Context) (string, []byte, error)
 	hasNext func() bool
 }
 
@@ -72,7 +71,7 @@ func (d dmap) Open(ctx context.Context) error {
 	return nil
 }
 
-func (d dmap) Init(ctx context.Context, metaData interface{}) (string, error) {
+func (d dmap) Init(ctx context.Context, metaData []byte) (string, error) {
 	tx, er := createTransaction(datachain.TransactionTypes.Open, metaData, nil, d.addr)
 	if er != nil {
 		return "", er
@@ -87,27 +86,23 @@ func (d dmap) Init(ctx context.Context, metaData interface{}) (string, error) {
 	return tx.Hash, nil
 }
 
-func (d dmap) Close(ctx context.Context) error {
+func (d dmap) Close(_ context.Context) error {
 	return nil
 }
 
-func (d dmap) Get(ctx context.Context, key string, data interface{}) (bool, error) {
+func (d dmap) Get(ctx context.Context, key string) ([]byte, bool, error) {
 	tx, er := d.get(ctx, key)
 	if er != nil {
 		if er == datachain.ErrTransactionNotFound {
-			return false, nil
+			return nil, false, nil
 		}
-		return false, d.translateError(er)
-	}
-	er = json.Unmarshal([]byte(tx.Data), &data)
-	if er != nil {
-		return false, er
+		return nil, false, d.translateError(er)
 	}
 	d.setLastTransaction(tx)
-	return true, nil
+	return tx.Data, true, nil
 }
 
-func (d dmap) Add(ctx context.Context, data interface{}) (string, error) {
+func (d dmap) Add(ctx context.Context, data []byte) (string, error) {
 	prev, er := d.ld.GetLastTransaction(ctx, d.addr.Address)
 	if er != nil {
 		return "", d.translateError(er)
@@ -141,33 +136,30 @@ func (d dmap) GetIterator(ctx context.Context, from string) (Iterator, error) {
 		hasNext: func() bool {
 			return hasNext
 		},
-		next: func(ictx context.Context, data interface{}) error {
+		next: func(ictx context.Context) (string, []byte, error) {
 			if !hasNext {
-				return ErrInvalidIteratorState
+				return "", nil, ErrInvalidIteratorState
 			}
 			hasNext = false
 			if er == datachain.ErrTransactionNotFound {
-				return d.translateError(er)
+				return "", nil, d.translateError(er)
 			}
 			if er != nil {
-				return d.translateError(er)
+				return "", nil, d.translateError(er)
 			}
 			if tx == nil {
-				return ErrInvalidIteratorState
+				return "", nil, ErrInvalidIteratorState
 			}
-			er = json.Unmarshal([]byte(tx.Data), data)
-			if er != nil {
-				return d.translateError(er)
-			}
+			k, v := tx.Hash, tx.Data
 			if tx.Previous == "" {
 				tx = nil
-				return nil
+				return k, v, nil
 			}
 			tx, er = d.get(ictx, tx.Previous)
 			if er == nil && tx.Type != datachain.TransactionTypes.Open {
 				hasNext = true
 			}
-			return nil
+			return k, v, nil
 		},
 	}, nil
 }
@@ -176,8 +168,8 @@ func (i iterator) HasNext() bool {
 	return i.hasNext()
 }
 
-func (i iterator) Next(ctx context.Context, data interface{}) error {
-	return i.next(ctx, data)
+func (i iterator) Next(ctx context.Context) (string, []byte, error) {
+	return i.next(ctx)
 }
 
 func (d dmap) get(ctx context.Context, key string) (*datachain.Transaction, error) {

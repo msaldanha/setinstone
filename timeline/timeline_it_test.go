@@ -52,8 +52,9 @@ var _ = Describe("Timeline", func() {
 		Expect(er).To(BeNil())
 		Expect(key).ToNot(Equal(""))
 
-		text, er := p.Get(ctx, key)
+		text, found, er := p.Get(ctx, key)
 		Expect(er).To(BeNil())
+		Expect(found).To(BeTrue())
 		Expect(text.Body).To(Equal(expectedMsg.Body))
 	})
 

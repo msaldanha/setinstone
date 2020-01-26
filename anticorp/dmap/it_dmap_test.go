@@ -2,6 +2,7 @@ package dmap_test
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/golang/mock/gomock"
 	"github.com/msaldanha/setinstone/anticorp/address"
 	"github.com/msaldanha/setinstone/anticorp/datachain"
@@ -36,7 +37,7 @@ var _ = Describe("Map", func() {
 
 		distMap := dmap.NewMap(ld, addr)
 
-		key, er := distMap.Init(ctx, testPayLoad{NumberField: 100, StringFiled: "some data"})
+		key, er := distMap.Init(ctx, toBytes(testPayLoad{NumberField: 100, StringFiled: "some data"}))
 
 		Expect(er).To(BeNil())
 		Expect(key).NotTo(BeEmpty())
@@ -47,7 +48,7 @@ var _ = Describe("Map", func() {
 		defer mockCtrl.Finish()
 
 		m := dmap.NewMap(ld, addr)
-		_, _ = m.Init(ctx, testPayLoad{NumberField: 100, StringFiled: "some data"})
+		_, _ = m.Init(ctx, toBytes(testPayLoad{NumberField: 100, StringFiled: "some data"}))
 
 		distMap := dmap.NewMap(ld, addr)
 		er := distMap.Open(ctx)
@@ -61,13 +62,14 @@ var _ = Describe("Map", func() {
 
 		distMap := dmap.NewMap(ld, addr)
 
-		_, er := distMap.Init(ctx, testPayLoad{NumberField: 100, StringFiled: "some data"})
+		_, er := distMap.Init(ctx, toBytes(testPayLoad{NumberField: 100, StringFiled: "some data"}))
 
 		dataToAdd := testPayLoad{NumberField: 1000, StringFiled: "some data added"}
-		key, er := distMap.Add(ctx, dataToAdd)
+		key, er := distMap.Add(ctx, toBytes(dataToAdd))
 
 		var data testPayLoad
-		found, er := distMap.Get(ctx, key, &data)
+		v, found, er := distMap.Get(ctx, key)
+		_ = json.Unmarshal(v, &data)
 
 		Expect(er).To(BeNil())
 		Expect(found).To(BeTrue())
@@ -83,7 +85,7 @@ var _ = Describe("Map", func() {
 		dataAdded := []testPayLoad{}
 		dataToAdd := testPayLoad{NumberField: 1000, StringFiled: "initial data"}
 		dataAdded = append(dataAdded, dataToAdd)
-		_, _ = distMap.Init(ctx, dataToAdd)
+		_, _ = distMap.Init(ctx, toBytes(dataToAdd))
 
 		n := 10
 		keys := []string{}
@@ -91,7 +93,7 @@ var _ = Describe("Map", func() {
 		for i := 0; i < n; i++ {
 			dataToAdd := testPayLoad{NumberField: i, StringFiled: "some data added"}
 			dataAdded = append(dataAdded, dataToAdd)
-			key, er := distMap.Add(ctx, dataToAdd)
+			key, er := distMap.Add(ctx, toBytes(dataToAdd))
 			Expect(er).To(BeNil())
 			keys = append(keys, key)
 		}
@@ -103,7 +105,8 @@ var _ = Describe("Map", func() {
 		i := len(dataAdded) - 1
 		for it.HasNext() {
 			data := testPayLoad{}
-			er := it.Next(ctx, &data)
+			_, v, er := it.Next(ctx)
+			_ = json.Unmarshal(v, &data)
 			Expect(er).To(BeNil())
 			Expect(data).To(Equal(dataAdded[i]))
 			i--
@@ -120,7 +123,7 @@ var _ = Describe("Map", func() {
 		dataAdded := []testPayLoad{}
 		dataToAdd := testPayLoad{NumberField: 1000, StringFiled: "initial data"}
 		dataAdded = append(dataAdded, dataToAdd)
-		key, _ := distMap.Init(ctx, dataToAdd)
+		key, _ := distMap.Init(ctx, toBytes(dataToAdd))
 
 		n := 10
 		keys := []string{}
@@ -129,7 +132,7 @@ var _ = Describe("Map", func() {
 		for i := 0; i < n; i++ {
 			dataToAdd := testPayLoad{NumberField: i, StringFiled: "some data added"}
 			dataAdded = append(dataAdded, dataToAdd)
-			key, er := distMap.Add(ctx, dataToAdd)
+			key, er := distMap.Add(ctx, toBytes(dataToAdd))
 			Expect(er).To(BeNil())
 			keys = append(keys, key)
 		}
@@ -141,7 +144,9 @@ var _ = Describe("Map", func() {
 		i := 5
 		for it.HasNext() {
 			data := testPayLoad{}
-			er := it.Next(ctx, &data)
+			_, v, er := it.Next(ctx)
+			_ = json.Unmarshal(v, &data)
+
 			Expect(er).To(BeNil())
 			Expect(data).To(Equal(dataAdded[i]))
 			i--
@@ -149,3 +154,8 @@ var _ = Describe("Map", func() {
 		Expect(i).To(Equal(0))
 	})
 })
+
+func toBytes(data interface{}) []byte {
+	js, _ := json.Marshal(data)
+	return js
+}
