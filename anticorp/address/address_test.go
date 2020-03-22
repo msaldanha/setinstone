@@ -2,10 +2,10 @@ package address_test
 
 import (
 	"encoding/hex"
+	"github.com/golang/mock/gomock"
+	"github.com/msaldanha/setinstone/anticorp/address"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/golang/mock/gomock"
-	"github.com/msaldanha/realChain/address"
 )
 
 var _ = Describe("Address", func() {

@@ -1,8 +1,8 @@
 package pulpit
 
 import (
-	"github.com/coreos/bbolt"
 	"github.com/msaldanha/setinstone/anticorp/err"
+	bolt "go.etcd.io/bbolt"
 	"time"
 )
 
