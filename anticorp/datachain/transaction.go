@@ -3,12 +3,12 @@ package datachain
 import (
 	"bytes"
 	"crypto/ecdsa"
-	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"github.com/golang/protobuf/proto"
 	"github.com/msaldanha/setinstone/anticorp/err"
+	"github.com/msaldanha/setinstone/anticorp/multihash"
 	"math"
 	"math/big"
 )
@@ -44,8 +44,7 @@ func NewOpenTransaction() *Transaction {
 }
 
 func NewTransaction() *Transaction {
-	return &Transaction{
-	}
+	return &Transaction{}
 }
 
 func (tx *Transaction) GetHashableBytes() ([][]byte, error) {
@@ -79,7 +78,6 @@ func getMapBytes(dataMap map[string]string) ([]byte, error) {
 
 func (tx *Transaction) CalculatePow() (int64, string, error) {
 	var hashInt big.Int
-	var hash [32]byte
 	var nonce int64 = 0
 
 	target := getTarget()
@@ -89,9 +87,22 @@ func (tx *Transaction) CalculatePow() (int64, string, error) {
 		return 0, "", er
 	}
 
+	id := multihash.NewId()
+
 	for nonce < math.MaxInt64 {
 		dataWithNonce := append(data, int64ToBytes(nonce))
-		hash = sha256.Sum256(bytes.Join(dataWithNonce, []byte{}))
+		//hash = sha256.Sum256(bytes.Join(dataWithNonce, []byte{}))
+
+		er := id.SetData(bytes.Join(dataWithNonce, []byte{}))
+		if er != nil {
+			return 0, "", er
+		}
+
+		hash, er := id.Digest()
+		if er != nil {
+			return 0, "", er
+		}
+
 		hashInt.SetBytes(hash[:])
 
 		if hashInt.Cmp(target) == -1 {
@@ -101,9 +112,7 @@ func (tx *Transaction) CalculatePow() (int64, string, error) {
 		}
 	}
 
-	hexHash := hex.EncodeToString(hash[:])
-
-	return nonce, hexHash[:], nil
+	return nonce, id.String(), nil
 }
 
 func (tx *Transaction) SetPow() error {
@@ -126,14 +135,30 @@ func (tx *Transaction) VerifyPow() (bool, error) {
 		return false, er
 	}
 	dataWithNonce := append(data, int64ToBytes(tx.PowNonce))
-	hash := sha256.Sum256(bytes.Join(dataWithNonce, []byte{}))
+
+	id := multihash.NewId()
+	id.SetData(bytes.Join(dataWithNonce, []byte{}))
+	if er != nil {
+		return false, er
+	}
+
+	hash, er := id.Digest()
+	if er != nil {
+		return false, er
+	}
+
 	hashInt.SetBytes(hash[:])
 
 	return hashInt.Cmp(target) == -1, nil
 }
 
 func (tx *Transaction) Sign(privateKey *ecdsa.PrivateKey) error {
-	hash, er := hex.DecodeString(tx.Hash)
+	id, er := multihash.NewIdFromString(tx.Hash)
+	if er != nil {
+		return er
+	}
+
+	hash, er := id.Digest()
 	if er != nil {
 		return er
 	}
@@ -158,7 +183,12 @@ func (tx *Transaction) VerifySignature() error {
 		return ErrUnableToDecodeTransactionPubKey
 	}
 
-	hash, er := hex.DecodeString(tx.Hash)
+	id, er := multihash.NewIdFromString(tx.Hash)
+	if er != nil {
+		return ErrUnableToDecodeTransactionHash
+	}
+
+	hash, er := id.Digest()
 	if er != nil {
 		return ErrUnableToDecodeTransactionHash
 	}

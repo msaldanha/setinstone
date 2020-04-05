@@ -233,7 +233,7 @@ func (s server) getPulpit(addr string) (timeline.Timeline, error) {
 		}
 	}
 
-	ds := datastore.NewLocalFileStore()
+	ds := datastore.NewIPFSDataStore() //.NewLocalFileStore()
 	ld := datachain.NewLocalLedger("timeline", ds)
 	m := dmap.NewMap(ld, a)
 

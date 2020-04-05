@@ -20,6 +20,7 @@ type Link struct {
 type DataStore interface {
 	AddFile(ctx context.Context, path string) (Link, error)
 	AddBytes(ctx context.Context, name string, bytes []byte) (Link, error)
+	Remove(ctx context.Context, name string) error
 	Get(ctx context.Context, hash string) (io.Reader, error)
 	Ls(ctx context.Context, hash string) ([]Link, error)
 	Exists(ctx context.Context, hash string) (bool, error)

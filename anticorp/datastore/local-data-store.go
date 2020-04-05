@@ -35,6 +35,11 @@ func (d localDataStore) AddBytes(ctx context.Context, name string, b []byte) (Li
 	return link, nil
 }
 
+func (d localDataStore) Remove(ctx context.Context, name string) error {
+	delete(d.pairs, name)
+	return nil
+}
+
 func (d localDataStore) Get(ctx context.Context, hash string) (io.Reader, error) {
 	b, ok := d.pairs[hash]
 	if !ok {

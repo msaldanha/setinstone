@@ -3,6 +3,10 @@ package datastore
 import (
 	"context"
 	"fmt"
+	blocks "github.com/ipfs/go-block-format"
+	"github.com/ipfs/go-ipfs/pin"
+	"github.com/msaldanha/setinstone/anticorp/multihash"
+	"time"
 
 	config "github.com/ipfs/go-ipfs-config"
 	files "github.com/ipfs/go-ipfs-files"
@@ -25,17 +29,17 @@ import (
 )
 
 type ipfsDataStore struct {
-	pairs map[string][]byte
-	tip   []byte
-	ipfs  icore.CoreAPI
+	pairs    map[string][]byte
+	tip      []byte
+	ipfs     icore.CoreAPI
+	ipfsNode *core.IpfsNode
 }
 
 func NewIPFSDataStore() DataStore {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := context.Background()
 
 	fmt.Println("Spawning node on a temporary repo")
-	ipfs, err := spawnEphemeral(ctx)
+	ipfs, node, err := spawnEphemeral(ctx)
 	if err != nil {
 		panic(fmt.Errorf("failed to spawn ephemeral node: %s", err))
 	}
@@ -43,7 +47,8 @@ func NewIPFSDataStore() DataStore {
 	fmt.Println("IPFS node is running")
 
 	return ipfsDataStore{
-		ipfs: ipfs,
+		ipfs:     ipfs,
+		ipfsNode: node,
 	}
 }
 
@@ -74,30 +79,76 @@ func (d ipfsDataStore) AddFile(ctx context.Context, path string) (Link, error) {
 func (d ipfsDataStore) AddBytes(ctx context.Context, name string, b []byte) (Link, error) {
 	f := files.NewBytesFile(b)
 
-	cidFile, err := d.ipfs.Unixfs().Add(ctx, f)
-	if err != nil {
-		return Link{}, fmt.Errorf("could not add File: %s", err)
+	id := multihash.NewId()
+	er := id.SetData([]byte(name))
+	if er != nil {
+		return Link{}, fmt.Errorf("could not add File: %s", er)
 	}
 
-	fmt.Printf("Added file to IPFS with CID %s\n", cidFile.String())
+	bcid := id.Cid()
+
+	bl, err := blocks.NewBlockWithCid(b, bcid)
+	if err != nil {
+		return Link{}, err
+	}
+
+	defer d.ipfsNode.Blockstore.PinLock().Unlock()
+	err = d.ipfsNode.Blockstore.Put(bl)
+	if err != nil {
+		return Link{}, err
+	}
+
+	d.ipfsNode.Pinning.PinWithMode(bl.Cid(), pin.Recursive)
+	if err := d.ipfsNode.Pinning.Flush(ctx); err != nil {
+		return Link{}, err
+	}
+
+	fmt.Printf("Added block to IPFS with CID %s\n", bcid.String())
 
 	size, _ := f.Size()
 
 	return Link{
-		Hash: cidFile.String(),
+		Hash: bcid.String(),
 		Size: uint64(size),
 	}, nil
 }
 
-func (d ipfsDataStore) Get(ctx context.Context, hash string) (io.Reader, error) {
-	rootNodeFile, err := d.ipfs.Unixfs().Get(ctx, icorepath.New("/ipfs/"+hash))
-	if err != nil {
-		panic(fmt.Errorf("could not get file with CID: %s", err))
+func (d ipfsDataStore) Remove(ctx context.Context, name string) error {
+	id := multihash.NewId()
+	er := id.SetData([]byte(name))
+	if er != nil {
+		return fmt.Errorf("could not remove data: %s", er)
 	}
 
-	fileReader, ok := rootNodeFile.(io.Reader)
-	if !ok {
-		return nil, fmt.Errorf("unable to get io.Reader")
+	er = d.ipfsNode.Blockstore.DeleteBlock(id.Cid())
+	if er != nil {
+		return fmt.Errorf("could not remove data: %s", er)
+	}
+
+	fmt.Printf("Removed block from IPFS with CID %s\n", id.Cid().String())
+
+	return nil
+}
+
+func (d ipfsDataStore) Get(ctx context.Context, hash string) (io.Reader, error) {
+	id := multihash.NewId()
+	er := id.SetData([]byte(hash))
+	if er != nil {
+		return nil, fmt.Errorf("could not add File: %s", er)
+	}
+
+	bcid := id.Cid()
+
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel() // releases resources if slowOperation completes before timeout elapses
+
+	fileReader, er := d.ipfs.Block().Get(ctx, icorepath.New("/ipfs/"+bcid.String()))
+
+	if er == context.DeadlineExceeded {
+		return nil, ErrNotFound
+	}
+	if er != nil {
+		return nil, fmt.Errorf("could not get file with CID: %s", bcid.String())
 	}
 
 	return fileReader, nil
@@ -166,15 +217,15 @@ func createTempRepo(ctx context.Context) (string, error) {
 }
 
 // Spawns a node to be used just for this run (i.e. creates a tmp repo)
-func spawnEphemeral(ctx context.Context) (icore.CoreAPI, error) {
+func spawnEphemeral(ctx context.Context) (icore.CoreAPI, *core.IpfsNode, error) {
 	if err := setupPlugins(""); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Create a Temporary Repo
 	repoPath, err := createTempRepo(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create temp repo: %s", err)
+		return nil, nil, fmt.Errorf("failed to create temp repo: %s", err)
 	}
 
 	// Spawning an ephemeral IPFS node
@@ -182,11 +233,11 @@ func spawnEphemeral(ctx context.Context) (icore.CoreAPI, error) {
 }
 
 // Creates an IPFS node and returns its coreAPI
-func createNode(ctx context.Context, repoPath string) (icore.CoreAPI, error) {
+func createNode(ctx context.Context, repoPath string) (icore.CoreAPI, *core.IpfsNode, error) {
 	// Open the repo
 	repo, err := fsrepo.Open(repoPath)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Construct the node
@@ -200,9 +251,14 @@ func createNode(ctx context.Context, repoPath string) (icore.CoreAPI, error) {
 
 	node, err := core.NewNode(ctx, nodeOptions)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Attach the Core API to the constructed node
-	return coreapi.NewCoreAPI(node)
+	api, err := coreapi.NewCoreAPI(node)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return api, node, err
 }

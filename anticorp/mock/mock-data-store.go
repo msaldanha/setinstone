@@ -5,11 +5,11 @@
 package mock
 
 import (
-	"context"
-	"github.com/golang/mock/gomock"
-	x "github.com/msaldanha/setinstone/anticorp/datastore"
-	"io"
-	"reflect"
+	context "context"
+	gomock "github.com/golang/mock/gomock"
+	datastore "github.com/msaldanha/setinstone/anticorp/datastore"
+	io "io"
+	reflect "reflect"
 )
 
 // MockDataStore is a mock of DataStore interface
@@ -36,10 +36,10 @@ func (m *MockDataStore) EXPECT() *MockDataStoreMockRecorder {
 }
 
 // AddFile mocks base method
-func (m *MockDataStore) AddFile(ctx context.Context, path string) (x.Link, error) {
+func (m *MockDataStore) AddFile(ctx context.Context, path string) (datastore.Link, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddFile", ctx, path)
-	ret0, _ := ret[0].(x.Link)
+	ret0, _ := ret[0].(datastore.Link)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -51,10 +51,10 @@ func (mr *MockDataStoreMockRecorder) AddFile(ctx, path interface{}) *gomock.Call
 }
 
 // AddBytes mocks base method
-func (m *MockDataStore) AddBytes(ctx context.Context, name string, bytes []byte) (x.Link, error) {
+func (m *MockDataStore) AddBytes(ctx context.Context, name string, bytes []byte) (datastore.Link, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AddBytes", ctx, name, bytes)
-	ret0, _ := ret[0].(x.Link)
+	ret0, _ := ret[0].(datastore.Link)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -63,6 +63,20 @@ func (m *MockDataStore) AddBytes(ctx context.Context, name string, bytes []byte)
 func (mr *MockDataStoreMockRecorder) AddBytes(ctx, name, bytes interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddBytes", reflect.TypeOf((*MockDataStore)(nil).AddBytes), ctx, name, bytes)
+}
+
+// Remove mocks base method
+func (m *MockDataStore) Remove(ctx context.Context, name string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Remove", ctx, name)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Remove indicates an expected call of Remove
+func (mr *MockDataStoreMockRecorder) Remove(ctx, name interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Remove", reflect.TypeOf((*MockDataStore)(nil).Remove), ctx, name)
 }
 
 // Get mocks base method
@@ -81,10 +95,10 @@ func (mr *MockDataStoreMockRecorder) Get(ctx, hash interface{}) *gomock.Call {
 }
 
 // Ls mocks base method
-func (m *MockDataStore) Ls(ctx context.Context, hash string) ([]x.Link, error) {
+func (m *MockDataStore) Ls(ctx context.Context, hash string) ([]datastore.Link, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Ls", ctx, hash)
-	ret0, _ := ret[0].([]x.Link)
+	ret0, _ := ret[0].([]datastore.Link)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

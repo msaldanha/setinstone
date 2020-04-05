@@ -174,7 +174,7 @@ func (ld *LocalLedger) VerifyTransaction(ctx context.Context, tx *Transaction, m
 			if head.Hash != previous.Hash {
 				return ErrPreviousTransactionIsNotHead
 			}
-			if tx.Seq != previous.Seq + 1 {
+			if tx.Seq != previous.Seq+1 {
 				return ErrInvalidTransactionSeq
 			}
 		}
@@ -194,7 +194,7 @@ func (ld *LocalLedger) verifyPow(tx *Transaction) bool {
 }
 
 func (ld *LocalLedger) verifyTimeStamp(tx *Transaction) bool {
-	_, er:= time.Parse(time.RFC3339, tx.Timestamp)
+	_, er := time.Parse(time.RFC3339, tx.Timestamp)
 	if er != nil {
 		return false
 	}
@@ -255,6 +255,12 @@ func (ld *LocalLedger) saveTransaction(ctx context.Context, key string, tx *Tran
 		return err
 	}
 	key = ld.getLastTransactionKey(tx.Address)
+
+	err = ld.dt.Remove(ctx, key)
+	if err != nil {
+		return err
+	}
+
 	_, err = ld.dt.AddBytes(ctx, key, []byte(data))
 	if err != nil {
 		return err
@@ -310,6 +316,6 @@ func (ld *LocalLedger) getLastTransactionKey(addr string) string {
 	return ld.getTransactionKey(addr, strings.Repeat("1", hashSize))
 }
 
-func (ld *LocalLedger) getTransactionKey(parts... string) string {
+func (ld *LocalLedger) getTransactionKey(parts ...string) string {
 	return ld.nameSpace + "/" + strings.Join(parts, "/")
 }
