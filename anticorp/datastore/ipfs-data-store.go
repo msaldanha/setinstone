@@ -35,6 +35,8 @@ type ipfsDataStore struct {
 	ipfsNode *core.IpfsNode
 }
 
+var IpfsErrPrefix = "IpfsDataStore: "
+
 func NewIPFSDataStore() DataStore {
 	ctx := context.Background()
 
@@ -53,35 +55,33 @@ func NewIPFSDataStore() DataStore {
 }
 
 func (d ipfsDataStore) Put(ctx context.Context, key string, b []byte) (Link, error) {
-	f := files.NewBytesFile(b)
-
 	id := multihash.NewId()
 	er := id.SetData([]byte(key))
 	if er != nil {
-		return Link{}, fmt.Errorf("could not add File: %s", er)
+		return Link{}, fmt.Errorf(IpfsErrPrefix+"could not generate id: %s", er)
 	}
 
 	bcid := id.Cid()
 
-	bl, err := blocks.NewBlockWithCid(b, bcid)
-	if err != nil {
-		return Link{}, err
+	bl, er := blocks.NewBlockWithCid(b, bcid)
+	if er != nil {
+		return Link{}, fmt.Errorf(IpfsErrPrefix+"could not create block: %s", er)
 	}
 
 	defer d.ipfsNode.Blockstore.PinLock().Unlock()
-	err = d.ipfsNode.Blockstore.Put(bl)
-	if err != nil {
-		return Link{}, err
+	er = d.ipfsNode.Blockstore.Put(bl)
+	if er != nil {
+		return Link{}, fmt.Errorf(IpfsErrPrefix+"could not add block: %s", er)
 	}
 
 	d.ipfsNode.Pinning.PinWithMode(bl.Cid(), pin.Recursive)
-	if err := d.ipfsNode.Pinning.Flush(ctx); err != nil {
-		return Link{}, err
+	if er = d.ipfsNode.Pinning.Flush(ctx); er != nil {
+		return Link{}, fmt.Errorf(IpfsErrPrefix+"could not flush pinning: %s", er)
 	}
 
 	fmt.Printf("Added block to IPFS with CID %s\n", bcid.String())
 
-	size, _ := f.Size()
+	size := len(b)
 
 	return Link{
 		Hash: bcid.String(),
@@ -93,12 +93,12 @@ func (d ipfsDataStore) Remove(ctx context.Context, key string) error {
 	id := multihash.NewId()
 	er := id.SetData([]byte(key))
 	if er != nil {
-		return fmt.Errorf("could not remove data: %s", er)
+		return fmt.Errorf(IpfsErrPrefix+"could not generate id: %s", er)
 	}
 
 	er = d.ipfsNode.Blockstore.DeleteBlock(id.Cid())
 	if er != nil {
-		return fmt.Errorf("could not remove data: %s", er)
+		return fmt.Errorf(IpfsErrPrefix+"could not remove data: %s", er)
 	}
 
 	fmt.Printf("Removed block from IPFS with CID %s\n", id.Cid().String())
@@ -110,7 +110,7 @@ func (d ipfsDataStore) Get(ctx context.Context, key string) (io.Reader, error) {
 	id := multihash.NewId()
 	er := id.SetData([]byte(key))
 	if er != nil {
-		return nil, fmt.Errorf("could not add File: %s", er)
+		return nil, fmt.Errorf(IpfsErrPrefix+"could not generate id: %s", er)
 	}
 
 	bcid := id.Cid()
@@ -124,7 +124,7 @@ func (d ipfsDataStore) Get(ctx context.Context, key string) (io.Reader, error) {
 		return nil, ErrNotFound
 	}
 	if er != nil {
-		return nil, fmt.Errorf("could not get file with CID: %s", bcid.String())
+		return nil, fmt.Errorf(IpfsErrPrefix+"could not get data with CID: %s", bcid.String())
 	}
 
 	return fileReader, nil
