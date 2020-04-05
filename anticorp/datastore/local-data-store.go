@@ -19,39 +19,27 @@ func NewLocalFileStore() DataStore {
 	}
 }
 
-func (d localDataStore) AddFile(ctx context.Context, path string) (Link, error) {
-	return Link{}, nil
-}
-
-func (d localDataStore) AddBytes(ctx context.Context, name string, b []byte) (Link, error) {
+func (d localDataStore) Put(ctx context.Context, key string, b []byte) (Link, error) {
 	hash := sha256.Sum256(b)
 	hexHash := hex.EncodeToString(hash[:])
 	link := Link{
 		Hash: hexHash,
-		Name: name,
+		Name: key,
 		Size: uint64(len(b)),
 	}
-	d.pairs[name] = b
+	d.pairs[key] = b
 	return link, nil
 }
 
-func (d localDataStore) Remove(ctx context.Context, name string) error {
-	delete(d.pairs, name)
+func (d localDataStore) Remove(ctx context.Context, key string) error {
+	delete(d.pairs, key)
 	return nil
 }
 
-func (d localDataStore) Get(ctx context.Context, hash string) (io.Reader, error) {
-	b, ok := d.pairs[hash]
+func (d localDataStore) Get(ctx context.Context, key string) (io.Reader, error) {
+	b, ok := d.pairs[key]
 	if !ok {
 		return nil, ErrNotFound
 	}
 	return bytes.NewReader(b), nil
-}
-
-func (d localDataStore) Ls(ctx context.Context, hash string) ([]Link, error) {
-	return nil, nil
-}
-
-func (d localDataStore) Exists(ctx context.Context, hash string) (bool, error) {
-	return false, nil
 }

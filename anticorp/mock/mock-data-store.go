@@ -35,91 +35,46 @@ func (m *MockDataStore) EXPECT() *MockDataStoreMockRecorder {
 	return m.recorder
 }
 
-// AddFile mocks base method
-func (m *MockDataStore) AddFile(ctx context.Context, path string) (datastore.Link, error) {
+// Put mocks base method
+func (m *MockDataStore) Put(ctx context.Context, key string, bytes []byte) (datastore.Link, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AddFile", ctx, path)
+	ret := m.ctrl.Call(m, "Put", ctx, key, bytes)
 	ret0, _ := ret[0].(datastore.Link)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// AddFile indicates an expected call of AddFile
-func (mr *MockDataStoreMockRecorder) AddFile(ctx, path interface{}) *gomock.Call {
+// Put indicates an expected call of Put
+func (mr *MockDataStoreMockRecorder) Put(ctx, key, bytes interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddFile", reflect.TypeOf((*MockDataStore)(nil).AddFile), ctx, path)
-}
-
-// AddBytes mocks base method
-func (m *MockDataStore) AddBytes(ctx context.Context, name string, bytes []byte) (datastore.Link, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AddBytes", ctx, name, bytes)
-	ret0, _ := ret[0].(datastore.Link)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// AddBytes indicates an expected call of AddBytes
-func (mr *MockDataStoreMockRecorder) AddBytes(ctx, name, bytes interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddBytes", reflect.TypeOf((*MockDataStore)(nil).AddBytes), ctx, name, bytes)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Put", reflect.TypeOf((*MockDataStore)(nil).Put), ctx, key, bytes)
 }
 
 // Remove mocks base method
-func (m *MockDataStore) Remove(ctx context.Context, name string) error {
+func (m *MockDataStore) Remove(ctx context.Context, key string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Remove", ctx, name)
+	ret := m.ctrl.Call(m, "Remove", ctx, key)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Remove indicates an expected call of Remove
-func (mr *MockDataStoreMockRecorder) Remove(ctx, name interface{}) *gomock.Call {
+func (mr *MockDataStoreMockRecorder) Remove(ctx, key interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Remove", reflect.TypeOf((*MockDataStore)(nil).Remove), ctx, name)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Remove", reflect.TypeOf((*MockDataStore)(nil).Remove), ctx, key)
 }
 
 // Get mocks base method
-func (m *MockDataStore) Get(ctx context.Context, hash string) (io.Reader, error) {
+func (m *MockDataStore) Get(ctx context.Context, key string) (io.Reader, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Get", ctx, hash)
+	ret := m.ctrl.Call(m, "Get", ctx, key)
 	ret0, _ := ret[0].(io.Reader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Get indicates an expected call of Get
-func (mr *MockDataStoreMockRecorder) Get(ctx, hash interface{}) *gomock.Call {
+func (mr *MockDataStoreMockRecorder) Get(ctx, key interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockDataStore)(nil).Get), ctx, hash)
-}
-
-// Ls mocks base method
-func (m *MockDataStore) Ls(ctx context.Context, hash string) ([]datastore.Link, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Ls", ctx, hash)
-	ret0, _ := ret[0].([]datastore.Link)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Ls indicates an expected call of Ls
-func (mr *MockDataStoreMockRecorder) Ls(ctx, hash interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Ls", reflect.TypeOf((*MockDataStore)(nil).Ls), ctx, hash)
-}
-
-// Exists mocks base method
-func (m *MockDataStore) Exists(ctx context.Context, hash string) (bool, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Exists", ctx, hash)
-	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Exists indicates an expected call of Exists
-func (mr *MockDataStoreMockRecorder) Exists(ctx, hash interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Exists", reflect.TypeOf((*MockDataStore)(nil).Exists), ctx, hash)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockDataStore)(nil).Get), ctx, key)
 }

@@ -25,7 +25,7 @@ func (ts *transactionStore) Store(ctx context.Context, tx *Transaction) error {
 	if err != nil {
 		return err
 	}
-	_, err = ts.dt.AddBytes(ctx, tx.Hash, []byte(data))
+	_, err = ts.dt.Put(ctx, tx.Hash, []byte(data))
 	if err != nil {
 		return err
 	}

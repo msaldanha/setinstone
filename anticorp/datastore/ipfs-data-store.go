@@ -52,35 +52,11 @@ func NewIPFSDataStore() DataStore {
 	}
 }
 
-func (d ipfsDataStore) AddFile(ctx context.Context, path string) (Link, error) {
-	someFile, err := getUnixfsNode(path)
-	if err != nil {
-		return Link{}, fmt.Errorf("could not get File: %s", err)
-	}
-
-	cidFile, err := d.ipfs.Unixfs().Add(ctx, someFile)
-	if err != nil {
-		return Link{}, fmt.Errorf("could not add File: %s", err)
-	}
-
-	stat, err := d.ipfs.Block().Stat(ctx, cidFile)
-	if err != nil {
-		return Link{}, fmt.Errorf("could not stat File: %s", err)
-	}
-
-	fmt.Printf("Added file to IPFS with CID %s\n", cidFile.String())
-
-	return Link{
-		Hash: cidFile.String(),
-		Size: uint64(stat.Size()),
-	}, nil
-}
-
-func (d ipfsDataStore) AddBytes(ctx context.Context, name string, b []byte) (Link, error) {
+func (d ipfsDataStore) Put(ctx context.Context, key string, b []byte) (Link, error) {
 	f := files.NewBytesFile(b)
 
 	id := multihash.NewId()
-	er := id.SetData([]byte(name))
+	er := id.SetData([]byte(key))
 	if er != nil {
 		return Link{}, fmt.Errorf("could not add File: %s", er)
 	}
@@ -113,9 +89,9 @@ func (d ipfsDataStore) AddBytes(ctx context.Context, name string, b []byte) (Lin
 	}, nil
 }
 
-func (d ipfsDataStore) Remove(ctx context.Context, name string) error {
+func (d ipfsDataStore) Remove(ctx context.Context, key string) error {
 	id := multihash.NewId()
-	er := id.SetData([]byte(name))
+	er := id.SetData([]byte(key))
 	if er != nil {
 		return fmt.Errorf("could not remove data: %s", er)
 	}
@@ -130,9 +106,9 @@ func (d ipfsDataStore) Remove(ctx context.Context, name string) error {
 	return nil
 }
 
-func (d ipfsDataStore) Get(ctx context.Context, hash string) (io.Reader, error) {
+func (d ipfsDataStore) Get(ctx context.Context, key string) (io.Reader, error) {
 	id := multihash.NewId()
-	er := id.SetData([]byte(hash))
+	er := id.SetData([]byte(key))
 	if er != nil {
 		return nil, fmt.Errorf("could not add File: %s", er)
 	}
@@ -152,14 +128,6 @@ func (d ipfsDataStore) Get(ctx context.Context, hash string) (io.Reader, error) 
 	}
 
 	return fileReader, nil
-}
-
-func (d ipfsDataStore) Ls(ctx context.Context, hash string) ([]Link, error) {
-	return nil, nil
-}
-
-func (d ipfsDataStore) Exists(ctx context.Context, hash string) (bool, error) {
-	return false, nil
 }
 
 func getUnixfsNode(path string) (files.Node, error) {

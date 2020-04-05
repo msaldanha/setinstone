@@ -250,7 +250,7 @@ func (ld *LocalLedger) saveTransaction(ctx context.Context, key string, tx *Tran
 	if err != nil {
 		return err
 	}
-	_, err = ld.dt.AddBytes(ctx, key, []byte(data))
+	_, err = ld.dt.Put(ctx, key, []byte(data))
 	if err != nil {
 		return err
 	}
@@ -261,7 +261,7 @@ func (ld *LocalLedger) saveTransaction(ctx context.Context, key string, tx *Tran
 		return err
 	}
 
-	_, err = ld.dt.AddBytes(ctx, key, []byte(data))
+	_, err = ld.dt.Put(ctx, key, []byte(data))
 	if err != nil {
 		return err
 	}
