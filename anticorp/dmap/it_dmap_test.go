@@ -76,6 +76,32 @@ var _ = Describe("Map", func() {
 		Expect(data).To(Equal(dataToAdd))
 	})
 
+	It("When adding, should return error if previous transaction does not exists", func() {
+		mockCtrl := gomock.NewController(GinkgoT())
+		defer mockCtrl.Finish()
+
+		distMap := dmap.NewMap(ld, addr)
+
+		dataToAdd := testPayLoad{NumberField: 1000, StringFiled: "some data added"}
+		_, er := distMap.Add(ctx, toBytes(dataToAdd))
+
+		Expect(er).To(Equal(dmap.ErrPreviousNotFound))
+	})
+
+	It("When adding, should return error if addr does not have the keys", func() {
+		mockCtrl := gomock.NewController(GinkgoT())
+		defer mockCtrl.Finish()
+
+		a, _ := address.NewAddressWithKeys()
+		a.Keys = nil
+		distMap := dmap.NewMap(ld, a)
+
+		dataToAdd := testPayLoad{NumberField: 1000, StringFiled: "some data added"}
+		_, er := distMap.Add(ctx, toBytes(dataToAdd))
+
+		Expect(er).To(Equal(dmap.ErrReadOnly))
+	})
+
 	It("Should return iterator", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()

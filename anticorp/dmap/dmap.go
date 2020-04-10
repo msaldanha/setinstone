@@ -13,6 +13,8 @@ const (
 	ErrInvalidIteratorState = err.Error("invalid iterator state")
 	ErrAlreadyInitialized   = err.Error("already initialized")
 	ErrNotFound             = err.Error("not found")
+	ErrPreviousNotFound     = err.Error("previous item not found")
+	ErrReadOnly             = err.Error("read only")
 )
 
 type Iterator interface {
@@ -103,10 +105,18 @@ func (d dmap) Get(ctx context.Context, key string) ([]byte, bool, error) {
 }
 
 func (d dmap) Add(ctx context.Context, data []byte) (string, error) {
+	if d.addr.Keys == nil || d.addr.Keys.PrivateKey == nil {
+		return "", ErrReadOnly
+	}
+
 	prev, er := d.ld.GetLastTransaction(ctx, d.addr.Address)
+	if er == datastore.ErrNotFound {
+		return "", ErrPreviousNotFound
+	}
 	if er != nil {
 		return "", d.translateError(er)
 	}
+
 	tx, er := createTransaction(datachain.TransactionTypes.Doc, data, prev, d.addr)
 	if er != nil {
 		return "", er
