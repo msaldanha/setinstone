@@ -59,12 +59,18 @@ func (tx *Transaction) GetHashableBytes() ([][]byte, error) {
 	result := [][]byte{
 		seq.Bytes(),
 		[]byte(tx.Type),
-		[]byte(tx.Timestamp),
 		[]byte(tx.Address),
 		[]byte(tx.Previous),
 		props,
 		tx.Data,
 	}
+	return result, nil
+}
+
+func (tx *Transaction) GetSignableBytes() ([]byte, error) {
+	var result []byte
+	result = append(result, []byte(tx.Timestamp)...)
+	result = append(result, []byte(tx.Hash)...)
 	return result, nil
 }
 
@@ -153,17 +159,8 @@ func (tx *Transaction) VerifyPow() (bool, error) {
 }
 
 func (tx *Transaction) Sign(privateKey *ecdsa.PrivateKey) error {
-	id, er := multihash.NewIdFromString(tx.Hash)
-	if er != nil {
-		return er
-	}
-
-	hash, er := id.Digest()
-	if er != nil {
-		return er
-	}
-
-	s, er := Sign(hash, privateKey)
+	data, _ := tx.GetSignableBytes()
+	s, er := Sign(data, privateKey)
 	if er != nil {
 		return er
 	}
@@ -183,17 +180,8 @@ func (tx *Transaction) VerifySignature() error {
 		return ErrUnableToDecodeTransactionPubKey
 	}
 
-	id, er := multihash.NewIdFromString(tx.Hash)
-	if er != nil {
-		return ErrUnableToDecodeTransactionHash
-	}
-
-	hash, er := id.Digest()
-	if er != nil {
-		return ErrUnableToDecodeTransactionHash
-	}
-
-	if !VerifySignature(sign, pubKey, hash) {
+	data, _ := tx.GetSignableBytes()
+	if !VerifySignature(sign, pubKey, data) {
 		return ErrTransactionSignatureDoesNotMatch
 	}
 
