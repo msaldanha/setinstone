@@ -28,6 +28,8 @@ type server struct {
 	opts        ServerOptions
 	store       KeyValueStore
 	timelines   map[string]timeline.Timeline
+	ds          datastore.DataStore
+	ld          datachain.Ledger
 }
 
 type ServerOptions struct {
@@ -56,6 +58,11 @@ func NewServer(_ ServerOptions) (Server, error) {
 		app:         app,
 		store:       store,
 		timelines:   map[string]timeline.Timeline{},
+	}
+
+	er = srv.init()
+	if er != nil {
+		return nil, er
 	}
 
 	app.Get("/randomaddress", srv.getRandomAddress)
@@ -207,6 +214,10 @@ func (s server) createNews(ctx iris.Context) {
 
 	c := context.Background()
 	key, er := tl.Add(c, msg)
+	if er == timeline.ErrReadOnly {
+		returnError(ctx, er, 400)
+		return
+	}
 	if er != nil {
 		returnError(ctx, er, 500)
 		return
@@ -222,32 +233,43 @@ func (s server) getPulpit(addr string) (timeline.Timeline, error) {
 	}
 
 	a := &address.Address{Address: addr}
-	buf, found, er := s.store.Get(addr)
-	if er != nil {
-		return nil, er
-	}
-	if found {
-		er = a.FromBytes(buf)
-		if er != nil {
-			return nil, er
-		}
-	}
-
-	ds := datastore.NewIPFSDataStore() //.NewLocalFileStore()
-	ld := datachain.NewLocalLedger("timeline", ds)
-	m := dmap.NewMap(ld, a)
-
-	if a.Keys != nil {
-		_, er = m.Init(context.Background(), []byte("timeline-"+addr))
-		if er != nil && er != dmap.ErrAlreadyInitialized {
-			return nil, er
-		}
-	}
+	m := dmap.NewMap(s.ld, a)
 
 	tl = timeline.NewTimeline(m)
 	s.timelines[addr] = tl
 
 	return tl, nil
+}
+
+func (s *server) init() error {
+
+	s.ds = datastore.NewIPFSDataStore() // .NewLocalFileStore()
+	s.ld = datachain.NewLocalLedger("timeline", s.ds)
+
+	addrs, er := s.store.GetAll()
+	if er != nil {
+		return er
+	}
+	for _, buf := range addrs {
+		a := &address.Address{}
+		er = a.FromBytes(buf)
+		if er != nil {
+			return er
+		}
+		m := dmap.NewMap(s.ld, a)
+
+		if a.Keys != nil {
+			_, er = m.Init(context.Background(), []byte("timeline-"+a.Address))
+			if er != nil && er != dmap.ErrAlreadyInitialized {
+				return er
+			}
+		}
+
+		tl := timeline.NewTimeline(m)
+		s.timelines[a.Address] = tl
+	}
+
+	return nil
 }
 
 func returnError(ctx iris.Context, er error, statusCode int) {
