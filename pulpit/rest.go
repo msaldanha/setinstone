@@ -2,6 +2,7 @@ package pulpit
 
 import (
 	"context"
+	"fmt"
 	"github.com/kataras/iris/v12"
 	"github.com/kataras/iris/v12/middleware/logger"
 	"github.com/kataras/iris/v12/middleware/recover"
@@ -243,7 +244,19 @@ func (s server) getPulpit(addr string) (timeline.Timeline, error) {
 
 func (s *server) init() error {
 
-	s.ds = datastore.NewIPFSDataStore() // .NewLocalFileStore()
+	ctx := context.Background()
+
+	fmt.Println("Spawning node on a temporary repo")
+	node, er := spawnEphemeral(ctx)
+	if er != nil {
+		panic(fmt.Errorf("failed to spawn ephemeral node: %s", er))
+	}
+	fmt.Println("IPFS node is running")
+
+	s.ds, er = datastore.NewIPFSDataStore(node) // .NewLocalFileStore()
+	if er != nil {
+		panic(fmt.Errorf("failed to setup ipfs data store: %s", er))
+	}
 	s.ld = datachain.NewLocalLedger("timeline", s.ds)
 
 	addrs, er := s.store.GetAll()
