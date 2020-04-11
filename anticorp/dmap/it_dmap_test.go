@@ -65,11 +65,11 @@ var _ = Describe("Map", func() {
 		_, er := distMap.Init(ctx, toBytes(testPayLoad{NumberField: 100, StringFiled: "some data"}))
 
 		dataToAdd := testPayLoad{NumberField: 1000, StringFiled: "some data added"}
-		key, er := distMap.Add(ctx, toBytes(dataToAdd))
+		i, er := distMap.Add(ctx, toBytes(dataToAdd))
 
 		var data testPayLoad
-		v, found, er := distMap.Get(ctx, key)
-		_ = json.Unmarshal(v, &data)
+		v, found, er := distMap.Get(ctx, i.Key)
+		_ = json.Unmarshal(v.Data, &data)
 
 		Expect(er).To(BeNil())
 		Expect(found).To(BeTrue())
@@ -119,9 +119,9 @@ var _ = Describe("Map", func() {
 		for i := 0; i < n; i++ {
 			dataToAdd := testPayLoad{NumberField: i, StringFiled: "some data added"}
 			dataAdded = append(dataAdded, dataToAdd)
-			key, er := distMap.Add(ctx, toBytes(dataToAdd))
+			i, er := distMap.Add(ctx, toBytes(dataToAdd))
 			Expect(er).To(BeNil())
-			keys = append(keys, key)
+			keys = append(keys, i.Key)
 		}
 
 		it, er := distMap.GetIterator(ctx, "")
@@ -131,8 +131,8 @@ var _ = Describe("Map", func() {
 		i := len(dataAdded) - 1
 		for it.HasNext() {
 			data := testPayLoad{}
-			_, v, er := it.Next(ctx)
-			_ = json.Unmarshal(v, &data)
+			v, er := it.Next(ctx)
+			_ = json.Unmarshal(v.Data, &data)
 			Expect(er).To(BeNil())
 			Expect(data).To(Equal(dataAdded[i]))
 			i--
@@ -158,9 +158,9 @@ var _ = Describe("Map", func() {
 		for i := 0; i < n; i++ {
 			dataToAdd := testPayLoad{NumberField: i, StringFiled: "some data added"}
 			dataAdded = append(dataAdded, dataToAdd)
-			key, er := distMap.Add(ctx, toBytes(dataToAdd))
+			v, er := distMap.Add(ctx, toBytes(dataToAdd))
 			Expect(er).To(BeNil())
-			keys = append(keys, key)
+			keys = append(keys, v.Key)
 		}
 
 		it, er := distMap.GetIterator(ctx, keys[5])
@@ -170,8 +170,8 @@ var _ = Describe("Map", func() {
 		i := 5
 		for it.HasNext() {
 			data := testPayLoad{}
-			_, v, er := it.Next(ctx)
-			_ = json.Unmarshal(v, &data)
+			v, er := it.Next(ctx)
+			_ = json.Unmarshal(v.Data, &data)
 
 			Expect(er).To(BeNil())
 			Expect(data).To(Equal(dataAdded[i]))

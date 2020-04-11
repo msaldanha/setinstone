@@ -7,7 +7,6 @@ import (
 	"github.com/msaldanha/setinstone/anticorp/address"
 	"github.com/msaldanha/setinstone/anticorp/dmap"
 	"github.com/msaldanha/setinstone/anticorp/err"
-	"time"
 )
 
 const (
@@ -32,26 +31,26 @@ func NewTimeline(dmap dmap.Map) Timeline {
 }
 
 func (t timeline) Add(ctx context.Context, msg Message) (string, error) {
-	msg.Timestamp = time.Now().UTC().Format(time.RFC3339)
 	msg.Id = ""
+	msg.Address = ""
+	msg.Timestamp = ""
 	js, er := json.Marshal(msg)
 	if er != nil {
 		return "", t.translateError(er)
 	}
-	key, er := t.dmap.Add(ctx, js)
+	i, er := t.dmap.Add(ctx, js)
 	if er != nil {
 		return "", t.translateError(er)
 	}
-	return key, nil
+	return i.Key, nil
 }
 
 func (t timeline) Get(ctx context.Context, key string) (Message, bool, error) {
-	data := Message{}
 	v, found, er := t.dmap.Get(ctx, key)
 	if er != nil {
-		return data, false, t.translateError(er)
+		return Message{}, false, t.translateError(er)
 	}
-	er = json.Unmarshal(v, &data)
+	data, er := t.toMessage(v)
 	if er != nil {
 		return data, false, t.translateError(er)
 	}
@@ -66,20 +65,30 @@ func (t timeline) GetFrom(ctx context.Context, key string, count int) ([]Message
 	i := 0
 	msgs := []Message{}
 	for it.HasNext() && i < count {
-		data := Message{}
-		k, v, er := it.Next(ctx)
+		v, er := it.Next(ctx)
 		if er != nil {
 			return nil, t.translateError(er)
 		}
-		er = json.Unmarshal(v, &data)
+		data, er := t.toMessage(v)
 		if er != nil {
 			return nil, t.translateError(er)
 		}
-		data.Id = k
 		msgs = append(msgs, data)
 		i++
 	}
 	return msgs, nil
+}
+
+func (t timeline) toMessage(v dmap.MapItem) (Message, error) {
+	msg := Message{}
+	er := json.Unmarshal(v.Data, &msg)
+	if er != nil {
+		return Message{}, t.translateError(er)
+	}
+	msg.Id = v.Key
+	msg.Address = v.Address
+	msg.Timestamp = v.Timestamp
+	return msg, nil
 }
 
 func (t timeline) translateError(er error) error {
