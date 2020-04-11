@@ -3,8 +3,10 @@ package pulpit
 import (
 	"context"
 	"fmt"
+	files "github.com/ipfs/go-ipfs-files"
 	"github.com/ipfs/go-ipfs/core/coreapi"
 	icore "github.com/ipfs/interface-go-ipfs-core"
+	"github.com/ipfs/interface-go-ipfs-core/path"
 	"github.com/kataras/iris/v12"
 	"github.com/kataras/iris/v12/middleware/logger"
 	"github.com/kataras/iris/v12/middleware/recover"
@@ -14,6 +16,8 @@ import (
 	"github.com/msaldanha/setinstone/anticorp/dmap"
 	"github.com/msaldanha/setinstone/anticorp/err"
 	"github.com/msaldanha/setinstone/timeline"
+	"io"
+	"time"
 )
 
 const (
@@ -70,6 +74,7 @@ func NewServer(_ ServerOptions) (Server, error) {
 	}
 
 	app.Get("/randomaddress", srv.getRandomAddress)
+	app.Get("/media", srv.getMedia)
 
 	addresses := app.Party("/addresses")
 
@@ -130,6 +135,31 @@ func (s server) getRandomAddress(ctx iris.Context) {
 		return
 	}
 	_, _ = ctx.JSON(Response{Payload: a})
+}
+
+func (s server) getMedia(ctx iris.Context) {
+	id := ctx.URLParam("id")
+	p := path.New(id)
+	c, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	node, er := s.ipfs.Unixfs().Get(c, p)
+	if er == context.DeadlineExceeded {
+		returnError(ctx, fmt.Errorf("not found: %s", id), 404)
+		return
+	}
+	if er != nil {
+		returnError(ctx, er, 500)
+		return
+	}
+	f, ok := node.(files.File)
+	if !ok {
+		returnError(ctx, fmt.Errorf("not a file: %s", id), 400)
+		return
+	}
+	ctx.StreamWriter(func(w io.Writer) bool {
+		io.Copy(w, f)
+		return false
+	})
 }
 
 func (s server) getAddresses(ctx iris.Context) {
