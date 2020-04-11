@@ -75,6 +75,7 @@ func NewServer(_ ServerOptions) (Server, error) {
 
 	app.Get("/randomaddress", srv.getRandomAddress)
 	app.Get("/media", srv.getMedia)
+	app.Post("/media", srv.postMedia)
 
 	addresses := app.Party("/addresses")
 
@@ -160,6 +161,35 @@ func (s server) getMedia(ctx iris.Context) {
 		io.Copy(w, f)
 		return false
 	})
+}
+
+func (s server) postMedia(ctx iris.Context) {
+	body := AddMediaRequest{}
+	er := ctx.ReadJSON(&body)
+	if er != nil {
+		returnError(ctx, er, 400)
+		return
+	}
+
+	results := []AddMediaResult{}
+	for _, v := range body.Files {
+		id, er := s.addFile(v)
+		if er != nil {
+			results = append(results, AddMediaResult{
+				File:  v,
+				Id:    id,
+				Error: er.Error(),
+			})
+		} else {
+			results = append(results, AddMediaResult{
+				File:  v,
+				Id:    id,
+				Error: "",
+			})
+		}
+
+	}
+	_, _ = ctx.JSON(Response{Payload: results})
 }
 
 func (s server) getAddresses(ctx iris.Context) {
