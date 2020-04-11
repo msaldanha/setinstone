@@ -47,6 +47,7 @@ type iterator struct {
 }
 
 type MapItem struct {
+	Seq       int
 	Key       string
 	Address   string
 	Timestamp string
@@ -225,6 +226,7 @@ func (d dmap) setLastTransaction(tx *datachain.Transaction) {
 
 func (d dmap) toMapItem(tx *datachain.Transaction) MapItem {
 	return MapItem{
+		Seq:       int(tx.Seq),
 		Key:       tx.Hash,
 		Address:   tx.Address,
 		Timestamp: tx.Timestamp,

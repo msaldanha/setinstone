@@ -3,6 +3,8 @@ package pulpit
 import (
 	"context"
 	"fmt"
+	"github.com/ipfs/go-ipfs/core/coreapi"
+	icore "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/kataras/iris/v12"
 	"github.com/kataras/iris/v12/middleware/logger"
 	"github.com/kataras/iris/v12/middleware/recover"
@@ -31,6 +33,7 @@ type server struct {
 	timelines   map[string]timeline.Timeline
 	ds          datastore.DataStore
 	ld          datachain.Ledger
+	ipfs        icore.CoreAPI
 }
 
 type ServerOptions struct {
@@ -200,8 +203,8 @@ func (s server) getNewsByHash(ctx iris.Context) {
 
 func (s server) createNews(ctx iris.Context) {
 	addr := ctx.Params().Get("addr")
-	msg := timeline.Message{}
-	er := ctx.ReadJSON(&msg)
+	body := AddMessageRequest{}
+	er := ctx.ReadJSON(&body)
 	if er != nil {
 		returnError(ctx, er, 400)
 		return
@@ -213,6 +216,11 @@ func (s server) createNews(ctx iris.Context) {
 		return
 	}
 
+	msg, er := s.toTimelineMessage(body)
+	if er != nil {
+		returnError(ctx, er, 500)
+		return
+	}
 	c := context.Background()
 	key, er := tl.Add(c, msg)
 	if er == timeline.ErrReadOnly {
@@ -252,6 +260,11 @@ func (s *server) init() error {
 		panic(fmt.Errorf("failed to spawn ephemeral node: %s", er))
 	}
 	fmt.Println("IPFS node is running")
+	// Attach the Core API to the node
+	s.ipfs, er = coreapi.NewCoreAPI(node)
+	if er != nil {
+		panic(fmt.Errorf("failed to get ipfs api: %s", er))
+	}
 
 	s.ds, er = datastore.NewIPFSDataStore(node) // .NewLocalFileStore()
 	if er != nil {

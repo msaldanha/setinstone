@@ -85,6 +85,7 @@ func (t timeline) toMessage(v dmap.MapItem) (Message, error) {
 	if er != nil {
 		return Message{}, t.translateError(er)
 	}
+	msg.Seq = v.Seq
 	msg.Id = v.Key
 	msg.Address = v.Address
 	msg.Timestamp = v.Timestamp
