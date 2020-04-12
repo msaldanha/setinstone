@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package node;
+
+option go_package = "dag";
+
+message Node {
+    string timestamp = 1;
+    string address = 2;
+    string previous = 3;
+    map<string, string> properties = 4;
+    repeated string branches = 5;
+    bytes data = 6;
+    int32 powTarget = 7;
+    int64 powNonce = 8;
+    string hash = 9;
+    string pubKey = 10;
+    string signature = 11;
+}
