@@ -9,11 +9,12 @@ message Node {
     string address = 2;
     string previous = 3;
     map<string, string> properties = 4;
-    repeated string branches = 5;
-    bytes data = 6;
-    int32 powTarget = 7;
-    int64 powNonce = 8;
-    string hash = 9;
-    string pubKey = 10;
-    string signature = 11;
+    map<string, string> edges = 5;
+    repeated string branches = 6;
+    bytes data = 7;
+    int32 powTarget = 8;
+    int64 powNonce = 9;
+    string hash = 10;
+    string pubKey = 11;
+    string signature = 12;
 }

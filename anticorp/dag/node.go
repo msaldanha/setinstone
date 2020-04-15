@@ -12,7 +12,7 @@ import (
 	"math/big"
 )
 
-//go:generate protoc transaction.proto --go_out=plugins=grpc:./
+//go:generate protoc node.proto --go_out=plugins=grpc:./
 
 const (
 	ErrUnableToDecodeNodeSignature = err.Error("unable to decode node signature")
