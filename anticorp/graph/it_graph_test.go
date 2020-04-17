@@ -1,13 +1,13 @@
-package dmap_test
+package graph_test
 
 import (
 	"context"
 	"encoding/json"
 	"github.com/golang/mock/gomock"
 	"github.com/msaldanha/setinstone/anticorp/address"
-	"github.com/msaldanha/setinstone/anticorp/datachain"
+	"github.com/msaldanha/setinstone/anticorp/dag"
 	"github.com/msaldanha/setinstone/anticorp/datastore"
-	"github.com/msaldanha/setinstone/anticorp/dmap"
+	"github.com/msaldanha/setinstone/anticorp/graph"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -17,9 +17,9 @@ type testPayLoad struct {
 	StringFiled string
 }
 
-var _ = Describe("Map", func() {
+var _ = Describe("Graph", func() {
 
-	var ld datachain.Ledger
+	var ld dag.Dag
 	var ctx context.Context
 	var lts datastore.DataStore
 
@@ -28,47 +28,35 @@ var _ = Describe("Map", func() {
 	BeforeEach(func() {
 		ctx = context.Background()
 		lts = datastore.NewLocalFileStore()
-		ld = datachain.NewLocalLedger("test-ledger", lts)
+		ld = dag.NewDag("test-graph", lts)
 	})
 
 	It("Should initialize", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		distMap := dmap.NewMap(ld, addr)
+		gr := graph.NewGraph(ld, addr)
 
-		key, er := distMap.Init(ctx, toBytes(testPayLoad{NumberField: 100, StringFiled: "some data"}))
+		key, er := gr.Init(ctx, toBytes(testPayLoad{NumberField: 100, StringFiled: "some data"}))
 
 		Expect(er).To(BeNil())
 		Expect(key).NotTo(BeEmpty())
 	})
 
-	It("Should open", func() {
+	It("Should add node", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		m := dmap.NewMap(ld, addr)
-		_, _ = m.Init(ctx, toBytes(testPayLoad{NumberField: 100, StringFiled: "some data"}))
+		gr := graph.NewGraph(ld, addr)
 
-		distMap := dmap.NewMap(ld, addr)
-		er := distMap.Open(ctx)
-
-		Expect(er).To(BeNil())
-	})
-
-	It("Should add transaction", func() {
-		mockCtrl := gomock.NewController(GinkgoT())
-		defer mockCtrl.Finish()
-
-		distMap := dmap.NewMap(ld, addr)
-
-		_, er := distMap.Init(ctx, toBytes(testPayLoad{NumberField: 100, StringFiled: "some data"}))
+		_, er := gr.Init(ctx, toBytes(testPayLoad{NumberField: 100, StringFiled: "some data"}))
 
 		dataToAdd := testPayLoad{NumberField: 1000, StringFiled: "some data added"}
-		i, er := distMap.Add(ctx, toBytes(dataToAdd))
+		i, er := gr.Add(ctx, "", "", toBytes(dataToAdd), nil)
+		Expect(er).To(BeNil())
 
 		var data testPayLoad
-		v, found, er := distMap.Get(ctx, i.Key)
+		v, found, er := gr.Get(ctx, i.Key)
 		_ = json.Unmarshal(v.Data, &data)
 
 		Expect(er).To(BeNil())
@@ -76,16 +64,16 @@ var _ = Describe("Map", func() {
 		Expect(data).To(Equal(dataToAdd))
 	})
 
-	It("When adding, should return error if previous transaction does not exists", func() {
+	It("When adding, should return error if previous node does not exists", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		distMap := dmap.NewMap(ld, addr)
+		gr := graph.NewGraph(ld, addr)
 
 		dataToAdd := testPayLoad{NumberField: 1000, StringFiled: "some data added"}
-		_, er := distMap.Add(ctx, toBytes(dataToAdd))
+		_, er := gr.Add(ctx, "", "", toBytes(dataToAdd), nil)
 
-		Expect(er).To(Equal(dmap.ErrPreviousNotFound))
+		Expect(er).To(Equal(graph.ErrPreviousNotFound))
 	})
 
 	It("When adding, should return error if addr does not have the keys", func() {
@@ -94,24 +82,24 @@ var _ = Describe("Map", func() {
 
 		a, _ := address.NewAddressWithKeys()
 		a.Keys = nil
-		distMap := dmap.NewMap(ld, a)
+		gr := graph.NewGraph(ld, a)
 
 		dataToAdd := testPayLoad{NumberField: 1000, StringFiled: "some data added"}
-		_, er := distMap.Add(ctx, toBytes(dataToAdd))
+		_, er := gr.Add(ctx, "", "", toBytes(dataToAdd), nil)
 
-		Expect(er).To(Equal(dmap.ErrReadOnly))
+		Expect(er).To(Equal(graph.ErrReadOnly))
 	})
 
 	It("Should return iterator", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		distMap := dmap.NewMap(ld, addr)
+		gr := graph.NewGraph(ld, addr)
 
 		dataAdded := []testPayLoad{}
 		dataToAdd := testPayLoad{NumberField: 1000, StringFiled: "initial data"}
 		dataAdded = append(dataAdded, dataToAdd)
-		_, _ = distMap.Init(ctx, toBytes(dataToAdd))
+		_, _ = gr.Init(ctx, toBytes(dataToAdd))
 
 		n := 10
 		keys := []string{}
@@ -119,12 +107,12 @@ var _ = Describe("Map", func() {
 		for i := 0; i < n; i++ {
 			dataToAdd := testPayLoad{NumberField: i, StringFiled: "some data added"}
 			dataAdded = append(dataAdded, dataToAdd)
-			i, er := distMap.Add(ctx, toBytes(dataToAdd))
+			i, er := gr.Add(ctx, "", "", toBytes(dataToAdd), nil)
 			Expect(er).To(BeNil())
 			keys = append(keys, i.Key)
 		}
 
-		it, er := distMap.GetIterator(ctx, "")
+		it, er := gr.GetIterator(ctx, "", "", "")
 		Expect(er).To(BeNil())
 		Expect(it).NotTo(BeNil())
 
@@ -137,19 +125,19 @@ var _ = Describe("Map", func() {
 			Expect(data).To(Equal(dataAdded[i]))
 			i--
 		}
-		Expect(i).To(Equal(0))
+		Expect(i).To(Equal(-1))
 	})
 
 	It("Should return iterator from desired key", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		distMap := dmap.NewMap(ld, addr)
+		gr := graph.NewGraph(ld, addr)
 
 		dataAdded := []testPayLoad{}
 		dataToAdd := testPayLoad{NumberField: 1000, StringFiled: "initial data"}
 		dataAdded = append(dataAdded, dataToAdd)
-		key, _ := distMap.Init(ctx, toBytes(dataToAdd))
+		key, _ := gr.Init(ctx, toBytes(dataToAdd))
 
 		n := 10
 		keys := []string{}
@@ -158,12 +146,12 @@ var _ = Describe("Map", func() {
 		for i := 0; i < n; i++ {
 			dataToAdd := testPayLoad{NumberField: i, StringFiled: "some data added"}
 			dataAdded = append(dataAdded, dataToAdd)
-			v, er := distMap.Add(ctx, toBytes(dataToAdd))
+			v, er := gr.Add(ctx, "", "", toBytes(dataToAdd), nil)
 			Expect(er).To(BeNil())
 			keys = append(keys, v.Key)
 		}
 
-		it, er := distMap.GetIterator(ctx, keys[5])
+		it, er := gr.GetIterator(ctx, "", "", keys[5])
 		Expect(er).To(BeNil())
 		Expect(it).NotTo(BeNil())
 
@@ -177,7 +165,7 @@ var _ = Describe("Map", func() {
 			Expect(data).To(Equal(dataAdded[i]))
 			i--
 		}
-		Expect(i).To(Equal(0))
+		Expect(i).To(Equal(-1))
 	})
 })
 

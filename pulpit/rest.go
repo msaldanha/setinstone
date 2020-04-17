@@ -11,10 +11,10 @@ import (
 	"github.com/kataras/iris/v12/middleware/logger"
 	"github.com/kataras/iris/v12/middleware/recover"
 	"github.com/msaldanha/setinstone/anticorp/address"
-	"github.com/msaldanha/setinstone/anticorp/datachain"
+	"github.com/msaldanha/setinstone/anticorp/dag"
 	"github.com/msaldanha/setinstone/anticorp/datastore"
-	"github.com/msaldanha/setinstone/anticorp/dmap"
 	"github.com/msaldanha/setinstone/anticorp/err"
+	"github.com/msaldanha/setinstone/anticorp/graph"
 	"github.com/msaldanha/setinstone/timeline"
 	"io"
 	"time"
@@ -36,7 +36,7 @@ type server struct {
 	store       KeyValueStore
 	timelines   map[string]timeline.Timeline
 	ds          datastore.DataStore
-	ld          datachain.Ledger
+	ld          dag.Dag
 	ipfs        icore.CoreAPI
 }
 
@@ -302,7 +302,7 @@ func (s server) getPulpit(addr string) (timeline.Timeline, error) {
 	}
 
 	a := &address.Address{Address: addr}
-	m := dmap.NewMap(s.ld, a)
+	m := graph.NewGraph(s.ld, a)
 
 	tl = timeline.NewTimeline(m)
 	s.timelines[addr] = tl
@@ -330,7 +330,7 @@ func (s *server) init() error {
 	if er != nil {
 		panic(fmt.Errorf("failed to setup ipfs data store: %s", er))
 	}
-	s.ld = datachain.NewLocalLedger("timeline", s.ds)
+	s.ld = dag.NewDag("timeline", s.ds)
 
 	addrs, er := s.store.GetAll()
 	if er != nil {
@@ -342,11 +342,11 @@ func (s *server) init() error {
 		if er != nil {
 			return er
 		}
-		m := dmap.NewMap(s.ld, a)
+		m := graph.NewGraph(s.ld, a)
 
 		if a.Keys != nil {
 			_, er = m.Init(context.Background(), []byte("timeline-"+a.Address))
-			if er != nil && er != dmap.ErrAlreadyInitialized {
+			if er != nil && er != graph.ErrAlreadyInitialized {
 				return er
 			}
 		}

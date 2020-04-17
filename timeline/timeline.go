@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/msaldanha/setinstone/anticorp/address"
-	"github.com/msaldanha/setinstone/anticorp/dmap"
 	"github.com/msaldanha/setinstone/anticorp/err"
+	"github.com/msaldanha/setinstone/anticorp/graph"
 )
 
 const (
@@ -20,13 +20,13 @@ type Timeline interface {
 }
 
 type timeline struct {
-	dmap dmap.Map
+	gr   graph.Graph
 	addr *address.Address
 }
 
-func NewTimeline(dmap dmap.Map) Timeline {
+func NewTimeline(gr graph.Graph) Timeline {
 	return timeline{
-		dmap: dmap,
+		gr: gr,
 	}
 }
 
@@ -38,7 +38,7 @@ func (t timeline) Add(ctx context.Context, msg Message) (string, error) {
 	if er != nil {
 		return "", t.translateError(er)
 	}
-	i, er := t.dmap.Add(ctx, js)
+	i, er := t.gr.Add(ctx, "", "", js, nil)
 	if er != nil {
 		return "", t.translateError(er)
 	}
@@ -46,7 +46,7 @@ func (t timeline) Add(ctx context.Context, msg Message) (string, error) {
 }
 
 func (t timeline) Get(ctx context.Context, key string) (Message, bool, error) {
-	v, found, er := t.dmap.Get(ctx, key)
+	v, found, er := t.gr.Get(ctx, key)
 	if er != nil {
 		return Message{}, false, t.translateError(er)
 	}
@@ -58,7 +58,7 @@ func (t timeline) Get(ctx context.Context, key string) (Message, bool, error) {
 }
 
 func (t timeline) GetFrom(ctx context.Context, key string, count int) ([]Message, error) {
-	it, er := t.dmap.GetIterator(ctx, key)
+	it, er := t.gr.GetIterator(ctx, "", "", key)
 	if er != nil {
 		return nil, t.translateError(er)
 	}
@@ -79,7 +79,7 @@ func (t timeline) GetFrom(ctx context.Context, key string, count int) ([]Message
 	return msgs, nil
 }
 
-func (t timeline) toMessage(v dmap.MapItem) (Message, error) {
+func (t timeline) toMessage(v graph.GraphNode) (Message, error) {
 	msg := Message{}
 	er := json.Unmarshal(v.Data, &msg)
 	if er != nil {
@@ -94,7 +94,7 @@ func (t timeline) toMessage(v dmap.MapItem) (Message, error) {
 
 func (t timeline) translateError(er error) error {
 	switch er {
-	case dmap.ErrReadOnly:
+	case graph.ErrReadOnly:
 		return ErrReadOnly
 	default:
 		return fmt.Errorf("unable to process the request: %s", er)

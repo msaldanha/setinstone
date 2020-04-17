@@ -85,7 +85,7 @@ var _ = Describe("Dag", func() {
 		err := da.Initialize(ctx, genesisNode)
 		Expect(err).To(BeNil())
 
-		node, err := da.GetLastNodeForBranch(ctx, genesisNode, dag.DefaultBranch)
+		node, err := da.GetLastNodeForBranch(ctx, genesisNode.Hash, dag.DefaultBranch)
 		Expect(err).To(BeNil())
 		Expect(node).NotTo(BeNil())
 		Expect(node.Hash).To(Equal(genesisNode.Hash))
@@ -158,12 +158,12 @@ var _ = Describe("Dag", func() {
 
 		lastComments := prev
 
-		n, err := da.GetLastNodeForBranch(ctx, nodeWithBranches, "likes")
+		n, err := da.GetLastNodeForBranch(ctx, nodeWithBranches.Hash, "likes")
 		Expect(err).To(BeNil())
 		Expect(n).NotTo(BeNil())
 		Expect(n).To(Equal(lastLikes))
 
-		n, err = da.GetLastNodeForBranch(ctx, nodeWithBranches, "comments")
+		n, err = da.GetLastNodeForBranch(ctx, nodeWithBranches.Hash, "comments")
 		Expect(err).To(BeNil())
 		Expect(n).NotTo(BeNil())
 		Expect(n).To(Equal(lastComments))

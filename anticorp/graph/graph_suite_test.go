@@ -1,4 +1,4 @@
-package dmap_test
+package graph_test
 
 import (
 	. "github.com/onsi/ginkgo"
@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestMap(t *testing.T) {
+func TestGraph(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Map Suite")
+	RunSpecs(t, "Graph Suite")
 }

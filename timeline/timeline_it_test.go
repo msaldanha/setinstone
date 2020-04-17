@@ -4,9 +4,9 @@ import (
 	"context"
 	"github.com/golang/mock/gomock"
 	"github.com/msaldanha/setinstone/anticorp/address"
-	"github.com/msaldanha/setinstone/anticorp/datachain"
+	"github.com/msaldanha/setinstone/anticorp/dag"
 	"github.com/msaldanha/setinstone/anticorp/datastore"
-	"github.com/msaldanha/setinstone/anticorp/dmap"
+	"github.com/msaldanha/setinstone/anticorp/graph"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"strconv"
@@ -14,26 +14,26 @@ import (
 
 var _ = Describe("Timeline", func() {
 
-	var ld datachain.Ledger
+	var da dag.Dag
 	var ctx context.Context
 	var lts datastore.DataStore
-	var distMap dmap.Map
+	var gr graph.Graph
 
 	addr, _ := address.NewAddressWithKeys()
 
 	BeforeEach(func() {
 		ctx = context.Background()
 		lts = datastore.NewLocalFileStore()
-		ld = datachain.NewLocalLedger("test-ledger", lts)
-		distMap = dmap.NewMap(ld, addr)
-		_, _ = distMap.Init(ctx, nil)
+		da = dag.NewDag("test-ledger", lts)
+		gr = graph.NewGraph(da, addr)
+		_, _ = gr.Init(ctx, nil)
 	})
 
 	It("Should add message", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		p := NewTimeline(distMap)
+		p := NewTimeline(gr)
 
 		msg := Message{Body: MessagePart{MimeType: "plain/text", Data: "some text"}}
 		key, er := p.Add(ctx, msg)
@@ -45,7 +45,7 @@ var _ = Describe("Timeline", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		p := NewTimeline(distMap)
+		p := NewTimeline(gr)
 
 		expectedMsg := Message{Body: MessagePart{MimeType: "plain/text", Data: "some text"}}
 		key, er := p.Add(ctx, expectedMsg)
@@ -62,7 +62,7 @@ var _ = Describe("Timeline", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		p := NewTimeline(distMap)
+		p := NewTimeline(gr)
 
 		msgs := []Message{}
 		keys := []string{}

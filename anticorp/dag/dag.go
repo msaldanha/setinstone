@@ -13,23 +13,23 @@ import (
 const (
 	ErrDagAlreadyInitialized               = err.Error("dag already initialized")
 	ErrNotEnoughFunds                      = err.Error("not enough funds")
-	ErrInvalidNodeSignature                = err.Error("invalid transaction signature")
-	ErrInvalidNodeHash                     = err.Error("invalid transaction hash")
-	ErrInvalidNodeTimestamp                = err.Error("invalid transaction timestamp")
-	ErrNodeAlreadyInDag                    = err.Error("transaction already in dag")
-	ErrNodeNotFound                        = err.Error("previous not found")
-	ErrPreviousNodeNotFound                = err.Error("previous transaction not found")
-	ErrHeadNodeNotFound                    = err.Error("head transaction not found")
-	ErrPreviousNodeIsNotHead               = err.Error("previous transaction is not the chain head")
-	ErrSendNodeIsNotPending                = err.Error("send transaction is not pending")
-	ErrOpenNodeNotFound                    = err.Error("open transaction not found")
+	ErrInvalidNodeSignature                = err.Error("invalid node signature")
+	ErrInvalidNodeHash                     = err.Error("invalid node hash")
+	ErrInvalidNodeTimestamp                = err.Error("invalid node timestamp")
+	ErrNodeAlreadyInDag                    = err.Error("node already in dag")
+	ErrNodeNotFound                        = err.Error("node not found")
+	ErrPreviousNodeNotFound                = err.Error("previous node not found")
+	ErrHeadNodeNotFound                    = err.Error("head node not found")
+	ErrPreviousNodeIsNotHead               = err.Error("previous node is not the chain head")
+	ErrSendNodeIsNotPending                = err.Error("send node is not pending")
+	ErrOpenNodeNotFound                    = err.Error("open node not found")
 	ErrAddressDoesNotMatchPubKey           = err.Error("address does not match public key")
-	ErrSendReceiveNodesNotLinked           = err.Error("send and receive transaction not linked")
+	ErrSendReceiveNodesNotLinked           = err.Error("send and receive node not linked")
 	ErrSendReceiveNodesCantBeSameAddress   = err.Error("send and receive can not be on the same address")
 	ErrSentAmountDiffersFromReceivedAmount = err.Error("sent amount differs from received amount")
-	ErrInvalidReceiveNode                  = err.Error("invalid receive transaction")
-	ErrInvalidSendNode                     = err.Error("invalid send transaction")
-	ErrInvalidNodeSeq                      = err.Error("invalid transaction sequence")
+	ErrInvalidReceiveNode                  = err.Error("invalid receive node")
+	ErrInvalidSendNode                     = err.Error("invalid send node")
+	ErrInvalidNodeSeq                      = err.Error("invalid node sequence")
 	ErrInvalidBranch                       = err.Error("invalid branch")
 	ErrBranchRootNotFound                  = err.Error("branch root not found")
 	ErrDefaultBranchNotSpecified           = err.Error("default branch not specified")
@@ -41,7 +41,7 @@ const (
 
 type Dag interface {
 	Initialize(ctx context.Context, genesisNode *Node) error
-	GetLastNodeForBranch(ctx context.Context, branchRootNode *Node, branch string) (*Node, error)
+	GetLastNodeForBranch(ctx context.Context, branchRootNodeKey, branch string) (*Node, error)
 	GetGenesisNode(ctx context.Context, addr string) (*Node, error)
 	GetNode(ctx context.Context, key string) (*Node, error)
 	AddNode(ctx context.Context, node *Node, branchRootNodeKey, branch string) error
@@ -62,30 +62,40 @@ func (da *dag) Initialize(ctx context.Context, genesisNode *Node) error {
 		return ErrDefaultBranchNotSpecified
 	}
 	_, er := da.GetGenesisNode(ctx, genesisNode.Address)
-	if er == datastore.ErrNotFound {
+	if er == ErrNodeNotFound {
 		return da.saveGenesisNode(ctx, genesisNode)
 	}
 	if er == nil {
 		return ErrDagAlreadyInitialized
 	}
-	return er
+	return da.translateError(er)
 }
 
 func (da *dag) AddNode(ctx context.Context, node *Node, branchRootNodeKey, branch string) error {
+	if branch == "" {
+		branch = DefaultBranch
+	}
 	if er := da.VerifyNode(ctx, node, branchRootNodeKey, branch, true); er != nil {
-		return er
+		return da.translateError(er)
 	}
 	return da.saveNode(ctx, node, branchRootNodeKey, branch)
 }
 
-func (da *dag) GetLastNodeForBranch(ctx context.Context, branchRootNode *Node, branch string) (*Node, error) {
+func (da *dag) GetLastNodeForBranch(ctx context.Context, branchRootNodeKey, branch string) (*Node, error) {
+	if branch == "" {
+		branch = DefaultBranch
+	}
+	branchRootNode, er := da.getNodeByKey(ctx, branchRootNodeKey)
+	if er != nil {
+		return nil, da.translateError(er)
+	}
 	key := da.getLastNodeKey(branchRootNode, branch)
 	fromTipTx, er := da.getNodeByKey(ctx, key)
-	if er == datastore.ErrNotFound {
+	if er == ErrNodeNotFound {
 		return branchRootNode, nil
 	}
 	if er != nil {
-		return nil, er
+		return nil, da.translateError(er)
 	}
 	return fromTipTx, nil
 }
@@ -94,7 +104,7 @@ func (da *dag) GetGenesisNode(ctx context.Context, addr string) (*Node, error) {
 	key := da.getGenesisNodeKey(addr)
 	tx, er := da.getNodeByKey(ctx, key)
 	if er != nil {
-		return nil, er
+		return nil, da.translateError(er)
 	}
 	return tx, nil
 }
@@ -105,7 +115,7 @@ func (da *dag) GetNode(ctx context.Context, key string) (*Node, error) {
 
 func (da *dag) VerifyNode(ctx context.Context, node *Node, branchRootNodeKey, branch string, mustBeNew bool) error {
 	if ok, er := da.verifyAddress(node); !ok {
-		return er
+		return da.translateError(er)
 	}
 	if !da.verifyTimeStamp(node) {
 		return ErrInvalidNodeTimestamp
@@ -114,15 +124,15 @@ func (da *dag) VerifyNode(ctx context.Context, node *Node, branchRootNodeKey, br
 		return ErrInvalidNodeHash
 	}
 	if er := node.VerifySignature(); er != nil {
-		return er
+		return da.translateError(er)
 	}
 	if da.hasBranch(node, DefaultBranch) {
 		return ErrInvalidBranch
 	}
 
 	localTx, er := da.getNodeByKey(ctx, node.Hash)
-	if er != nil && er != datastore.ErrNotFound {
-		return er
+	if er != nil && er != ErrNodeNotFound {
+		return da.translateError(er)
 	}
 	if localTx != nil && mustBeNew {
 		return ErrNodeAlreadyInDag
@@ -131,11 +141,11 @@ func (da *dag) VerifyNode(ctx context.Context, node *Node, branchRootNodeKey, br
 	}
 
 	previous, er := da.getNodeByKey(ctx, node.Previous)
-	if er == datastore.ErrNotFound {
+	if er == ErrNodeNotFound {
 		return ErrPreviousNodeNotFound
 	}
 	if er != nil {
-		return er
+		return da.translateError(er)
 	}
 	if previous == nil {
 		return ErrPreviousNodeNotFound
@@ -143,7 +153,7 @@ func (da *dag) VerifyNode(ctx context.Context, node *Node, branchRootNodeKey, br
 	if mustBeNew {
 		branchRoot, er := da.getNodeByKey(ctx, branchRootNodeKey)
 		if er != nil {
-			return er
+			return da.translateError(er)
 		}
 		if branchRoot == nil {
 			return ErrBranchRootNotFound
@@ -151,9 +161,9 @@ func (da *dag) VerifyNode(ctx context.Context, node *Node, branchRootNodeKey, br
 		if !da.hasBranch(branchRoot, branch) {
 			return ErrInvalidBranch
 		}
-		head, er := da.GetLastNodeForBranch(ctx, branchRoot, branch)
+		head, er := da.GetLastNodeForBranch(ctx, branchRootNodeKey, branch)
 		if er != nil {
-			return er
+			return da.translateError(er)
 		}
 		if head == nil {
 			return ErrHeadNodeNotFound
@@ -185,7 +195,7 @@ func (da *dag) findPrevious(ctx context.Context, tx *Node) (*Node, error) {
 
 func (da *dag) verifyAddress(tx *Node) (bool, error) {
 	if ok, er := address.IsValid(string(tx.Address)); !ok {
-		return ok, er
+		return ok, da.translateError(er)
 	}
 	if !address.MatchesPubKey(tx.Address, tx.PubKey) {
 		return false, ErrAddressDoesNotMatchPubKey
@@ -200,7 +210,7 @@ func (da *dag) verifyEdges(node *Node) (bool, error) {
 func (da *dag) getPreviousNode(ctx context.Context, tx *Node) (*Node, error) {
 	previous, er := da.getNodeByKey(ctx, tx.Previous)
 	if er != nil {
-		return nil, er
+		return nil, da.translateError(er)
 	}
 	if previous == nil {
 		return nil, ErrPreviousNodeNotFound
@@ -211,60 +221,60 @@ func (da *dag) getPreviousNode(ctx context.Context, tx *Node) (*Node, error) {
 func (da *dag) saveNode(ctx context.Context, node *Node, branchRootNodeKey, branch string) error {
 	branchRoot, er := da.getNodeByKey(ctx, branchRootNodeKey)
 	if er != nil {
-		return er
+		return da.translateError(er)
 	}
 	if branchRoot == nil {
 		return ErrBranchRootNotFound
 	}
 
-	data, err := node.ToJson()
-	if err != nil {
-		return err
+	data, er := node.ToJson()
+	if er != nil {
+		return da.translateError(er)
 	}
-	_, err = da.dt.Put(ctx, node.Hash, []byte(data))
-	if err != nil {
-		return err
+	_, er = da.dt.Put(ctx, node.Hash, []byte(data))
+	if er != nil {
+		return da.translateError(er)
 	}
 	key := da.getLastNodeKey(branchRoot, branch)
 
-	err = da.dt.Remove(ctx, key)
-	if err != nil {
-		return err
+	er = da.dt.Remove(ctx, key)
+	if er != nil {
+		return da.translateError(er)
 	}
 
-	_, err = da.dt.Put(ctx, key, []byte(data))
-	if err != nil {
-		return err
+	_, er = da.dt.Put(ctx, key, []byte(data))
+	if er != nil {
+		return da.translateError(er)
 	}
 	return nil
 }
 
 func (da *dag) saveGenesisNode(ctx context.Context, node *Node) error {
-	data, err := node.ToJson()
-	if err != nil {
-		return err
+	data, er := node.ToJson()
+	if er != nil {
+		return da.translateError(er)
 	}
 
-	_, err = da.dt.Put(ctx, node.Hash, []byte(data))
-	if err != nil {
-		return err
+	_, er = da.dt.Put(ctx, node.Hash, []byte(data))
+	if er != nil {
+		return da.translateError(er)
 	}
 
 	key := da.getLastNodeKey(node, DefaultBranch)
-	err = da.dt.Remove(ctx, key)
-	if err != nil {
-		return err
+	er = da.dt.Remove(ctx, key)
+	if er != nil {
+		return da.translateError(er)
 	}
 
-	_, err = da.dt.Put(ctx, key, []byte(data))
-	if err != nil {
-		return err
+	_, er = da.dt.Put(ctx, key, []byte(data))
+	if er != nil {
+		return da.translateError(er)
 	}
 
 	key = da.getGenesisNodeKey(node.Address)
-	_, err = da.dt.Put(ctx, key, []byte(data))
-	if err != nil {
-		return err
+	_, er = da.dt.Put(ctx, key, []byte(data))
+	if er != nil {
+		return da.translateError(er)
 	}
 	return nil
 }
@@ -279,24 +289,24 @@ func (da *dag) hasBranch(p *Node, branch string) bool {
 }
 
 func (da *dag) getNodeByKey(ctx context.Context, key string) (*Node, error) {
-	f, err := da.dt.Get(ctx, key)
-	if err != nil {
-		return nil, err
+	f, er := da.dt.Get(ctx, key)
+	if er != nil {
+		return nil, da.translateError(er)
 	}
 
 	var json []byte
 	const NBUF = 512
 	var buf [NBUF]byte
 	for {
-		nr, err := f.Read(buf[:])
+		nr, er := f.Read(buf[:])
 		if nr > 0 {
 			json = append(json, buf[0:nr]...)
 		}
-		if err == io.EOF {
+		if er == io.EOF {
 			break
 		}
-		if err != nil {
-			return nil, err
+		if er != nil {
+			return nil, da.translateError(er)
 		}
 	}
 
@@ -305,9 +315,9 @@ func (da *dag) getNodeByKey(ctx context.Context, key string) (*Node, error) {
 	}
 
 	tx := &Node{}
-	err = tx.FromJson(string(json))
-	if err != nil {
-		return nil, err
+	er = tx.FromJson(string(json))
+	if er != nil {
+		return nil, da.translateError(er)
 	}
 
 	return tx, nil
@@ -323,4 +333,12 @@ func (da *dag) getLastNodeKey(node *Node, branch string) string {
 
 func (da *dag) getNodeKey(parts ...string) string {
 	return da.nameSpace + "/" + strings.Join(parts, "/")
+}
+
+func (da *dag) translateError(er error) error {
+	switch er {
+	case datastore.ErrNotFound:
+		return ErrNodeNotFound
+	}
+	return er
 }
