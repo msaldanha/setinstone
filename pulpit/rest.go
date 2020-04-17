@@ -342,16 +342,15 @@ func (s *server) init() error {
 		if er != nil {
 			return er
 		}
-		m := graph.NewGraph(s.ld, a)
+		gr := graph.NewGraph(s.ld, a)
 
 		if a.Keys != nil {
-			_, er = m.Init(context.Background(), []byte("timeline-"+a.Address))
 			if er != nil && er != graph.ErrAlreadyInitialized {
 				return er
 			}
 		}
 
-		tl := timeline.NewTimeline(m)
+		tl := timeline.NewTimeline(gr)
 		s.timelines[a.Address] = tl
 	}
 

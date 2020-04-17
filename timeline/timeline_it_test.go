@@ -26,7 +26,6 @@ var _ = Describe("Timeline", func() {
 		lts = datastore.NewLocalFileStore()
 		da = dag.NewDag("test-ledger", lts)
 		gr = graph.NewGraph(da, addr)
-		_, _ = gr.Init(ctx, nil)
 	})
 
 	It("Should add message", func() {

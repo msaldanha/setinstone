@@ -23,7 +23,6 @@ type Iterator interface {
 type Graph interface {
 	GetName() string
 	GetMetaData() string
-	Init(ctx context.Context, metaData []byte) (string, error)
 	Get(ctx context.Context, key string) (GraphNode, bool, error)
 	Add(ctx context.Context, keyRoot, branch string, data []byte, branches []string) (GraphNode, error)
 	GetIterator(ctx context.Context, keyRoot, branch string, from string) (Iterator, error)
@@ -64,20 +63,6 @@ func (d graph) GetMetaData() string {
 	return d.metaData
 }
 
-func (d graph) Init(ctx context.Context, metaData []byte) (string, error) {
-	node, er := createNode(metaData, []string{dag.DefaultBranch}, nil, d.addr)
-	if er != nil {
-		return "", er
-	}
-
-	er = d.da.Initialize(ctx, node)
-	if er != nil {
-		return "", d.translateError(er)
-	}
-
-	return node.Hash, nil
-}
-
 func (d graph) Get(ctx context.Context, key string) (GraphNode, bool, error) {
 	tx, er := d.get(ctx, key)
 	if er != nil {
@@ -86,7 +71,7 @@ func (d graph) Get(ctx context.Context, key string) (GraphNode, bool, error) {
 		}
 		return GraphNode{}, false, d.translateError(er)
 	}
-	return d.toMapItem(tx), true, nil
+	return d.toGraphNode(tx), true, nil
 }
 
 func (d graph) Add(ctx context.Context, keyRoot, branch string, data []byte, branches []string) (GraphNode, error) {
@@ -97,7 +82,7 @@ func (d graph) Add(ctx context.Context, keyRoot, branch string, data []byte, bra
 	if keyRoot == "" {
 		gn, er := d.da.GetGenesisNode(ctx, d.addr.Address)
 		if er == dag.ErrNodeNotFound {
-			return GraphNode{}, ErrPreviousNotFound
+			return d.createFirstNode(ctx, data, branches)
 		}
 		if er != nil {
 			return GraphNode{}, er
@@ -120,7 +105,7 @@ func (d graph) Add(ctx context.Context, keyRoot, branch string, data []byte, bra
 	if er != nil {
 		return GraphNode{}, er
 	}
-	return d.toMapItem(node), nil
+	return d.toGraphNode(node), nil
 }
 
 func (d graph) GetIterator(ctx context.Context, keyRoot, branch string, from string) (Iterator, error) {
@@ -165,7 +150,7 @@ func (d graph) GetIterator(ctx context.Context, keyRoot, branch string, from str
 			if nextNode == nil {
 				return GraphNode{}, ErrInvalidIteratorState
 			}
-			item := d.toMapItem(nextNode)
+			item := d.toGraphNode(nextNode)
 			if nextNode.Previous == "" {
 				nextNode = nil
 				return item, nil
@@ -199,6 +184,30 @@ func (d graph) get(ctx context.Context, key string) (*dag.Node, error) {
 	return node, nil
 }
 
+func (d graph) createFirstNode(ctx context.Context, data []byte, branches []string) (GraphNode, error) {
+	hasDefaultBranch := false
+	for _, branch := range branches {
+		if branch == dag.DefaultBranch {
+			hasDefaultBranch = true
+			break
+		}
+	}
+	if !hasDefaultBranch {
+		branches = append(branches, dag.DefaultBranch)
+	}
+	node, er := createNode(data, branches, nil, d.addr)
+	if er != nil {
+		return GraphNode{}, d.translateError(er)
+	}
+
+	er = d.da.Initialize(ctx, node)
+	if er != nil {
+		return GraphNode{}, d.translateError(er)
+	}
+
+	return d.toGraphNode(node), nil
+}
+
 func (d graph) translateError(er error) error {
 	switch er {
 	case dag.ErrDagAlreadyInitialized:
@@ -209,7 +218,7 @@ func (d graph) translateError(er error) error {
 	return er
 }
 
-func (d graph) toMapItem(node *dag.Node) GraphNode {
+func (d graph) toGraphNode(node *dag.Node) GraphNode {
 	return GraphNode{
 		Key:       node.Hash,
 		Address:   node.Address,

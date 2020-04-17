@@ -31,25 +31,11 @@ var _ = Describe("Graph", func() {
 		ld = dag.NewDag("test-graph", lts)
 	})
 
-	It("Should initialize", func() {
-		mockCtrl := gomock.NewController(GinkgoT())
-		defer mockCtrl.Finish()
-
-		gr := graph.NewGraph(ld, addr)
-
-		key, er := gr.Init(ctx, toBytes(testPayLoad{NumberField: 100, StringFiled: "some data"}))
-
-		Expect(er).To(BeNil())
-		Expect(key).NotTo(BeEmpty())
-	})
-
 	It("Should add node", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
 		gr := graph.NewGraph(ld, addr)
-
-		_, er := gr.Init(ctx, toBytes(testPayLoad{NumberField: 100, StringFiled: "some data"}))
 
 		dataToAdd := testPayLoad{NumberField: 1000, StringFiled: "some data added"}
 		i, er := gr.Add(ctx, "", "", toBytes(dataToAdd), nil)
@@ -71,7 +57,7 @@ var _ = Describe("Graph", func() {
 		gr := graph.NewGraph(ld, addr)
 
 		dataToAdd := testPayLoad{NumberField: 1000, StringFiled: "some data added"}
-		_, er := gr.Add(ctx, "", "", toBytes(dataToAdd), nil)
+		_, er := gr.Add(ctx, "xxxxxx", "", toBytes(dataToAdd), nil)
 
 		Expect(er).To(Equal(graph.ErrPreviousNotFound))
 	})
@@ -97,10 +83,6 @@ var _ = Describe("Graph", func() {
 		gr := graph.NewGraph(ld, addr)
 
 		dataAdded := []testPayLoad{}
-		dataToAdd := testPayLoad{NumberField: 1000, StringFiled: "initial data"}
-		dataAdded = append(dataAdded, dataToAdd)
-		_, _ = gr.Init(ctx, toBytes(dataToAdd))
-
 		n := 10
 		keys := []string{}
 
@@ -135,13 +117,9 @@ var _ = Describe("Graph", func() {
 		gr := graph.NewGraph(ld, addr)
 
 		dataAdded := []testPayLoad{}
-		dataToAdd := testPayLoad{NumberField: 1000, StringFiled: "initial data"}
-		dataAdded = append(dataAdded, dataToAdd)
-		key, _ := gr.Init(ctx, toBytes(dataToAdd))
 
 		n := 10
 		keys := []string{}
-		keys = append(keys, key)
 
 		for i := 0; i < n; i++ {
 			dataToAdd := testPayLoad{NumberField: i, StringFiled: "some data added"}
