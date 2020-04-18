@@ -58,7 +58,7 @@ func (t timeline) Get(ctx context.Context, key string) (Message, bool, error) {
 }
 
 func (t timeline) GetFrom(ctx context.Context, key string, count int) ([]Message, error) {
-	it, er := t.gr.GetIterator(ctx, "", "", key)
+	it, er := t.gr.GetIterator(ctx, "", "main", key)
 	if er != nil {
 		return nil, t.translateError(er)
 	}
