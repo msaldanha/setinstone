@@ -143,6 +143,8 @@ var _ = Describe("Dag", func() {
 			prev = n
 		}
 
+		lastMainBranch := prev
+
 		// add nodes to the likes branch of the nodeWithBranches node
 		prev = nodeWithBranches
 		for x := 1; x <= 5; x++ {
@@ -201,6 +203,13 @@ var _ = Describe("Dag", func() {
 		Expect(n).NotTo(BeNil())
 		Expect(n).To(Equal(lastComments))
 		Expect(n.BranchSeq).To(Equal(int32(5)))
+
+		n, err = da.GetLastNodeForBranch(ctx, g.Hash, g.Branch)
+		Expect(err).To(BeNil())
+		Expect(n).NotTo(BeNil())
+		Expect(n).To(Equal(lastMainBranch))
+		Expect(n.BranchSeq).To(Equal(int32(11)))
+
 	})
 
 	It("Should NOT register node with invalid address", func() {
