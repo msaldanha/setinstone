@@ -33,11 +33,11 @@ const (
 )
 
 type Dag interface {
-	Initialize(ctx context.Context, genesisNode *Node) error
-	GetLastNodeForBranch(ctx context.Context, branchRootNodeKey, branch string) (*Node, error)
-	GetGenesisNode(ctx context.Context, addr string) (*Node, error)
-	GetNode(ctx context.Context, key string) (*Node, error)
-	AddNode(ctx context.Context, node *Node, branchRootNodeKey string) error
+	SetRoot(ctx context.Context, rootNode *Node) error
+	GetLast(ctx context.Context, branchRootNodeKey, branch string) (*Node, error)
+	GetRoot(ctx context.Context, addr string) (*Node, error)
+	Get(ctx context.Context, key string) (*Node, error)
+	Append(ctx context.Context, node *Node, branchRootNodeKey string) error
 	VerifyNode(ctx context.Context, node *Node, branchRootNodeKey string, isNew bool) error
 }
 
@@ -50,16 +50,16 @@ func NewDag(nameSpace string, txStore datastore.DataStore) Dag {
 	return &dag{nameSpace: nameSpace, dt: txStore}
 }
 
-func (da *dag) Initialize(ctx context.Context, genesisNode *Node) error {
-	if genesisNode.Branch == "" {
+func (da *dag) SetRoot(ctx context.Context, rootNode *Node) error {
+	if rootNode.Branch == "" {
 		return ErrInvalidBranch
 	}
-	if !da.hasBranch(genesisNode, genesisNode.Branch) {
+	if !da.hasBranch(rootNode, rootNode.Branch) {
 		return ErrDefaultBranchNotSpecified
 	}
-	_, er := da.GetGenesisNode(ctx, genesisNode.Address)
+	_, er := da.GetRoot(ctx, rootNode.Address)
 	if er == ErrNodeNotFound {
-		return da.saveGenesisNode(ctx, genesisNode)
+		return da.saveGenesisNode(ctx, rootNode)
 	}
 	if er == nil {
 		return ErrDagAlreadyInitialized
@@ -67,14 +67,14 @@ func (da *dag) Initialize(ctx context.Context, genesisNode *Node) error {
 	return da.translateError(er)
 }
 
-func (da *dag) AddNode(ctx context.Context, node *Node, branchRootNodeKey string) error {
+func (da *dag) Append(ctx context.Context, node *Node, branchRootNodeKey string) error {
 	if er := da.VerifyNode(ctx, node, branchRootNodeKey, true); er != nil {
 		return da.translateError(er)
 	}
 	return da.saveNode(ctx, node, branchRootNodeKey)
 }
 
-func (da *dag) GetLastNodeForBranch(ctx context.Context, branchRootNodeKey, branch string) (*Node, error) {
+func (da *dag) GetLast(ctx context.Context, branchRootNodeKey, branch string) (*Node, error) {
 	if branch == "" {
 		return nil, ErrInvalidBranch
 	}
@@ -93,7 +93,7 @@ func (da *dag) GetLastNodeForBranch(ctx context.Context, branchRootNodeKey, bran
 	return fromTipTx, nil
 }
 
-func (da *dag) GetGenesisNode(ctx context.Context, addr string) (*Node, error) {
+func (da *dag) GetRoot(ctx context.Context, addr string) (*Node, error) {
 	key := da.getGenesisNodeKey(addr)
 	tx, er := da.getNodeByKey(ctx, key)
 	if er != nil {
@@ -102,7 +102,7 @@ func (da *dag) GetGenesisNode(ctx context.Context, addr string) (*Node, error) {
 	return tx, nil
 }
 
-func (da *dag) GetNode(ctx context.Context, key string) (*Node, error) {
+func (da *dag) Get(ctx context.Context, key string) (*Node, error) {
 	return da.getNodeByKey(ctx, key)
 }
 
@@ -157,7 +157,7 @@ func (da *dag) VerifyNode(ctx context.Context, node *Node, branchRootNodeKey str
 		if !da.hasBranch(branchRoot, node.Branch) {
 			return ErrInvalidBranch
 		}
-		branchHead, er := da.GetLastNodeForBranch(ctx, branchRootNodeKey, node.Branch)
+		branchHead, er := da.GetLast(ctx, branchRootNodeKey, node.Branch)
 		if er != nil {
 			return da.translateError(er)
 		}

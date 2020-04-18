@@ -80,7 +80,7 @@ func (d graph) Add(ctx context.Context, keyRoot, branch string, data []byte, bra
 	}
 
 	if keyRoot == "" {
-		gn, er := d.da.GetGenesisNode(ctx, d.addr.Address)
+		gn, er := d.da.GetRoot(ctx, d.addr.Address)
 		if er == dag.ErrNodeNotFound {
 			return d.createFirstNode(ctx, data, branch, branches)
 		}
@@ -89,7 +89,7 @@ func (d graph) Add(ctx context.Context, keyRoot, branch string, data []byte, bra
 		}
 		keyRoot = gn.Hash
 	}
-	prev, er := d.da.GetLastNodeForBranch(ctx, keyRoot, branch)
+	prev, er := d.da.GetLast(ctx, keyRoot, branch)
 	if er == dag.ErrNodeNotFound {
 		return GraphNode{}, ErrPreviousNotFound
 	}
@@ -101,7 +101,7 @@ func (d graph) Add(ctx context.Context, keyRoot, branch string, data []byte, bra
 	if er != nil {
 		return GraphNode{}, er
 	}
-	er = d.da.AddNode(ctx, node, keyRoot)
+	er = d.da.Append(ctx, node, keyRoot)
 	if er != nil {
 		return GraphNode{}, er
 	}
@@ -114,7 +114,7 @@ func (d graph) GetIterator(ctx context.Context, keyRoot, branch string, from str
 	var er error
 
 	if keyRoot == "" {
-		gn, er := d.da.GetGenesisNode(ctx, d.addr.Address)
+		gn, er := d.da.GetRoot(ctx, d.addr.Address)
 		if er == dag.ErrNodeNotFound {
 			return nil, ErrPreviousNotFound
 		}
@@ -124,7 +124,7 @@ func (d graph) GetIterator(ctx context.Context, keyRoot, branch string, from str
 		keyRoot = gn.Hash
 	}
 	if from == "" {
-		nextNode, er = d.da.GetLastNodeForBranch(ctx, keyRoot, branch)
+		nextNode, er = d.da.GetLast(ctx, keyRoot, branch)
 	} else {
 		nextNode, er = d.get(ctx, from)
 	}
@@ -174,9 +174,9 @@ func (d graph) get(ctx context.Context, key string) (*dag.Node, error) {
 	var node *dag.Node
 	var er error
 	if key == "" {
-		node, er = d.da.GetGenesisNode(ctx, d.addr.Address)
+		node, er = d.da.GetRoot(ctx, d.addr.Address)
 	} else {
-		node, er = d.da.GetNode(ctx, key)
+		node, er = d.da.Get(ctx, key)
 	}
 	if er != nil {
 		return nil, d.translateError(er)
@@ -200,7 +200,7 @@ func (d graph) createFirstNode(ctx context.Context, data []byte, branch string, 
 		return GraphNode{}, d.translateError(er)
 	}
 
-	er = d.da.Initialize(ctx, node)
+	er = d.da.SetRoot(ctx, node)
 	if er != nil {
 		return GraphNode{}, d.translateError(er)
 	}

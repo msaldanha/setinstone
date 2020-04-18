@@ -45,10 +45,10 @@ var _ = Describe("Dag", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		err := da.Initialize(ctx, genesisNode)
+		err := da.SetRoot(ctx, genesisNode)
 		Expect(err).To(BeNil())
 
-		node, err := da.GetNode(ctx, genesisNode.Hash)
+		node, err := da.Get(ctx, genesisNode.Hash)
 		Expect(err).To(BeNil())
 		Expect(node).NotTo(BeNil())
 		Expect(node.Address).To(Equal(genesisAddr.Address))
@@ -58,10 +58,10 @@ var _ = Describe("Dag", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		err := da.Initialize(ctx, genesisNode)
+		err := da.SetRoot(ctx, genesisNode)
 		Expect(err).To(BeNil())
 
-		err = da.Initialize(ctx, genesisNode)
+		err = da.SetRoot(ctx, genesisNode)
 		Expect(err).NotTo(BeNil())
 		Expect(err).To(Equal(dag.ErrDagAlreadyInitialized))
 	})
@@ -70,10 +70,10 @@ var _ = Describe("Dag", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		err := da.Initialize(ctx, genesisNode)
+		err := da.SetRoot(ctx, genesisNode)
 		Expect(err).To(BeNil())
 
-		node, err := da.GetGenesisNode(ctx, genesisNode.Address)
+		node, err := da.GetRoot(ctx, genesisNode.Address)
 		Expect(err).To(BeNil())
 		Expect(node).NotTo(BeNil())
 		Expect(node.Hash).To(Equal(genesisNode.Hash))
@@ -84,10 +84,10 @@ var _ = Describe("Dag", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		err := da.Initialize(ctx, genesisNode)
+		err := da.SetRoot(ctx, genesisNode)
 		Expect(err).To(BeNil())
 
-		node, err := da.GetLastNodeForBranch(ctx, genesisNode.Hash, defaultBranch)
+		node, err := da.GetLast(ctx, genesisNode.Hash, defaultBranch)
 		Expect(err).To(BeNil())
 		Expect(node).NotTo(BeNil())
 		Expect(node.Hash).To(Equal(genesisNode.Hash))
@@ -98,13 +98,13 @@ var _ = Describe("Dag", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		err := da.Initialize(ctx, genesisNode)
+		err := da.SetRoot(ctx, genesisNode)
 		Expect(err).To(BeNil())
 
-		err = da.AddNode(ctx, node, genesisNode.Hash)
+		err = da.Append(ctx, node, genesisNode.Hash)
 		Expect(err).To(BeNil())
 
-		node2, err := da.GetNode(ctx, node.Hash)
+		node2, err := da.Get(ctx, node.Hash)
 		Expect(err).To(BeNil())
 		Expect(node2).NotTo(BeNil())
 
@@ -117,28 +117,28 @@ var _ = Describe("Dag", func() {
 
 		g, gAddr := CreateGenesisNode()
 
-		err := da.Initialize(ctx, g)
+		err := da.SetRoot(ctx, g)
 		Expect(err).To(BeNil())
 
 		// create main branch
 		prev := g
 		for x := 1; x <= 4; x++ {
 			n := CreateNode(gAddr, prev, defaultBranch, prev.BranchSeq+1)
-			err = da.AddNode(ctx, n, g.Hash)
+			err = da.Append(ctx, n, g.Hash)
 			Expect(err).To(BeNil())
 			prev = n
 		}
 
 		// add one node with other branches
 		nodeWithBranches := CreateNodeWithBranches(gAddr, prev, []string{"likes", "comments"}, defaultBranch, prev.BranchSeq+1)
-		err = da.AddNode(ctx, nodeWithBranches, g.Hash)
+		err = da.Append(ctx, nodeWithBranches, g.Hash)
 		Expect(err).To(BeNil())
 
 		// add more nodes to main branch
 		prev = nodeWithBranches
 		for x := 1; x <= 5; x++ {
 			n := CreateNode(gAddr, prev, defaultBranch, prev.BranchSeq+1)
-			err = da.AddNode(ctx, n, g.Hash)
+			err = da.Append(ctx, n, g.Hash)
 			Expect(err).To(BeNil())
 			prev = n
 		}
@@ -149,7 +149,7 @@ var _ = Describe("Dag", func() {
 		prev = nodeWithBranches
 		for x := 1; x <= 5; x++ {
 			n := CreateNode(gAddr, prev, "likes", int32(x))
-			err = da.AddNode(ctx, n, nodeWithBranches.Hash)
+			err = da.Append(ctx, n, nodeWithBranches.Hash)
 			Expect(err).To(BeNil())
 			prev = n
 		}
@@ -160,7 +160,7 @@ var _ = Describe("Dag", func() {
 		prev = nodeWithBranches
 		for x := 1; x <= 5; x++ {
 			n := CreateNode(gAddr, prev, "comments", int32(x))
-			err = da.AddNode(ctx, n, nodeWithBranches.Hash)
+			err = da.Append(ctx, n, nodeWithBranches.Hash)
 			Expect(err).To(BeNil())
 			prev = n
 		}
@@ -192,19 +192,19 @@ var _ = Describe("Dag", func() {
 
 		Expect(nodeWithBranches.BranchSeq).To(Equal(int32(6)))
 
-		n, err := da.GetLastNodeForBranch(ctx, nodeWithBranches.Hash, "likes")
+		n, err := da.GetLast(ctx, nodeWithBranches.Hash, "likes")
 		Expect(err).To(BeNil())
 		Expect(n).NotTo(BeNil())
 		Expect(n).To(Equal(lastLikes))
 		Expect(n.BranchSeq).To(Equal(int32(5)))
 
-		n, err = da.GetLastNodeForBranch(ctx, nodeWithBranches.Hash, "comments")
+		n, err = da.GetLast(ctx, nodeWithBranches.Hash, "comments")
 		Expect(err).To(BeNil())
 		Expect(n).NotTo(BeNil())
 		Expect(n).To(Equal(lastComments))
 		Expect(n.BranchSeq).To(Equal(int32(5)))
 
-		n, err = da.GetLastNodeForBranch(ctx, g.Hash, g.Branch)
+		n, err = da.GetLast(ctx, g.Hash, g.Branch)
 		Expect(err).To(BeNil())
 		Expect(n).NotTo(BeNil())
 		Expect(n).To(Equal(lastMainBranch))
@@ -216,12 +216,12 @@ var _ = Describe("Dag", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		err := da.Initialize(ctx, genesisNode)
+		err := da.SetRoot(ctx, genesisNode)
 		Expect(err).To(BeNil())
 
 		t := *node
 		t.Address = "xxxxxxxxxx"
-		err = da.AddNode(ctx, &t, genesisNode.Hash)
+		err = da.Append(ctx, &t, genesisNode.Hash)
 		Expect(err).To(Equal(address.ErrInvalidChecksum))
 	})
 
@@ -229,12 +229,12 @@ var _ = Describe("Dag", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		err := da.Initialize(ctx, genesisNode)
+		err := da.SetRoot(ctx, genesisNode)
 		Expect(err).To(BeNil())
 
 		t := &dag.Node{}
 		t = BuildNode(t, testGenesisAddr)
-		err = da.AddNode(ctx, t, genesisNode.Hash)
+		err = da.Append(ctx, t, genesisNode.Hash)
 		Expect(err).To(Equal(dag.ErrInvalidNodeTimestamp))
 	})
 
@@ -242,12 +242,12 @@ var _ = Describe("Dag", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		err := da.Initialize(ctx, genesisNode)
+		err := da.SetRoot(ctx, genesisNode)
 		Expect(err).To(BeNil())
 
 		t := *node
 		t.Hash = node2.Hash
-		err = da.AddNode(ctx, &t, genesisNode.Hash)
+		err = da.Append(ctx, &t, genesisNode.Hash)
 		Expect(err).To(Equal(dag.ErrNodeSignatureDoesNotMatch))
 	})
 
@@ -255,12 +255,12 @@ var _ = Describe("Dag", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		err := da.Initialize(ctx, genesisNode)
+		err := da.SetRoot(ctx, genesisNode)
 		Expect(err).To(BeNil())
 
 		t := *node
 		t.Signature = t.Signature + "3e"
-		err = da.AddNode(ctx, &t, genesisNode.Hash)
+		err = da.Append(ctx, &t, genesisNode.Hash)
 		Expect(err).To(Equal(dag.ErrNodeSignatureDoesNotMatch))
 	})
 
@@ -268,12 +268,12 @@ var _ = Describe("Dag", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		err := da.Initialize(ctx, genesisNode)
+		err := da.SetRoot(ctx, genesisNode)
 		Expect(err).To(BeNil())
 
-		err = da.AddNode(ctx, node, genesisNode.Hash)
+		err = da.Append(ctx, node, genesisNode.Hash)
 		Expect(err).To(BeNil())
-		err = da.AddNode(ctx, node, genesisNode.Hash)
+		err = da.Append(ctx, node, genesisNode.Hash)
 		Expect(err).To(Equal(dag.ErrNodeAlreadyInDag))
 	})
 
@@ -287,7 +287,7 @@ var _ = Describe("Dag", func() {
 		dt.EXPECT().Get(gomock.Any(), gomock.Any()).
 			Return(nil, datastore.ErrNotFound).Times(2)
 
-		err := da.AddNode(ctx, node, genesisNode.Hash)
+		err := da.Append(ctx, node, genesisNode.Hash)
 		Expect(err).To(Equal(dag.ErrPreviousNodeNotFound))
 	})
 
@@ -295,19 +295,19 @@ var _ = Describe("Dag", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		err := da.Initialize(ctx, genesisNode)
+		err := da.SetRoot(ctx, genesisNode)
 		Expect(err).To(BeNil())
 
 		node1 := CreateNode(genesisAddr, genesisNode, defaultBranch, 2)
-		err = da.AddNode(ctx, node1, genesisNode.Hash)
+		err = da.Append(ctx, node1, genesisNode.Hash)
 		Expect(err).To(BeNil())
 
 		node2 := CreateNode(genesisAddr, node1, defaultBranch, 3)
-		err = da.AddNode(ctx, node2, genesisNode.Hash)
+		err = da.Append(ctx, node2, genesisNode.Hash)
 		Expect(err).To(BeNil())
 
 		node := CreateNode(genesisAddr, node1, defaultBranch, 4)
-		err = da.AddNode(ctx, node, genesisNode.Hash)
+		err = da.Append(ctx, node, genesisNode.Hash)
 		Expect(err).To(Equal(dag.ErrPreviousNodeIsNotHead))
 	})
 })
