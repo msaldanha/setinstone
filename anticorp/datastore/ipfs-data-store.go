@@ -102,7 +102,7 @@ func (d ipfsDataStore) Get(ctx context.Context, key string) (io.Reader, error) {
 
 	bcid := id.Cid()
 
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 	defer cancel() // releases resources if slowOperation completes before timeout elapses
 
 	fileReader, er := d.ipfs.Block().Get(ctx, icorepath.New("/ipfs/"+bcid.String()))
