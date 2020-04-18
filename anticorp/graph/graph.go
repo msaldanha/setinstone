@@ -186,14 +186,14 @@ func (d graph) get(ctx context.Context, key string) (*dag.Node, error) {
 
 func (d graph) createFirstNode(ctx context.Context, data []byte, branch string, branches []string) (GraphNode, error) {
 	hasDefaultBranch := false
-	for _, branch := range branches {
-		if branch == dag.DefaultBranch {
+	for _, b := range branches {
+		if b == branch {
 			hasDefaultBranch = true
 			break
 		}
 	}
 	if !hasDefaultBranch {
-		branches = append(branches, dag.DefaultBranch)
+		branches = append(branches, branch)
 	}
 	node, er := createNode(data, branch, branches, nil, d.addr)
 	if er != nil {

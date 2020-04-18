@@ -34,8 +34,6 @@ const (
 	ErrBranchRootNotFound                  = err.Error("branch root not found")
 	ErrDefaultBranchNotSpecified           = err.Error("default branch not specified")
 
-	DefaultBranch = "main"
-
 	hashSize = 32
 )
 
@@ -58,7 +56,10 @@ func NewDag(nameSpace string, txStore datastore.DataStore) Dag {
 }
 
 func (da *dag) Initialize(ctx context.Context, genesisNode *Node) error {
-	if !da.hasBranch(genesisNode, DefaultBranch) {
+	if genesisNode.Branch == "" {
+		return ErrInvalidBranch
+	}
+	if !da.hasBranch(genesisNode, genesisNode.Branch) {
 		return ErrDefaultBranchNotSpecified
 	}
 	_, er := da.GetGenesisNode(ctx, genesisNode.Address)
@@ -80,7 +81,7 @@ func (da *dag) AddNode(ctx context.Context, node *Node, branchRootNodeKey string
 
 func (da *dag) GetLastNodeForBranch(ctx context.Context, branchRootNodeKey, branch string) (*Node, error) {
 	if branch == "" {
-		branch = DefaultBranch
+		return nil, ErrInvalidBranch
 	}
 	branchRootNode, er := da.getNodeByKey(ctx, branchRootNodeKey)
 	if er != nil {
@@ -266,7 +267,7 @@ func (da *dag) saveGenesisNode(ctx context.Context, node *Node) error {
 		return da.translateError(er)
 	}
 
-	key := da.getLastNodeKey(node, DefaultBranch)
+	key := da.getLastNodeKey(node, node.Branch)
 	er = da.dt.Remove(ctx, key)
 	if er != nil {
 		return da.translateError(er)
@@ -330,7 +331,7 @@ func (da *dag) getNodeByKey(ctx context.Context, key string) (*Node, error) {
 }
 
 func (da *dag) getGenesisNodeKey(addr string) string {
-	return da.getNodeKey(addr, DefaultBranch, strings.Repeat("0", hashSize))
+	return da.getNodeKey(addr, strings.Repeat("0", hashSize))
 }
 
 func (da *dag) getLastNodeKey(node *Node, branch string) string {
