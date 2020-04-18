@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"github.com/golang/protobuf/proto"
-	"github.com/msaldanha/setinstone/anticorp/err"
 	"github.com/msaldanha/setinstone/anticorp/multihash"
 	"math"
 	"math/big"
@@ -14,12 +13,6 @@ import (
 
 //go:generate protoc node.proto --go_out=plugins=grpc:./
 
-const (
-	ErrUnableToDecodeNodeSignature = err.Error("unable to decode node signature")
-	ErrUnableToDecodeNodePubKey    = err.Error("unable to decode node pubkey")
-	ErrUnableToDecodeNodeHash      = err.Error("unable to decode node hash")
-	ErrNodeSignatureDoesNotMatch   = err.Error("node signature does not match")
-)
 const targetBits int16 = 16
 
 func NewNode() *Node {
@@ -114,7 +107,7 @@ func (m *Node) VerifyPow() (bool, error) {
 	dataWithNonce := append(data, int64ToBytes(m.PowNonce))
 
 	id := multihash.NewId()
-	id.SetData(bytes.Join(dataWithNonce, []byte{}))
+	er = id.SetData(bytes.Join(dataWithNonce, []byte{}))
 	if er != nil {
 		return false, er
 	}
