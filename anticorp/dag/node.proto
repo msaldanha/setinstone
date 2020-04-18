@@ -5,16 +5,17 @@ package node;
 option go_package = "dag";
 
 message Node {
-    string timestamp = 1;
-    string address = 2;
-    string previous = 3;
-    map<string, string> properties = 4;
-    map<string, string> edges = 5;
-    repeated string branches = 6;
-    bytes data = 7;
-    int32 powTarget = 8;
-    int64 powNonce = 9;
-    string hash = 10;
-    string pubKey = 11;
-    string signature = 12;
+    int32 branchSeq = 1;
+    string timestamp = 2;
+    string address = 3;
+    string previous = 4;
+    string branch = 5;
+    map<string, string> properties = 6;
+    repeated string branches = 7;
+    bytes data = 8;
+    int32 powTarget = 9;
+    int64 powNonce = 10;
+    string hash = 11;
+    string pubKey = 12;
+    string signature = 13;
 }

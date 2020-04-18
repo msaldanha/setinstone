@@ -82,7 +82,7 @@ func (d graph) Add(ctx context.Context, keyRoot, branch string, data []byte, bra
 	if keyRoot == "" {
 		gn, er := d.da.GetGenesisNode(ctx, d.addr.Address)
 		if er == dag.ErrNodeNotFound {
-			return d.createFirstNode(ctx, data, branches)
+			return d.createFirstNode(ctx, data, branch, branches)
 		}
 		if er != nil {
 			return GraphNode{}, er
@@ -97,11 +97,11 @@ func (d graph) Add(ctx context.Context, keyRoot, branch string, data []byte, bra
 		return GraphNode{}, er
 	}
 
-	node, er := createNode(data, branches, prev, d.addr)
+	node, er := createNode(data, branch, branches, prev, d.addr)
 	if er != nil {
 		return GraphNode{}, er
 	}
-	er = d.da.AddNode(ctx, node, keyRoot, branch)
+	er = d.da.AddNode(ctx, node, keyRoot)
 	if er != nil {
 		return GraphNode{}, er
 	}
@@ -184,7 +184,7 @@ func (d graph) get(ctx context.Context, key string) (*dag.Node, error) {
 	return node, nil
 }
 
-func (d graph) createFirstNode(ctx context.Context, data []byte, branches []string) (GraphNode, error) {
+func (d graph) createFirstNode(ctx context.Context, data []byte, branch string, branches []string) (GraphNode, error) {
 	hasDefaultBranch := false
 	for _, branch := range branches {
 		if branch == dag.DefaultBranch {
@@ -195,7 +195,7 @@ func (d graph) createFirstNode(ctx context.Context, data []byte, branches []stri
 	if !hasDefaultBranch {
 		branches = append(branches, dag.DefaultBranch)
 	}
-	node, er := createNode(data, branches, nil, d.addr)
+	node, er := createNode(data, branch, branches, nil, d.addr)
 	if er != nil {
 		return GraphNode{}, d.translateError(er)
 	}

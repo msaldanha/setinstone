@@ -38,7 +38,7 @@ var _ = Describe("Graph", func() {
 		gr := graph.NewGraph(ld, addr)
 
 		dataToAdd := testPayLoad{NumberField: 1000, StringFiled: "some data added"}
-		i, er := gr.Add(ctx, "", "", toBytes(dataToAdd), nil)
+		i, er := gr.Add(ctx, "", "main", toBytes(dataToAdd), nil)
 		Expect(er).To(BeNil())
 
 		var data testPayLoad
@@ -57,7 +57,7 @@ var _ = Describe("Graph", func() {
 		gr := graph.NewGraph(ld, addr)
 
 		dataToAdd := testPayLoad{NumberField: 1000, StringFiled: "some data added"}
-		_, er := gr.Add(ctx, "xxxxxx", "", toBytes(dataToAdd), nil)
+		_, er := gr.Add(ctx, "xxxxxx", "main", toBytes(dataToAdd), nil)
 
 		Expect(er).To(Equal(graph.ErrPreviousNotFound))
 	})
@@ -71,7 +71,7 @@ var _ = Describe("Graph", func() {
 		gr := graph.NewGraph(ld, a)
 
 		dataToAdd := testPayLoad{NumberField: 1000, StringFiled: "some data added"}
-		_, er := gr.Add(ctx, "", "", toBytes(dataToAdd), nil)
+		_, er := gr.Add(ctx, "", "main", toBytes(dataToAdd), nil)
 
 		Expect(er).To(Equal(graph.ErrReadOnly))
 	})
@@ -89,12 +89,12 @@ var _ = Describe("Graph", func() {
 		for i := 0; i < n; i++ {
 			dataToAdd := testPayLoad{NumberField: i, StringFiled: "some data added"}
 			dataAdded = append(dataAdded, dataToAdd)
-			i, er := gr.Add(ctx, "", "", toBytes(dataToAdd), nil)
+			nd, er := gr.Add(ctx, "", "main", toBytes(dataToAdd), nil)
 			Expect(er).To(BeNil())
-			keys = append(keys, i.Key)
+			keys = append(keys, nd.Key)
 		}
 
-		it, er := gr.GetIterator(ctx, "", "", "")
+		it, er := gr.GetIterator(ctx, "", "main", "")
 		Expect(er).To(BeNil())
 		Expect(it).NotTo(BeNil())
 
@@ -124,12 +124,12 @@ var _ = Describe("Graph", func() {
 		for i := 0; i < n; i++ {
 			dataToAdd := testPayLoad{NumberField: i, StringFiled: "some data added"}
 			dataAdded = append(dataAdded, dataToAdd)
-			v, er := gr.Add(ctx, "", "", toBytes(dataToAdd), nil)
+			v, er := gr.Add(ctx, "", "main", toBytes(dataToAdd), nil)
 			Expect(er).To(BeNil())
 			keys = append(keys, v.Key)
 		}
 
-		it, er := gr.GetIterator(ctx, "", "", keys[5])
+		it, er := gr.GetIterator(ctx, "", "main", keys[5])
 		Expect(er).To(BeNil())
 		Expect(it).NotTo(BeNil())
 

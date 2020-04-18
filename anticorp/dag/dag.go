@@ -29,7 +29,7 @@ const (
 	ErrSentAmountDiffersFromReceivedAmount = err.Error("sent amount differs from received amount")
 	ErrInvalidReceiveNode                  = err.Error("invalid receive node")
 	ErrInvalidSendNode                     = err.Error("invalid send node")
-	ErrInvalidNodeSeq                      = err.Error("invalid node sequence")
+	ErrInvalidBranchSeq                    = err.Error("invalid node sequence")
 	ErrInvalidBranch                       = err.Error("invalid branch")
 	ErrBranchRootNotFound                  = err.Error("branch root not found")
 	ErrDefaultBranchNotSpecified           = err.Error("default branch not specified")
@@ -44,8 +44,8 @@ type Dag interface {
 	GetLastNodeForBranch(ctx context.Context, branchRootNodeKey, branch string) (*Node, error)
 	GetGenesisNode(ctx context.Context, addr string) (*Node, error)
 	GetNode(ctx context.Context, key string) (*Node, error)
-	AddNode(ctx context.Context, node *Node, branchRootNodeKey, branch string) error
-	VerifyNode(ctx context.Context, node *Node, branchRootNodeKey, branch string, isNew bool) error
+	AddNode(ctx context.Context, node *Node, branchRootNodeKey string) error
+	VerifyNode(ctx context.Context, node *Node, branchRootNodeKey string, isNew bool) error
 }
 
 type dag struct {
@@ -71,14 +71,11 @@ func (da *dag) Initialize(ctx context.Context, genesisNode *Node) error {
 	return da.translateError(er)
 }
 
-func (da *dag) AddNode(ctx context.Context, node *Node, branchRootNodeKey, branch string) error {
-	if branch == "" {
-		branch = DefaultBranch
-	}
-	if er := da.VerifyNode(ctx, node, branchRootNodeKey, branch, true); er != nil {
+func (da *dag) AddNode(ctx context.Context, node *Node, branchRootNodeKey string) error {
+	if er := da.VerifyNode(ctx, node, branchRootNodeKey, true); er != nil {
 		return da.translateError(er)
 	}
-	return da.saveNode(ctx, node, branchRootNodeKey, branch)
+	return da.saveNode(ctx, node, branchRootNodeKey)
 }
 
 func (da *dag) GetLastNodeForBranch(ctx context.Context, branchRootNodeKey, branch string) (*Node, error) {
@@ -113,12 +110,15 @@ func (da *dag) GetNode(ctx context.Context, key string) (*Node, error) {
 	return da.getNodeByKey(ctx, key)
 }
 
-func (da *dag) VerifyNode(ctx context.Context, node *Node, branchRootNodeKey, branch string, mustBeNew bool) error {
+func (da *dag) VerifyNode(ctx context.Context, node *Node, branchRootNodeKey string, mustBeNew bool) error {
 	if ok, er := da.verifyAddress(node); !ok {
 		return da.translateError(er)
 	}
 	if !da.verifyTimeStamp(node) {
 		return ErrInvalidNodeTimestamp
+	}
+	if node.BranchSeq == 0 {
+		return ErrInvalidBranchSeq
 	}
 	if !da.verifyPow(node) {
 		return ErrInvalidNodeHash
@@ -126,17 +126,17 @@ func (da *dag) VerifyNode(ctx context.Context, node *Node, branchRootNodeKey, br
 	if er := node.VerifySignature(); er != nil {
 		return da.translateError(er)
 	}
-	if da.hasBranch(node, DefaultBranch) {
+	if node.Branch == "" {
 		return ErrInvalidBranch
 	}
 
-	localTx, er := da.getNodeByKey(ctx, node.Hash)
+	n, er := da.getNodeByKey(ctx, node.Hash)
 	if er != nil && er != ErrNodeNotFound {
 		return da.translateError(er)
 	}
-	if localTx != nil && mustBeNew {
+	if n != nil && mustBeNew {
 		return ErrNodeAlreadyInDag
-	} else if localTx == nil && !mustBeNew {
+	} else if n == nil && !mustBeNew {
 		return ErrNodeNotFound
 	}
 
@@ -158,18 +158,24 @@ func (da *dag) VerifyNode(ctx context.Context, node *Node, branchRootNodeKey, br
 		if branchRoot == nil {
 			return ErrBranchRootNotFound
 		}
-		if !da.hasBranch(branchRoot, branch) {
+		if !da.hasBranch(branchRoot, node.Branch) {
 			return ErrInvalidBranch
 		}
-		head, er := da.GetLastNodeForBranch(ctx, branchRootNodeKey, branch)
+		branchHead, er := da.GetLastNodeForBranch(ctx, branchRootNodeKey, node.Branch)
 		if er != nil {
 			return da.translateError(er)
 		}
-		if head == nil {
+		if branchHead == nil {
 			return ErrHeadNodeNotFound
 		}
-		if head.Hash != previous.Hash {
+		if branchHead.Hash != previous.Hash {
 			return ErrPreviousNodeIsNotHead
+		}
+		if branchHead.Hash == branchRoot.Hash && node.Branch != branchHead.Branch && node.BranchSeq != 1 {
+			return ErrInvalidBranchSeq
+		}
+		if node.Branch == previous.Branch && node.BranchSeq != previous.BranchSeq+1 {
+			return ErrInvalidBranchSeq
 		}
 	}
 
@@ -218,7 +224,7 @@ func (da *dag) getPreviousNode(ctx context.Context, tx *Node) (*Node, error) {
 	return previous, nil
 }
 
-func (da *dag) saveNode(ctx context.Context, node *Node, branchRootNodeKey, branch string) error {
+func (da *dag) saveNode(ctx context.Context, node *Node, branchRootNodeKey string) error {
 	branchRoot, er := da.getNodeByKey(ctx, branchRootNodeKey)
 	if er != nil {
 		return da.translateError(er)
@@ -235,7 +241,7 @@ func (da *dag) saveNode(ctx context.Context, node *Node, branchRootNodeKey, bran
 	if er != nil {
 		return da.translateError(er)
 	}
-	key := da.getLastNodeKey(branchRoot, branch)
+	key := da.getLastNodeKey(branchRoot, node.Branch)
 
 	er = da.dt.Remove(ctx, key)
 	if er != nil {

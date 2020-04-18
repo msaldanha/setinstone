@@ -26,8 +26,8 @@ var _ = Describe("Dag", func() {
 	var lts datastore.DataStore
 
 	testGenesisNode, testGenesisAddr := CreateGenesisNode()
-	testNode := CreateNode(testGenesisAddr, testGenesisNode)
-	testNode2 := CreateNode(testGenesisAddr, testNode)
+	testNode := CreateNode(testGenesisAddr, testGenesisNode, dag.DefaultBranch, testGenesisNode.BranchSeq+1)
+	testNode2 := CreateNode(testGenesisAddr, testNode, dag.DefaultBranch, testNode.BranchSeq+1)
 
 	BeforeEach(func() {
 		ctx = context.Background()
@@ -99,7 +99,7 @@ var _ = Describe("Dag", func() {
 		err := da.Initialize(ctx, genesisNode)
 		Expect(err).To(BeNil())
 
-		err = da.AddNode(ctx, node, genesisNode.Hash, dag.DefaultBranch)
+		err = da.AddNode(ctx, node, genesisNode.Hash)
 		Expect(err).To(BeNil())
 
 		node2, err := da.GetNode(ctx, node.Hash)
@@ -118,55 +118,87 @@ var _ = Describe("Dag", func() {
 		err := da.Initialize(ctx, g)
 		Expect(err).To(BeNil())
 
+		// create main branch
 		prev := g
-		for x := 1; x <= 5; x++ {
-			n := CreateNode(gAddr, prev)
-			err = da.AddNode(ctx, n, g.Hash, dag.DefaultBranch)
+		for x := 1; x <= 4; x++ {
+			n := CreateNode(gAddr, prev, dag.DefaultBranch, prev.BranchSeq+1)
+			err = da.AddNode(ctx, n, g.Hash)
 			Expect(err).To(BeNil())
 			prev = n
 		}
 
-		nodeWithBranches := CreateNodeWithBranches(gAddr, prev, []string{"likes", "comments"})
-		err = da.AddNode(ctx, nodeWithBranches, g.Hash, dag.DefaultBranch)
+		// add one node with other branches
+		nodeWithBranches := CreateNodeWithBranches(gAddr, prev, []string{"likes", "comments"}, dag.DefaultBranch, prev.BranchSeq+1)
+		err = da.AddNode(ctx, nodeWithBranches, g.Hash)
 		Expect(err).To(BeNil())
 
+		// add more nodes to main branch
 		prev = nodeWithBranches
 		for x := 1; x <= 5; x++ {
-			n := CreateNode(gAddr, prev)
-			err = da.AddNode(ctx, n, g.Hash, dag.DefaultBranch)
+			n := CreateNode(gAddr, prev, dag.DefaultBranch, prev.BranchSeq+1)
+			err = da.AddNode(ctx, n, g.Hash)
 			Expect(err).To(BeNil())
 			prev = n
 		}
 
+		// add nodes to the likes branch of the nodeWithBranches node
 		prev = nodeWithBranches
 		for x := 1; x <= 5; x++ {
-			n := CreateNode(gAddr, prev)
-			err = da.AddNode(ctx, n, nodeWithBranches.Hash, "likes")
+			n := CreateNode(gAddr, prev, "likes", int32(x))
+			err = da.AddNode(ctx, n, nodeWithBranches.Hash)
 			Expect(err).To(BeNil())
 			prev = n
 		}
 
 		lastLikes := prev
 
+		// add nodes to the comments branch of the nodeWithBranches node
 		prev = nodeWithBranches
 		for x := 1; x <= 5; x++ {
-			n := CreateNode(gAddr, prev)
-			err = da.AddNode(ctx, n, nodeWithBranches.Hash, "comments")
+			n := CreateNode(gAddr, prev, "comments", int32(x))
+			err = da.AddNode(ctx, n, nodeWithBranches.Hash)
 			Expect(err).To(BeNil())
 			prev = n
 		}
 
+		// final graph should have the structure:
+		//                      n  branch seq for this node should be 5
+		//                      |
+		//                      n
+		//                      |
+		//                      n
+		//                      |
+		//                      n
+		//                      |
+		//                      n  likes branch
+		// root                 |
+		// n - n - n - n - n - nodeWithBranches - n - n - n - n - n
+		//                      |
+		//                      n  comments branch
+		//                      |
+		//                      n
+		//                      |
+		//                      n
+		//                      |
+		//                      n
+		//                      |
+		//                      n branch seq for this node should be 5
+
 		lastComments := prev
+
+		Expect(nodeWithBranches.BranchSeq).To(Equal(int32(6)))
 
 		n, err := da.GetLastNodeForBranch(ctx, nodeWithBranches.Hash, "likes")
 		Expect(err).To(BeNil())
 		Expect(n).NotTo(BeNil())
 		Expect(n).To(Equal(lastLikes))
+		Expect(n.BranchSeq).To(Equal(int32(5)))
 
 		n, err = da.GetLastNodeForBranch(ctx, nodeWithBranches.Hash, "comments")
 		Expect(err).To(BeNil())
 		Expect(n).NotTo(BeNil())
 		Expect(n).To(Equal(lastComments))
+		Expect(n.BranchSeq).To(Equal(int32(5)))
 	})
 
 	It("Should NOT register node with invalid address", func() {
@@ -178,7 +210,7 @@ var _ = Describe("Dag", func() {
 
 		t := *node
 		t.Address = "xxxxxxxxxx"
-		err = da.AddNode(ctx, &t, genesisNode.Hash, dag.DefaultBranch)
+		err = da.AddNode(ctx, &t, genesisNode.Hash)
 		Expect(err).To(Equal(address.ErrInvalidChecksum))
 	})
 
@@ -191,7 +223,7 @@ var _ = Describe("Dag", func() {
 
 		t := &dag.Node{}
 		t = BuildNode(t, testGenesisAddr)
-		err = da.AddNode(ctx, t, genesisNode.Hash, dag.DefaultBranch)
+		err = da.AddNode(ctx, t, genesisNode.Hash)
 		Expect(err).To(Equal(dag.ErrInvalidNodeTimestamp))
 	})
 
@@ -204,7 +236,7 @@ var _ = Describe("Dag", func() {
 
 		t := *node
 		t.Hash = node2.Hash
-		err = da.AddNode(ctx, &t, genesisNode.Hash, dag.DefaultBranch)
+		err = da.AddNode(ctx, &t, genesisNode.Hash)
 		Expect(err).To(Equal(dag.ErrNodeSignatureDoesNotMatch))
 	})
 
@@ -217,7 +249,7 @@ var _ = Describe("Dag", func() {
 
 		t := *node
 		t.Signature = t.Signature + "3e"
-		err = da.AddNode(ctx, &t, genesisNode.Hash, dag.DefaultBranch)
+		err = da.AddNode(ctx, &t, genesisNode.Hash)
 		Expect(err).To(Equal(dag.ErrNodeSignatureDoesNotMatch))
 	})
 
@@ -228,9 +260,9 @@ var _ = Describe("Dag", func() {
 		err := da.Initialize(ctx, genesisNode)
 		Expect(err).To(BeNil())
 
-		err = da.AddNode(ctx, node, genesisNode.Hash, dag.DefaultBranch)
+		err = da.AddNode(ctx, node, genesisNode.Hash)
 		Expect(err).To(BeNil())
-		err = da.AddNode(ctx, node, genesisNode.Hash, dag.DefaultBranch)
+		err = da.AddNode(ctx, node, genesisNode.Hash)
 		Expect(err).To(Equal(dag.ErrNodeAlreadyInDag))
 	})
 
@@ -244,7 +276,7 @@ var _ = Describe("Dag", func() {
 		dt.EXPECT().Get(gomock.Any(), gomock.Any()).
 			Return(nil, datastore.ErrNotFound).Times(2)
 
-		err := da.AddNode(ctx, node, genesisNode.Hash, dag.DefaultBranch)
+		err := da.AddNode(ctx, node, genesisNode.Hash)
 		Expect(err).To(Equal(dag.ErrPreviousNodeNotFound))
 	})
 
@@ -255,16 +287,16 @@ var _ = Describe("Dag", func() {
 		err := da.Initialize(ctx, genesisNode)
 		Expect(err).To(BeNil())
 
-		node1 := CreateNode(genesisAddr, genesisNode)
-		err = da.AddNode(ctx, node1, genesisNode.Hash, dag.DefaultBranch)
+		node1 := CreateNode(genesisAddr, genesisNode, dag.DefaultBranch, 2)
+		err = da.AddNode(ctx, node1, genesisNode.Hash)
 		Expect(err).To(BeNil())
 
-		node2 := CreateNode(genesisAddr, node1)
-		err = da.AddNode(ctx, node2, genesisNode.Hash, dag.DefaultBranch)
+		node2 := CreateNode(genesisAddr, node1, dag.DefaultBranch, 3)
+		err = da.AddNode(ctx, node2, genesisNode.Hash)
 		Expect(err).To(BeNil())
 
-		node := CreateNode(genesisAddr, node1)
-		err = da.AddNode(ctx, node, genesisNode.Hash, dag.DefaultBranch)
+		node := CreateNode(genesisAddr, node1, dag.DefaultBranch, 4)
+		err = da.AddNode(ctx, node, genesisNode.Hash)
 		Expect(err).To(Equal(dag.ErrPreviousNodeIsNotHead))
 	})
 })
@@ -272,7 +304,7 @@ var _ = Describe("Dag", func() {
 func CreateGenesisNode() (*dag.Node, *address.Address) {
 	addr, _ := address.NewAddressWithKeys()
 
-	genesisNode := CreateNode(addr, nil)
+	genesisNode := CreateNode(addr, nil, dag.DefaultBranch, 1)
 	genesisNode.Address = addr.Address
 	genesisNode.Branches = []string{dag.DefaultBranch}
 	genesisNode.PubKey = hex.EncodeToString(addr.Keys.PublicKey)
@@ -284,16 +316,20 @@ func CreateGenesisNode() (*dag.Node, *address.Address) {
 	return genesisNode, addr
 }
 
-func CreateNode(addr *address.Address, prev *dag.Node) *dag.Node {
+func CreateNode(addr *address.Address, prev *dag.Node, branch string, seq int32) *dag.Node {
 	node := &dag.Node{}
 
 	if prev != nil {
 		node.Previous = prev.Hash
+		node.BranchSeq = seq
+	} else {
+		node.BranchSeq = 1
 	}
 	node.Address = addr.Address
 	node.PubKey = hex.EncodeToString(addr.Keys.PublicKey)
 	node.Timestamp = time.Now().UTC().Format(time.RFC3339)
 	node.Data = []byte(randString(256))
+	node.Branch = branch
 
 	_ = node.SetPow()
 
@@ -302,17 +338,21 @@ func CreateNode(addr *address.Address, prev *dag.Node) *dag.Node {
 	return node
 }
 
-func CreateNodeWithBranches(addr *address.Address, prev *dag.Node, branches []string) *dag.Node {
+func CreateNodeWithBranches(addr *address.Address, prev *dag.Node, branches []string, branch string, seq int32) *dag.Node {
 	node := &dag.Node{}
 
 	if prev != nil {
 		node.Previous = prev.Hash
+		node.BranchSeq = seq
+	} else {
+		node.BranchSeq = 1
 	}
 	node.Address = addr.Address
 	node.PubKey = hex.EncodeToString(addr.Keys.PublicKey)
 	node.Timestamp = time.Now().UTC().Format(time.RFC3339)
 	node.Data = []byte(randString(256))
 	node.Branches = branches
+	node.Branch = branch
 
 	_ = node.SetPow()
 

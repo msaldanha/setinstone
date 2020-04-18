@@ -38,7 +38,7 @@ func (t timeline) Add(ctx context.Context, msg Message) (string, error) {
 	if er != nil {
 		return "", t.translateError(er)
 	}
-	i, er := t.gr.Add(ctx, "", "", js, nil)
+	i, er := t.gr.Add(ctx, "", "main", js, nil)
 	if er != nil {
 		return "", t.translateError(er)
 	}
