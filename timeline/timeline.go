@@ -14,9 +14,9 @@ const (
 )
 
 type Timeline interface {
-	Append(ctx context.Context, msg Message) (string, error)
-	Get(ctx context.Context, key string) (Message, bool, error)
-	GetFrom(ctx context.Context, key string, count int) ([]Message, error)
+	Append(ctx context.Context, msg Item) (string, error)
+	Get(ctx context.Context, key string) (Item, bool, error)
+	GetFrom(ctx context.Context, key string, count int) ([]Item, error)
 }
 
 type timeline struct {
@@ -30,7 +30,7 @@ func NewTimeline(gr graph.Graph) Timeline {
 	}
 }
 
-func (t timeline) Append(ctx context.Context, msg Message) (string, error) {
+func (t timeline) Append(ctx context.Context, msg Item) (string, error) {
 	msg.Id = ""
 	msg.Address = ""
 	msg.Timestamp = ""
@@ -45,10 +45,10 @@ func (t timeline) Append(ctx context.Context, msg Message) (string, error) {
 	return i.Key, nil
 }
 
-func (t timeline) Get(ctx context.Context, key string) (Message, bool, error) {
+func (t timeline) Get(ctx context.Context, key string) (Item, bool, error) {
 	v, found, er := t.gr.Get(ctx, key)
 	if er != nil {
-		return Message{}, false, t.translateError(er)
+		return Item{}, false, t.translateError(er)
 	}
 	data, er := t.toMessage(v)
 	if er != nil {
@@ -57,13 +57,13 @@ func (t timeline) Get(ctx context.Context, key string) (Message, bool, error) {
 	return data, found, er
 }
 
-func (t timeline) GetFrom(ctx context.Context, key string, count int) ([]Message, error) {
+func (t timeline) GetFrom(ctx context.Context, key string, count int) ([]Item, error) {
 	it, er := t.gr.GetIterator(ctx, "", "main", key)
 	if er != nil {
 		return nil, t.translateError(er)
 	}
 	i := 0
-	msgs := []Message{}
+	msgs := []Item{}
 	for it.HasNext() && i < count {
 		v, er := it.Next(ctx)
 		if er != nil {
@@ -79,11 +79,11 @@ func (t timeline) GetFrom(ctx context.Context, key string, count int) ([]Message
 	return msgs, nil
 }
 
-func (t timeline) toMessage(v graph.GraphNode) (Message, error) {
-	msg := Message{}
+func (t timeline) toMessage(v graph.GraphNode) (Item, error) {
+	msg := Item{}
 	er := json.Unmarshal(v.Data, &msg)
 	if er != nil {
-		return Message{}, t.translateError(er)
+		return Item{}, t.translateError(er)
 	}
 	msg.Seq = v.Seq
 	msg.Id = v.Key

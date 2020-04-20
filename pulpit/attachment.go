@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 )
 
-func (s server) toTimelineMessage(req AddMessageRequest) (timeline.Message, error) {
-	msg := timeline.Message{}
+func (s server) toTimelineMessage(req AddMessageRequest) (timeline.Item, error) {
+	msg := timeline.Item{}
 	msg.Body = req.Body
 	msg.Links = req.Links
 	for i, v := range req.Attachments {
@@ -22,7 +22,7 @@ func (s server) toTimelineMessage(req AddMessageRequest) (timeline.Message, erro
 		if er != nil {
 			return msg, er
 		}
-		msg.Attachments = append(msg.Attachments, timeline.MessagePart{
+		msg.Attachments = append(msg.Attachments, timeline.ItemPart{
 			Seq:      i + 1,
 			Name:     filepath.Base(v),
 			MimeType: mimeType,

@@ -1,6 +1,6 @@
 package timeline
 
-type MessagePart struct {
+type ItemPart struct {
 	Seq      int    `json:"seq,omitempty"`
 	Name     string `json:"name,omitempty"`
 	MimeType string `json:"mime_type,omitempty"`
@@ -8,14 +8,12 @@ type MessagePart struct {
 	Data     string `json:"data,omitempty"`
 }
 
-type Link struct {
-}
-type Message struct {
-	Seq         int           `json:"seq,omitempty"`
-	Id          string        `json:"id,omitempty"`
-	Address     string        `json:"address,omitempty"`
-	Timestamp   string        `json:"timestamp,omitempty"`
-	Body        MessagePart   `json:"body,omitempty"`
-	Links       []MessagePart `json:"links,omitempty"`
-	Attachments []MessagePart `json:"attachments,omitempty"`
+type Item struct {
+	Seq         int        `json:"seq,omitempty"`
+	Id          string     `json:"id,omitempty"`
+	Address     string     `json:"address,omitempty"`
+	Timestamp   string     `json:"timestamp,omitempty"`
+	Body        ItemPart   `json:"body,omitempty"`
+	Links       []ItemPart `json:"links,omitempty"`
+	Attachments []ItemPart `json:"attachments,omitempty"`
 }
