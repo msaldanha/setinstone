@@ -14,7 +14,7 @@ const (
 )
 
 type Timeline interface {
-	Add(ctx context.Context, msg Message) (string, error)
+	Append(ctx context.Context, msg Message) (string, error)
 	Get(ctx context.Context, key string) (Message, bool, error)
 	GetFrom(ctx context.Context, key string, count int) ([]Message, error)
 }
@@ -30,7 +30,7 @@ func NewTimeline(gr graph.Graph) Timeline {
 	}
 }
 
-func (t timeline) Add(ctx context.Context, msg Message) (string, error) {
+func (t timeline) Append(ctx context.Context, msg Message) (string, error) {
 	msg.Id = ""
 	msg.Address = ""
 	msg.Timestamp = ""
