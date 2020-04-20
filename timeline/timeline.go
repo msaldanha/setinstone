@@ -38,7 +38,7 @@ func (t timeline) Add(ctx context.Context, msg Message) (string, error) {
 	if er != nil {
 		return "", t.translateError(er)
 	}
-	i, er := t.gr.Add(ctx, "", "main", js, nil)
+	i, er := t.gr.Append(ctx, "", graph.NodeData{Branch: "main", Data: js})
 	if er != nil {
 		return "", t.translateError(er)
 	}

@@ -38,7 +38,7 @@ var _ = Describe("Graph", func() {
 		gr := graph.NewGraph(ld, addr)
 
 		dataToAdd := testPayLoad{NumberField: 1000, StringFiled: "some data added"}
-		i, er := gr.Add(ctx, "", "main", toBytes(dataToAdd), nil)
+		i, er := gr.Append(ctx, "", graph.NodeData{Branch: "main", Data: toBytes(dataToAdd)})
 		Expect(er).To(BeNil())
 
 		var data testPayLoad
@@ -57,7 +57,7 @@ var _ = Describe("Graph", func() {
 		gr := graph.NewGraph(ld, addr)
 
 		dataToAdd := testPayLoad{NumberField: 1000, StringFiled: "some data added"}
-		_, er := gr.Add(ctx, "xxxxxx", "main", toBytes(dataToAdd), nil)
+		_, er := gr.Append(ctx, "xxxxxx", graph.NodeData{Branch: "main", Data: toBytes(dataToAdd)})
 
 		Expect(er).To(Equal(graph.ErrPreviousNotFound))
 	})
@@ -71,7 +71,7 @@ var _ = Describe("Graph", func() {
 		gr := graph.NewGraph(ld, a)
 
 		dataToAdd := testPayLoad{NumberField: 1000, StringFiled: "some data added"}
-		_, er := gr.Add(ctx, "", "main", toBytes(dataToAdd), nil)
+		_, er := gr.Append(ctx, "", graph.NodeData{Branch: "main", Data: toBytes(dataToAdd)})
 
 		Expect(er).To(Equal(graph.ErrReadOnly))
 	})
@@ -89,7 +89,7 @@ var _ = Describe("Graph", func() {
 		for i := 0; i < n; i++ {
 			dataToAdd := testPayLoad{NumberField: i, StringFiled: "some data added"}
 			dataAdded = append(dataAdded, dataToAdd)
-			nd, er := gr.Add(ctx, "", "main", toBytes(dataToAdd), nil)
+			nd, er := gr.Append(ctx, "", graph.NodeData{Branch: "main", Data: toBytes(dataToAdd)})
 			Expect(er).To(BeNil())
 			keys = append(keys, nd.Key)
 		}
@@ -124,7 +124,7 @@ var _ = Describe("Graph", func() {
 		for i := 0; i < n; i++ {
 			dataToAdd := testPayLoad{NumberField: i, StringFiled: "some data added"}
 			dataAdded = append(dataAdded, dataToAdd)
-			v, er := gr.Add(ctx, "", "main", toBytes(dataToAdd), nil)
+			v, er := gr.Append(ctx, "", graph.NodeData{Branch: "main", Data: toBytes(dataToAdd)})
 			Expect(er).To(BeNil())
 			keys = append(keys, v.Key)
 		}

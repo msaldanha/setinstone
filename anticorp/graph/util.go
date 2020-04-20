@@ -7,28 +7,28 @@ import (
 	"time"
 )
 
-func createNode(data []byte, branch string, branches []string, prev *dag.Node,
+func createNode(node NodeData, prev *dag.Node,
 	addr *address.Address) (*dag.Node, error) {
-	node := dag.NewNode()
-	node.Data = data
+	n := dag.NewNode()
+	n.Data = node.Data
 	if prev != nil {
-		node.Previous = prev.Hash
-		node.BranchSeq = prev.BranchSeq + 1
+		n.Previous = prev.Hash
+		n.BranchSeq = prev.BranchSeq + 1
 	} else {
-		node.BranchSeq = 1
+		n.BranchSeq = 1
 	}
-	node.Address = addr.Address
-	node.PubKey = hex.EncodeToString(addr.Keys.PublicKey)
-	node.Timestamp = time.Now().UTC().Format(time.RFC3339)
-	node.Branches = branches
-	node.Branch = branch
-	er := node.SetPow()
+	n.Address = addr.Address
+	n.PubKey = hex.EncodeToString(addr.Keys.PublicKey)
+	n.Timestamp = time.Now().UTC().Format(time.RFC3339)
+	n.Branches = node.Branches
+	n.Branch = node.Branch
+	er := n.SetPow()
 	if er != nil {
 		return nil, er
 	}
-	er = node.Sign(addr.Keys.ToEcdsaPrivateKey())
+	er = n.Sign(addr.Keys.ToEcdsaPrivateKey())
 	if er != nil {
 		return nil, er
 	}
-	return node, nil
+	return n, nil
 }

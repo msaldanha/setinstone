@@ -24,7 +24,7 @@ type Graph interface {
 	GetName() string
 	GetMetaData() string
 	Get(ctx context.Context, key string) (GraphNode, bool, error)
-	Add(ctx context.Context, keyRoot, branch string, data []byte, branches []string) (GraphNode, error)
+	Append(ctx context.Context, keyRoot string, node NodeData) (GraphNode, error)
 	GetIterator(ctx context.Context, keyRoot, branch string, from string) (Iterator, error)
 }
 
@@ -46,6 +46,14 @@ type GraphNode struct {
 	Address   string
 	Timestamp string
 	Data      []byte
+}
+
+type NodeData struct {
+	Address    string
+	Data       []byte
+	Branch     string
+	Branches   []string
+	Properties map[string]string
 }
 
 func NewGraph(da dag.Dag, addr *address.Address) Graph {
@@ -74,7 +82,7 @@ func (d graph) Get(ctx context.Context, key string) (GraphNode, bool, error) {
 	return d.toGraphNode(tx), true, nil
 }
 
-func (d graph) Add(ctx context.Context, keyRoot, branch string, data []byte, branches []string) (GraphNode, error) {
+func (d graph) Append(ctx context.Context, keyRoot string, node NodeData) (GraphNode, error) {
 	if d.addr.Keys == nil || d.addr.Keys.PrivateKey == nil {
 		return GraphNode{}, ErrReadOnly
 	}
@@ -82,14 +90,14 @@ func (d graph) Add(ctx context.Context, keyRoot, branch string, data []byte, bra
 	if keyRoot == "" {
 		gn, er := d.da.GetRoot(ctx, d.addr.Address)
 		if er == dag.ErrNodeNotFound {
-			return d.createFirstNode(ctx, data, branch, branches)
+			return d.createFirstNode(ctx, node)
 		}
 		if er != nil {
 			return GraphNode{}, er
 		}
 		keyRoot = gn.Hash
 	}
-	prev, er := d.da.GetLast(ctx, keyRoot, branch)
+	prev, er := d.da.GetLast(ctx, keyRoot, node.Branch)
 	if er == dag.ErrNodeNotFound {
 		return GraphNode{}, ErrPreviousNotFound
 	}
@@ -97,15 +105,15 @@ func (d graph) Add(ctx context.Context, keyRoot, branch string, data []byte, bra
 		return GraphNode{}, er
 	}
 
-	node, er := createNode(data, branch, branches, prev, d.addr)
+	n, er := createNode(node, prev, d.addr)
 	if er != nil {
 		return GraphNode{}, er
 	}
-	er = d.da.Append(ctx, node, keyRoot)
+	er = d.da.Append(ctx, n, keyRoot)
 	if er != nil {
 		return GraphNode{}, er
 	}
-	return d.toGraphNode(node), nil
+	return d.toGraphNode(n), nil
 }
 
 func (d graph) GetIterator(ctx context.Context, keyRoot, branch string, from string) (Iterator, error) {
@@ -184,28 +192,28 @@ func (d graph) get(ctx context.Context, key string) (*dag.Node, error) {
 	return node, nil
 }
 
-func (d graph) createFirstNode(ctx context.Context, data []byte, branch string, branches []string) (GraphNode, error) {
+func (d graph) createFirstNode(ctx context.Context, node NodeData) (GraphNode, error) {
 	hasDefaultBranch := false
-	for _, b := range branches {
-		if b == branch {
+	for _, b := range node.Branches {
+		if b == node.Branch {
 			hasDefaultBranch = true
 			break
 		}
 	}
 	if !hasDefaultBranch {
-		branches = append(branches, branch)
+		node.Branches = append(node.Branches, node.Branch)
 	}
-	node, er := createNode(data, branch, branches, nil, d.addr)
+	n, er := createNode(node, nil, d.addr)
 	if er != nil {
 		return GraphNode{}, d.translateError(er)
 	}
 
-	er = d.da.SetRoot(ctx, node)
+	er = d.da.SetRoot(ctx, n)
 	if er != nil {
 		return GraphNode{}, d.translateError(er)
 	}
 
-	return d.toGraphNode(node), nil
+	return d.toGraphNode(n), nil
 }
 
 func (d graph) translateError(er error) error {
@@ -220,6 +228,7 @@ func (d graph) translateError(er error) error {
 
 func (d graph) toGraphNode(node *dag.Node) GraphNode {
 	return GraphNode{
+		Seq:       int(node.BranchSeq),
 		Key:       node.Hash,
 		Address:   node.Address,
 		Timestamp: node.Timestamp,
