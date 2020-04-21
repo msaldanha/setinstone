@@ -282,7 +282,7 @@ func (s server) createNews(ctx iris.Context) {
 		return
 	}
 	c := context.Background()
-	key, er := tl.Append(c, msg)
+	key, er := tl.AppendMessage(c, msg)
 	if er == timeline.ErrReadOnly {
 		returnError(ctx, er, 400)
 		return

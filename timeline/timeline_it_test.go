@@ -34,8 +34,8 @@ var _ = Describe("Timeline", func() {
 
 		p := NewTimeline(gr)
 
-		msg := Item{Body: ItemPart{MimeType: "plain/text", Data: "some text"}}
-		key, er := p.Append(ctx, msg)
+		msg := Message{Body: MessagePart{MimeType: "plain/text", Data: "some text"}}
+		key, er := p.AppendMessage(ctx, msg)
 		Expect(er).To(BeNil())
 		Expect(key).ToNot(Equal(""))
 	})
@@ -46,8 +46,8 @@ var _ = Describe("Timeline", func() {
 
 		p := NewTimeline(gr)
 
-		expectedMsg := Item{Body: ItemPart{MimeType: "plain/text", Data: "some text"}}
-		key, er := p.Append(ctx, expectedMsg)
+		expectedMsg := Message{Body: MessagePart{MimeType: "plain/text", Data: "some text"}}
+		key, er := p.AppendMessage(ctx, expectedMsg)
 		Expect(er).To(BeNil())
 		Expect(key).ToNot(Equal(""))
 
@@ -63,13 +63,13 @@ var _ = Describe("Timeline", func() {
 
 		p := NewTimeline(gr)
 
-		msgs := []Item{}
+		msgs := []Message{}
 		keys := []string{}
 		n := 10
 		for i := 0; i < n; i++ {
-			expectedMsg := Item{Body: ItemPart{MimeType: "plain/text", Data: "some text " +
+			expectedMsg := Message{Body: MessagePart{MimeType: "plain/text", Data: "some text " +
 				strconv.Itoa(i)}}
-			key, er := p.Append(ctx, expectedMsg)
+			key, er := p.AppendMessage(ctx, expectedMsg)
 			Expect(er).To(BeNil())
 			Expect(key).ToNot(Equal(""))
 			msgs = append(msgs, expectedMsg)

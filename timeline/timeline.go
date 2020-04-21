@@ -10,13 +10,14 @@ import (
 )
 
 const (
-	ErrReadOnly = err.Error("read only")
+	ErrReadOnly       = err.Error("read only")
+	ErrInvalidMessage = err.Error("invalid message")
 )
 
 type Timeline interface {
-	Append(ctx context.Context, msg Item) (string, error)
-	Get(ctx context.Context, key string) (Item, bool, error)
-	GetFrom(ctx context.Context, key string, count int) ([]Item, error)
+	AppendMessage(ctx context.Context, msg Message) (string, error)
+	Get(ctx context.Context, key string) (MessageItem, bool, error)
+	GetFrom(ctx context.Context, key string, count int) ([]MessageItem, error)
 }
 
 type timeline struct {
@@ -30,11 +31,14 @@ func NewTimeline(gr graph.Graph) Timeline {
 	}
 }
 
-func (t timeline) Append(ctx context.Context, msg Item) (string, error) {
-	msg.Id = ""
-	msg.Address = ""
-	msg.Timestamp = ""
-	js, er := json.Marshal(msg)
+func (t timeline) AppendMessage(ctx context.Context, msg Message) (string, error) {
+	mi := MessageItem{
+		Message: msg,
+		Base: Base{
+			Type: TypeMessage,
+		},
+	}
+	js, er := json.Marshal(mi)
 	if er != nil {
 		return "", t.translateError(er)
 	}
@@ -45,10 +49,10 @@ func (t timeline) Append(ctx context.Context, msg Item) (string, error) {
 	return i.Key, nil
 }
 
-func (t timeline) Get(ctx context.Context, key string) (Item, bool, error) {
+func (t timeline) Get(ctx context.Context, key string) (MessageItem, bool, error) {
 	v, found, er := t.gr.Get(ctx, key)
 	if er != nil {
-		return Item{}, false, t.translateError(er)
+		return MessageItem{}, false, t.translateError(er)
 	}
 	data, er := t.toMessage(v)
 	if er != nil {
@@ -57,13 +61,13 @@ func (t timeline) Get(ctx context.Context, key string) (Item, bool, error) {
 	return data, found, er
 }
 
-func (t timeline) GetFrom(ctx context.Context, key string, count int) ([]Item, error) {
+func (t timeline) GetFrom(ctx context.Context, key string, count int) ([]MessageItem, error) {
 	it, er := t.gr.GetIterator(ctx, "", "main", key)
 	if er != nil {
 		return nil, t.translateError(er)
 	}
 	i := 0
-	msgs := []Item{}
+	msgs := []MessageItem{}
 	for it.HasNext() && i < count {
 		v, er := it.Next(ctx)
 		if er != nil {
@@ -79,16 +83,28 @@ func (t timeline) GetFrom(ctx context.Context, key string, count int) ([]Item, e
 	return msgs, nil
 }
 
-func (t timeline) toMessage(v graph.GraphNode) (Item, error) {
-	msg := Item{}
-	er := json.Unmarshal(v.Data, &msg)
+func (t timeline) toItem(v graph.GraphNode) (Base, error) {
+	item := Base{}
+	er := json.Unmarshal(v.Data, &item)
 	if er != nil {
-		return Item{}, t.translateError(er)
+		return Base{}, t.translateError(er)
 	}
-	msg.Seq = v.Seq
-	msg.Id = v.Key
-	msg.Address = v.Address
-	msg.Timestamp = v.Timestamp
+	item.Seq = v.Seq
+	item.Id = v.Key
+	item.Address = v.Address
+	item.Timestamp = v.Timestamp
+	return item, nil
+}
+
+func (t timeline) toMessage(v graph.GraphNode) (MessageItem, error) {
+	item, er := NewItemFromGraphNode(v)
+	if er != nil {
+		return MessageItem{}, er
+	}
+	msg, ok := item.AsMessage()
+	if !ok {
+		return MessageItem{}, ErrInvalidMessage
+	}
 	return msg, nil
 }
 
