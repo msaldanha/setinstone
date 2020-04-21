@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	TypeMessage = "Message"
+	TypePost    = "Post"
 	TypeLike    = "Like"
 	TypeComment = "Comment"
 )
@@ -20,7 +20,7 @@ type Base struct {
 	Children  []string `json:"children,omitempty"`
 }
 
-type MessagePart struct {
+type PostPart struct {
 	Seq      int    `json:"seq,omitempty"`
 	Name     string `json:"name,omitempty"`
 	MimeType string `json:"mime_type,omitempty"`
@@ -28,15 +28,15 @@ type MessagePart struct {
 	Data     string `json:"data,omitempty"`
 }
 
-type Message struct {
-	Body        MessagePart   `json:"body,omitempty"`
-	Links       []MessagePart `json:"links,omitempty"`
-	Attachments []MessagePart `json:"attachments,omitempty"`
+type Post struct {
+	Body        PostPart   `json:"body,omitempty"`
+	Links       []PostPart `json:"links,omitempty"`
+	Attachments []PostPart `json:"attachments,omitempty"`
 }
 
-type MessageItem struct {
+type PostItem struct {
 	Base
-	Message
+	Post
 }
 
 type Like struct {
@@ -49,8 +49,8 @@ type LikeItem struct {
 }
 
 type Item interface {
-	IsMessage() bool
-	AsMessage() (MessageItem, bool)
+	IsPost() bool
+	AsPost() (PostItem, bool)
 	IsLike() bool
 	AsLike() (LikeItem, bool)
 	AsBase() (Base, bool)
@@ -74,18 +74,18 @@ func NewItemFromGraphNode(v graph.GraphNode) (Item, error) {
 	return &item{v: v, base: base}, nil
 }
 
-func (i *item) IsMessage() bool {
-	return i.base.Type == TypeMessage
+func (i *item) IsPost() bool {
+	return i.base.Type == TypePost
 }
 
-func (i *item) AsMessage() (MessageItem, bool) {
-	if !i.IsMessage() {
-		return MessageItem{}, false
+func (i *item) AsPost() (PostItem, bool) {
+	if !i.IsPost() {
+		return PostItem{}, false
 	}
-	item := MessageItem{}
+	item := PostItem{}
 	er := json.Unmarshal(i.v.Data, &item)
 	if er != nil {
-		return MessageItem{}, false
+		return PostItem{}, false
 	}
 	i.updateBase(&item.Base)
 	return item, true

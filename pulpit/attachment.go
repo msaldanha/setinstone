@@ -9,20 +9,20 @@ import (
 	"path/filepath"
 )
 
-func (s server) toTimelineMessage(req AddMessageRequest) (timeline.Message, error) {
-	msg := timeline.Message{}
-	msg.Body = req.Body
-	msg.Links = req.Links
+func (s server) toTimelineMessage(req AddMessageRequest) (timeline.Post, error) {
+	post := timeline.Post{}
+	post.Body = req.Body
+	post.Links = req.Links
 	for i, v := range req.Attachments {
 		mimeType, er := getFileContentType(v)
 		if er != nil {
-			return msg, er
+			return post, er
 		}
 		cid, er := s.addFile(v)
 		if er != nil {
-			return msg, er
+			return post, er
 		}
-		msg.Attachments = append(msg.Attachments, timeline.MessagePart{
+		post.Attachments = append(post.Attachments, timeline.PostPart{
 			Seq:      i + 1,
 			Name:     filepath.Base(v),
 			MimeType: mimeType,
@@ -30,7 +30,7 @@ func (s server) toTimelineMessage(req AddMessageRequest) (timeline.Message, erro
 			Data:     "ipfs://" + cid,
 		})
 	}
-	return msg, nil
+	return post, nil
 }
 
 func (s server) addFile(name string) (string, error) {

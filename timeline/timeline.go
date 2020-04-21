@@ -16,7 +16,7 @@ const (
 )
 
 type Timeline interface {
-	AppendMessage(ctx context.Context, msg Message) (string, error)
+	AppendPost(ctx context.Context, post Post) (string, error)
 	AppendLike(ctx context.Context, msg Like) (string, error)
 	Get(ctx context.Context, key string) (interface{}, bool, error)
 	GetFrom(ctx context.Context, key string, count int) ([]interface{}, error)
@@ -33,11 +33,11 @@ func NewTimeline(gr graph.Graph) Timeline {
 	}
 }
 
-func (t timeline) AppendMessage(ctx context.Context, msg Message) (string, error) {
-	mi := MessageItem{
-		Message: msg,
+func (t timeline) AppendPost(ctx context.Context, post Post) (string, error) {
+	mi := PostItem{
+		Post: post,
 		Base: Base{
-			Type: TypeMessage,
+			Type: TypePost,
 		},
 	}
 	js, er := json.Marshal(mi)
@@ -79,7 +79,7 @@ func (t timeline) Get(ctx context.Context, key string) (interface{}, bool, error
 		return nil, false, t.translateError(er)
 	}
 	var data interface{}
-	if ret, ok := i.AsMessage(); ok {
+	if ret, ok := i.AsPost(); ok {
 		data = ret
 	} else if ret, ok := i.AsLike(); ok {
 		data = ret
@@ -107,7 +107,7 @@ func (t timeline) GetFrom(ctx context.Context, key string, count int) ([]interfa
 		}
 
 		var data interface{}
-		if ret, ok := item.AsMessage(); ok {
+		if ret, ok := item.AsPost(); ok {
 			data = ret
 		} else if ret, ok := item.AsLike(); ok {
 			data = ret
@@ -118,31 +118,6 @@ func (t timeline) GetFrom(ctx context.Context, key string, count int) ([]interfa
 		i++
 	}
 	return items, nil
-}
-
-func (t timeline) toItem(v graph.GraphNode) (Base, error) {
-	item := Base{}
-	er := json.Unmarshal(v.Data, &item)
-	if er != nil {
-		return Base{}, t.translateError(er)
-	}
-	item.Seq = v.Seq
-	item.Id = v.Key
-	item.Address = v.Address
-	item.Timestamp = v.Timestamp
-	return item, nil
-}
-
-func (t timeline) toMessage(v graph.GraphNode) (MessageItem, error) {
-	item, er := NewItemFromGraphNode(v)
-	if er != nil {
-		return MessageItem{}, er
-	}
-	msg, ok := item.AsMessage()
-	if !ok {
-		return MessageItem{}, ErrInvalidMessage
-	}
-	return msg, nil
 }
 
 func (t timeline) translateError(er error) error {

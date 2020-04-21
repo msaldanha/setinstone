@@ -34,8 +34,8 @@ var _ = Describe("Timeline", func() {
 
 		p := NewTimeline(gr)
 
-		msg := Message{Body: MessagePart{MimeType: "plain/text", Data: "some text"}}
-		key, er := p.AppendMessage(ctx, msg)
+		post := Post{Body: PostPart{MimeType: "plain/text", Data: "some text"}}
+		key, er := p.AppendPost(ctx, post)
 		Expect(er).To(BeNil())
 		Expect(key).ToNot(Equal(""))
 	})
@@ -46,16 +46,16 @@ var _ = Describe("Timeline", func() {
 
 		p := NewTimeline(gr)
 
-		expectedMsg := Message{Body: MessagePart{MimeType: "plain/text", Data: "some text"}}
-		key, er := p.AppendMessage(ctx, expectedMsg)
+		expectedPost := Post{Body: PostPart{MimeType: "plain/text", Data: "some text"}}
+		key, er := p.AppendPost(ctx, expectedPost)
 		Expect(er).To(BeNil())
 		Expect(key).ToNot(Equal(""))
 
 		i, found, er := p.Get(ctx, key)
 		Expect(er).To(BeNil())
 		Expect(found).To(BeTrue())
-		msg, _ := i.(MessageItem)
-		Expect(msg.Body).To(Equal(expectedMsg.Body))
+		postItem, _ := i.(PostItem)
+		Expect(postItem.Body).To(Equal(expectedPost.Body))
 	})
 
 	It("Should add like", func() {
@@ -94,14 +94,14 @@ var _ = Describe("Timeline", func() {
 
 		p := NewTimeline(gr)
 
-		msgs := []Message{}
+		posts := []Post{}
 		likes := []Like{}
 		keys := []string{}
 		n := 10
 		for i := 0; i < n; i++ {
-			expectedMsg := Message{Body: MessagePart{MimeType: "plain/text", Data: "some text " +
+			expectedPost := Post{Body: PostPart{MimeType: "plain/text", Data: "some text " +
 				strconv.Itoa(i)}}
-			key, er := p.AppendMessage(ctx, expectedMsg)
+			key, er := p.AppendPost(ctx, expectedPost)
 			Expect(er).To(BeNil())
 			Expect(key).ToNot(Equal(""))
 
@@ -110,7 +110,7 @@ var _ = Describe("Timeline", func() {
 			Expect(er).To(BeNil())
 			Expect(key).ToNot(Equal(""))
 
-			msgs = append(msgs, expectedMsg)
+			posts = append(posts, expectedPost)
 			likes = append(likes, expectedLike)
 			keys = append(keys, key)
 		}
@@ -122,8 +122,8 @@ var _ = Describe("Timeline", func() {
 		Expect(len(items)).To(Equal(count))
 		l, _ := items[0].(LikeItem)
 		Expect(l.Liked).To(Equal(likes[5].Liked))
-		m, _ := items[1].(MessageItem)
-		Expect(m.Body).To(Equal(msgs[5].Body))
+		m, _ := items[1].(PostItem)
+		Expect(m.Body).To(Equal(posts[5].Body))
 		l, _ = items[2].(LikeItem)
 		Expect(l.Liked).To(Equal(likes[4].Liked))
 	})
