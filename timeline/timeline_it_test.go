@@ -51,19 +51,51 @@ var _ = Describe("Timeline", func() {
 		Expect(er).To(BeNil())
 		Expect(key).ToNot(Equal(""))
 
-		text, found, er := p.Get(ctx, key)
+		i, found, er := p.Get(ctx, key)
 		Expect(er).To(BeNil())
 		Expect(found).To(BeTrue())
-		Expect(text.Body).To(Equal(expectedMsg.Body))
+		msg, _ := i.(MessageItem)
+		Expect(msg.Body).To(Equal(expectedMsg.Body))
 	})
 
-	It("Should get messages by key and count", func() {
+	It("Should add like", func() {
+		mockCtrl := gomock.NewController(GinkgoT())
+		defer mockCtrl.Finish()
+
+		p := NewTimeline(gr)
+
+		l := Like{Liked: "xxxxxx"}
+		key, er := p.AppendLike(ctx, l)
+		Expect(er).To(BeNil())
+		Expect(key).ToNot(Equal(""))
+	})
+
+	It("Should get like by key", func() {
+		mockCtrl := gomock.NewController(GinkgoT())
+		defer mockCtrl.Finish()
+
+		p := NewTimeline(gr)
+
+		expectedLike := Like{Liked: "some reference"}
+		key, er := p.AppendLike(ctx, expectedLike)
+		Expect(er).To(BeNil())
+		Expect(key).ToNot(Equal(""))
+
+		i, found, er := p.Get(ctx, key)
+		Expect(er).To(BeNil())
+		Expect(found).To(BeTrue())
+		l, _ := i.(LikeItem)
+		Expect(l.Liked).To(Equal(expectedLike.Liked))
+	})
+
+	It("Should get different items by key and count", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
 		p := NewTimeline(gr)
 
 		msgs := []Message{}
+		likes := []Like{}
 		keys := []string{}
 		n := 10
 		for i := 0; i < n; i++ {
@@ -72,17 +104,27 @@ var _ = Describe("Timeline", func() {
 			key, er := p.AppendMessage(ctx, expectedMsg)
 			Expect(er).To(BeNil())
 			Expect(key).ToNot(Equal(""))
+
+			expectedLike := Like{Liked: "some text " + strconv.Itoa(i)}
+			key, er = p.AppendLike(ctx, expectedLike)
+			Expect(er).To(BeNil())
+			Expect(key).ToNot(Equal(""))
+
 			msgs = append(msgs, expectedMsg)
+			likes = append(likes, expectedLike)
 			keys = append(keys, key)
 		}
 
 		count := 3
-		messages, er := p.GetFrom(ctx, keys[5], count)
+		items, er := p.GetFrom(ctx, keys[5], count)
 
 		Expect(er).To(BeNil())
-		Expect(len(messages)).To(Equal(count))
-		Expect(messages[0].Body).To(Equal(msgs[5].Body))
-		Expect(messages[1].Body).To(Equal(msgs[4].Body))
-		Expect(messages[2].Body).To(Equal(msgs[3].Body))
+		Expect(len(items)).To(Equal(count))
+		l, _ := items[0].(LikeItem)
+		Expect(l.Liked).To(Equal(likes[5].Liked))
+		m, _ := items[1].(MessageItem)
+		Expect(m.Body).To(Equal(msgs[5].Body))
+		l, _ = items[2].(LikeItem)
+		Expect(l.Liked).To(Equal(likes[4].Liked))
 	})
 })

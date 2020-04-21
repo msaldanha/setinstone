@@ -12,12 +12,14 @@ import (
 const (
 	ErrReadOnly       = err.Error("read only")
 	ErrInvalidMessage = err.Error("invalid message")
+	ErrUnknownType    = err.Error("unknown type")
 )
 
 type Timeline interface {
 	AppendMessage(ctx context.Context, msg Message) (string, error)
-	Get(ctx context.Context, key string) (MessageItem, bool, error)
-	GetFrom(ctx context.Context, key string, count int) ([]MessageItem, error)
+	AppendLike(ctx context.Context, msg Like) (string, error)
+	Get(ctx context.Context, key string) (interface{}, bool, error)
+	GetFrom(ctx context.Context, key string, count int) ([]interface{}, error)
 }
 
 type timeline struct {
@@ -49,38 +51,73 @@ func (t timeline) AppendMessage(ctx context.Context, msg Message) (string, error
 	return i.Key, nil
 }
 
-func (t timeline) Get(ctx context.Context, key string) (MessageItem, bool, error) {
-	v, found, er := t.gr.Get(ctx, key)
-	if er != nil {
-		return MessageItem{}, false, t.translateError(er)
+func (t timeline) AppendLike(ctx context.Context, msg Like) (string, error) {
+	mi := LikeItem{
+		Like: msg,
+		Base: Base{
+			Type: TypeLike,
+		},
 	}
-	data, er := t.toMessage(v)
+	js, er := json.Marshal(mi)
 	if er != nil {
-		return data, false, t.translateError(er)
+		return "", t.translateError(er)
 	}
-	return data, found, er
+	i, er := t.gr.Append(ctx, "", graph.NodeData{Branch: "main", Data: js})
+	if er != nil {
+		return "", t.translateError(er)
+	}
+	return i.Key, nil
 }
 
-func (t timeline) GetFrom(ctx context.Context, key string, count int) ([]MessageItem, error) {
+func (t timeline) Get(ctx context.Context, key string) (interface{}, bool, error) {
+	v, found, er := t.gr.Get(ctx, key)
+	if er != nil {
+		return nil, false, t.translateError(er)
+	}
+	i, er := NewItemFromGraphNode(v)
+	if er != nil {
+		return nil, false, t.translateError(er)
+	}
+	var data interface{}
+	if ret, ok := i.AsMessage(); ok {
+		data = ret
+	} else if ret, ok := i.AsLike(); ok {
+		data = ret
+	} else {
+		data, _ = i.AsBase()
+	}
+	return data, found, nil
+}
+
+func (t timeline) GetFrom(ctx context.Context, key string, count int) ([]interface{}, error) {
 	it, er := t.gr.GetIterator(ctx, "", "main", key)
 	if er != nil {
 		return nil, t.translateError(er)
 	}
 	i := 0
-	msgs := []MessageItem{}
+	items := []interface{}{}
 	for it.HasNext() && i < count {
 		v, er := it.Next(ctx)
 		if er != nil {
 			return nil, t.translateError(er)
 		}
-		data, er := t.toMessage(v)
+		item, er := NewItemFromGraphNode(v)
 		if er != nil {
 			return nil, t.translateError(er)
 		}
-		msgs = append(msgs, data)
+
+		var data interface{}
+		if ret, ok := item.AsMessage(); ok {
+			data = ret
+		} else if ret, ok := item.AsLike(); ok {
+			data = ret
+		} else {
+			data, _ = item.AsBase()
+		}
+		items = append(items, data)
 		i++
 	}
-	return msgs, nil
+	return items, nil
 }
 
 func (t timeline) toItem(v graph.GraphNode) (Base, error) {

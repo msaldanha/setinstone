@@ -39,9 +39,21 @@ type MessageItem struct {
 	Message
 }
 
+type Like struct {
+	Liked string `json:"liked,omitempty"`
+}
+
+type LikeItem struct {
+	Base
+	Like
+}
+
 type Item interface {
 	IsMessage() bool
 	AsMessage() (MessageItem, bool)
+	IsLike() bool
+	AsLike() (LikeItem, bool)
+	AsBase() (Base, bool)
 }
 
 type item struct {
@@ -77,6 +89,27 @@ func (i *item) AsMessage() (MessageItem, bool) {
 	}
 	i.updateBase(&item.Base)
 	return item, true
+}
+
+func (i *item) IsLike() bool {
+	return i.base.Type == TypeLike
+}
+
+func (i *item) AsLike() (LikeItem, bool) {
+	if !i.IsLike() {
+		return LikeItem{}, false
+	}
+	item := LikeItem{}
+	er := json.Unmarshal(i.v.Data, &item)
+	if er != nil {
+		return LikeItem{}, false
+	}
+	i.updateBase(&item.Base)
+	return item, true
+}
+
+func (i *item) AsBase() (Base, bool) {
+	return i.base, true
 }
 
 func (i *item) updateBase(base *Base) {
