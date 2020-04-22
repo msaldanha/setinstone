@@ -55,7 +55,7 @@ var _ = Describe("Timeline", func() {
 		i, found, er := p.Get(ctx, key)
 		Expect(er).To(BeNil())
 		Expect(found).To(BeTrue())
-		postItem, _ := i.(timeline.PostItem)
+		postItem, _ := i.AsPost()
 		Expect(postItem.Body).To(Equal(expectedPost.Body))
 	})
 
@@ -85,7 +85,7 @@ var _ = Describe("Timeline", func() {
 		i, found, er := tl1.Get(ctx, receivedKey)
 		Expect(er).To(BeNil())
 		Expect(found).To(BeTrue())
-		likeItem, _ := i.(timeline.LikeItem)
+		likeItem, _ := i.AsLike()
 		Expect(likeItem.Liked).To(Equal(likeKey))
 	})
 
@@ -174,11 +174,11 @@ var _ = Describe("Timeline", func() {
 
 		Expect(er).To(BeNil())
 		Expect(len(items)).To(Equal(count))
-		l, _ := items[0].(timeline.LikeItem)
+		l, _ := items[0].AsLike()
 		Expect(l.Liked).To(Equal(likes[5].Liked))
-		m, _ := items[1].(timeline.PostItem)
+		m, _ := items[1].AsPost()
 		Expect(m.Body).To(Equal(posts[5].Body))
-		l, _ = items[2].(timeline.LikeItem)
+		l, _ = items[2].AsLike()
 		Expect(l.Liked).To(Equal(likes[4].Liked))
 	})
 })

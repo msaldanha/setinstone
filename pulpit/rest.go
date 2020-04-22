@@ -219,13 +219,19 @@ func (s server) getNews(ctx iris.Context) {
 	}
 
 	c := context.Background()
-	news, er := tl.GetFrom(c, from, count)
+	items, er := tl.GetFrom(c, from, count)
 	if er != nil {
 		returnError(ctx, er, 500)
 		return
 	}
 
-	_, er = ctx.JSON(Response{Payload: news})
+	payload := make([]interface{}, 0, len(items))
+	for _, item := range items {
+		i, _ := item.AsInterface()
+		payload = append(payload, i)
+	}
+
+	_, er = ctx.JSON(Response{Payload: payload})
 	if er != nil {
 		returnError(ctx, er, 500)
 		return

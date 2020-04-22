@@ -54,6 +54,7 @@ type Item interface {
 	IsLike() bool
 	AsLike() (LikeItem, bool)
 	AsBase() (Base, bool)
+	AsInterface() (interface{}, bool)
 }
 
 type item struct {
@@ -110,6 +111,16 @@ func (i *item) AsLike() (LikeItem, bool) {
 
 func (i *item) AsBase() (Base, bool) {
 	return i.base, true
+}
+
+func (i *item) AsInterface() (interface{}, bool) {
+	switch i.base.Type {
+	case TypeLike:
+		return i.AsLike()
+	case TypePost:
+		return i.AsPost()
+	}
+	return nil, false
 }
 
 func (i *item) updateBase(base *Base) {

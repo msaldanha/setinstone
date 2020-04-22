@@ -25,8 +25,8 @@ type Timeline interface {
 	AppendPost(ctx context.Context, post Post) (string, error)
 	AppendLike(ctx context.Context, msg Like) (string, error)
 	AddReceivedLike(ctx context.Context, key string) (string, error)
-	Get(ctx context.Context, key string) (interface{}, bool, error)
-	GetFrom(ctx context.Context, key string, count int) ([]interface{}, error)
+	Get(ctx context.Context, key string) (Item, bool, error)
+	GetFrom(ctx context.Context, key string, count int) ([]Item, error)
 }
 
 type timeline struct {
@@ -62,12 +62,11 @@ func (t timeline) AppendLike(ctx context.Context, like Like) (string, error) {
 	if er != nil {
 		return "", er
 	}
-	_, ok := v.(LikeItem)
-	if ok {
+	if v.IsLike() {
 		return "", ErrCannotLikeALike
 	}
 
-	base := t.getBase(v)
+	base, _ := v.AsBase()
 	if base.Address == t.gr.GetAddress(ctx).Address {
 		return "", ErrCannotLikeOwnItem
 	}
@@ -96,7 +95,7 @@ func (t timeline) AddReceivedLike(ctx context.Context, likeKey string) (string, 
 	if !found {
 		return "", ErrNotFound
 	}
-	receivedLike, ok := v.(LikeItem)
+	receivedLike, ok := v.AsLike()
 	if !ok {
 		return "", ErrCannotLike
 	}
@@ -111,7 +110,7 @@ func (t timeline) AddReceivedLike(ctx context.Context, likeKey string) (string, 
 	if !found {
 		return "", ErrNotFound
 	}
-	likedItem, ok := v.(PostItem)
+	likedItem, ok := v.AsPost()
 	if !ok {
 		return "", ErrCannotLike
 	}
@@ -150,7 +149,7 @@ func (t timeline) AddReceivedLike(ctx context.Context, likeKey string) (string, 
 	return i.Key, nil
 }
 
-func (t timeline) Get(ctx context.Context, key string) (interface{}, bool, error) {
+func (t timeline) Get(ctx context.Context, key string) (Item, bool, error) {
 	v, found, er := t.gr.Get(ctx, key)
 	if er != nil {
 		return nil, false, t.translateError(er)
@@ -159,24 +158,16 @@ func (t timeline) Get(ctx context.Context, key string) (interface{}, bool, error
 	if er != nil {
 		return nil, false, t.translateError(er)
 	}
-	var data interface{}
-	if ret, ok := i.AsPost(); ok {
-		data = ret
-	} else if ret, ok := i.AsLike(); ok {
-		data = ret
-	} else {
-		data, _ = i.AsBase()
-	}
-	return data, found, nil
+	return i, found, nil
 }
 
-func (t timeline) GetFrom(ctx context.Context, key string, count int) ([]interface{}, error) {
+func (t timeline) GetFrom(ctx context.Context, key string, count int) ([]Item, error) {
 	it, er := t.gr.GetIterator(ctx, "", "main", key)
 	if er != nil {
 		return nil, t.translateError(er)
 	}
 	i := 0
-	items := []interface{}{}
+	items := []Item{}
 	for it.HasNext() && i < count {
 		v, er := it.Next(ctx)
 		if er != nil {
@@ -186,29 +177,10 @@ func (t timeline) GetFrom(ctx context.Context, key string, count int) ([]interfa
 		if er != nil {
 			return nil, t.translateError(er)
 		}
-
-		var data interface{}
-		if ret, ok := item.AsPost(); ok {
-			data = ret
-		} else if ret, ok := item.AsLike(); ok {
-			data = ret
-		} else {
-			data, _ = item.AsBase()
-		}
-		items = append(items, data)
+		items = append(items, item)
 		i++
 	}
 	return items, nil
-}
-
-func (t timeline) getBase(in interface{}) Base {
-	switch v := in.(type) {
-	case PostItem:
-		return v.Base
-	case LikeItem:
-		return v.Base
-	}
-	return Base{}
 }
 
 func (t timeline) translateError(er error) error {
