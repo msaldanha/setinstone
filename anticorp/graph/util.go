@@ -8,15 +8,13 @@ import (
 )
 
 func createNode(node NodeData, prev *dag.Node,
-	addr *address.Address) (*dag.Node, error) {
+	addr *address.Address, seq int32) (*dag.Node, error) {
 	n := dag.NewNode()
 	n.Data = node.Data
 	if prev != nil {
 		n.Previous = prev.Hash
-		n.BranchSeq = prev.BranchSeq + 1
-	} else {
-		n.BranchSeq = 1
 	}
+	n.BranchSeq = seq
 	n.Address = addr.Address
 	n.PubKey = hex.EncodeToString(addr.Keys.PublicKey)
 	n.Timestamp = time.Now().UTC().Format(time.RFC3339)

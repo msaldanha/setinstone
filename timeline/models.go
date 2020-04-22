@@ -117,4 +117,5 @@ func (i *item) updateBase(base *Base) {
 	base.Id = i.v.Key
 	base.Address = i.v.Address
 	base.Timestamp = i.v.Timestamp
+	base.Children = i.v.Branches
 }

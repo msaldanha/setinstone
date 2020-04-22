@@ -1,4 +1,4 @@
-package timeline
+package timeline_test
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"github.com/msaldanha/setinstone/anticorp/dag"
 	"github.com/msaldanha/setinstone/anticorp/datastore"
 	"github.com/msaldanha/setinstone/anticorp/graph"
+	"github.com/msaldanha/setinstone/timeline"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"strconv"
@@ -32,9 +33,9 @@ var _ = Describe("Timeline", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		p := NewTimeline(gr)
+		p := timeline.NewTimeline(gr)
 
-		post := Post{Body: PostPart{MimeType: "plain/text", Data: "some text"}}
+		post := timeline.Post{Body: timeline.PostPart{MimeType: "plain/text", Data: "some text"}}
 		key, er := p.AppendPost(ctx, post)
 		Expect(er).To(BeNil())
 		Expect(key).ToNot(Equal(""))
@@ -44,9 +45,9 @@ var _ = Describe("Timeline", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		p := NewTimeline(gr)
+		p := timeline.NewTimeline(gr)
 
-		expectedPost := Post{Body: PostPart{MimeType: "plain/text", Data: "some text"}}
+		expectedPost := timeline.Post{Body: timeline.PostPart{MimeType: "plain/text", Data: "some text"}}
 		key, er := p.AppendPost(ctx, expectedPost)
 		Expect(er).To(BeNil())
 		Expect(key).ToNot(Equal(""))
@@ -54,59 +55,112 @@ var _ = Describe("Timeline", func() {
 		i, found, er := p.Get(ctx, key)
 		Expect(er).To(BeNil())
 		Expect(found).To(BeTrue())
-		postItem, _ := i.(PostItem)
+		postItem, _ := i.(timeline.PostItem)
 		Expect(postItem.Body).To(Equal(expectedPost.Body))
 	})
 
-	It("Should add like", func() {
+	It("Should add a received like", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		p := NewTimeline(gr)
+		tl1 := timeline.NewTimeline(gr)
+		addr2, _ := address.NewAddressWithKeys()
+		gr2 := graph.NewGraph(da, addr2)
+		tl2 := timeline.NewTimeline(gr2)
 
-		l := Like{Liked: "xxxxxx"}
-		key, er := p.AppendLike(ctx, l)
+		expectedPost := timeline.Post{Body: timeline.PostPart{MimeType: "plain/text", Data: "some text"}}
+		postKey, er := tl1.AppendPost(ctx, expectedPost)
 		Expect(er).To(BeNil())
-		Expect(key).ToNot(Equal(""))
-	})
+		Expect(postKey).ToNot(Equal(""))
 
-	It("Should get like by key", func() {
-		mockCtrl := gomock.NewController(GinkgoT())
-		defer mockCtrl.Finish()
-
-		p := NewTimeline(gr)
-
-		expectedLike := Like{Liked: "some reference"}
-		key, er := p.AppendLike(ctx, expectedLike)
+		expectedLike := timeline.Like{Liked: postKey}
+		likeKey, er := tl2.AppendLike(ctx, expectedLike)
 		Expect(er).To(BeNil())
-		Expect(key).ToNot(Equal(""))
+		Expect(likeKey).ToNot(Equal(""))
 
-		i, found, er := p.Get(ctx, key)
+		receivedKey, er := tl1.AddReceivedLike(ctx, likeKey)
+		Expect(er).To(BeNil())
+		Expect(likeKey).ToNot(Equal(""))
+
+		i, found, er := tl1.Get(ctx, receivedKey)
 		Expect(er).To(BeNil())
 		Expect(found).To(BeTrue())
-		l, _ := i.(LikeItem)
-		Expect(l.Liked).To(Equal(expectedLike.Liked))
+		likeItem, _ := i.(timeline.LikeItem)
+		Expect(likeItem.Liked).To(Equal(likeKey))
+	})
+
+	It("Should NOT append like to own item", func() {
+		mockCtrl := gomock.NewController(GinkgoT())
+		defer mockCtrl.Finish()
+
+		p := timeline.NewTimeline(gr)
+
+		expectedPost := timeline.Post{Body: timeline.PostPart{MimeType: "plain/text", Data: "some text "}}
+		key, er := p.AppendPost(ctx, expectedPost)
+		Expect(er).To(BeNil())
+		Expect(key).ToNot(Equal(""))
+
+		expectedLike := timeline.Like{Liked: key}
+		key, er = p.AppendLike(ctx, expectedLike)
+		Expect(er).To(Equal(timeline.ErrCannotLikeOwnItem))
+		Expect(key).To(Equal(""))
+
+	})
+
+	It("Should NOT append a like to like", func() {
+		mockCtrl := gomock.NewController(GinkgoT())
+		defer mockCtrl.Finish()
+
+		tl1 := timeline.NewTimeline(gr)
+		addr2, _ := address.NewAddressWithKeys()
+		gr2 := graph.NewGraph(da, addr2)
+		tl2 := timeline.NewTimeline(gr2)
+
+		expectedPost := timeline.Post{Body: timeline.PostPart{MimeType: "plain/text", Data: "some text "}}
+		key, er := tl1.AppendPost(ctx, expectedPost)
+		Expect(er).To(BeNil())
+		Expect(key).ToNot(Equal(""))
+
+		expectedLike := timeline.Like{Liked: key}
+		key, er = tl2.AppendLike(ctx, expectedLike)
+		Expect(er).To(BeNil())
+		Expect(key).ToNot(Equal(""))
+
+		expectedLike = timeline.Like{Liked: key}
+		key, er = tl1.AppendLike(ctx, expectedLike)
+		Expect(er).To(Equal(timeline.ErrCannotLikeALike))
+		Expect(key).To(Equal(""))
+
 	})
 
 	It("Should get different items by key and count", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		p := NewTimeline(gr)
+		tl1 := timeline.NewTimeline(gr)
 
-		posts := []Post{}
-		likes := []Like{}
+		addr2, _ := address.NewAddressWithKeys()
+		gr2 := graph.NewGraph(da, addr2)
+		tl2 := timeline.NewTimeline(gr2)
+
+		posts := []timeline.Post{}
+		likes := []timeline.Like{}
 		keys := []string{}
 		n := 10
 		for i := 0; i < n; i++ {
-			expectedPost := Post{Body: PostPart{MimeType: "plain/text", Data: "some text " +
+			expectedPost := timeline.Post{Body: timeline.PostPart{MimeType: "plain/text", Data: "some text " +
 				strconv.Itoa(i)}}
-			key, er := p.AppendPost(ctx, expectedPost)
+			key, er := tl1.AppendPost(ctx, expectedPost)
 			Expect(er).To(BeNil())
 			Expect(key).ToNot(Equal(""))
 
-			expectedLike := Like{Liked: "some text " + strconv.Itoa(i)}
-			key, er = p.AppendLike(ctx, expectedLike)
+			key, er = tl2.AppendPost(ctx, timeline.Post{Body: timeline.PostPart{MimeType: "plain/text", Data: "some text for tl2 " +
+				strconv.Itoa(i)}})
+			Expect(er).To(BeNil())
+			Expect(key).ToNot(Equal(""))
+
+			expectedLike := timeline.Like{Liked: key}
+			key, er = tl1.AppendLike(ctx, expectedLike)
 			Expect(er).To(BeNil())
 			Expect(key).ToNot(Equal(""))
 
@@ -116,15 +170,15 @@ var _ = Describe("Timeline", func() {
 		}
 
 		count := 3
-		items, er := p.GetFrom(ctx, keys[5], count)
+		items, er := tl1.GetFrom(ctx, keys[5], count)
 
 		Expect(er).To(BeNil())
 		Expect(len(items)).To(Equal(count))
-		l, _ := items[0].(LikeItem)
+		l, _ := items[0].(timeline.LikeItem)
 		Expect(l.Liked).To(Equal(likes[5].Liked))
-		m, _ := items[1].(PostItem)
+		m, _ := items[1].(timeline.PostItem)
 		Expect(m.Body).To(Equal(posts[5].Body))
-		l, _ = items[2].(LikeItem)
+		l, _ = items[2].(timeline.LikeItem)
 		Expect(l.Liked).To(Equal(likes[4].Liked))
 	})
 })

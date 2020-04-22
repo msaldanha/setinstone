@@ -26,6 +26,7 @@ type Graph interface {
 	Get(ctx context.Context, key string) (GraphNode, bool, error)
 	Append(ctx context.Context, keyRoot string, node NodeData) (GraphNode, error)
 	GetIterator(ctx context.Context, keyRoot, branch string, from string) (Iterator, error)
+	GetAddress(ctx context.Context) *address.Address
 }
 
 type graph struct {
@@ -46,6 +47,8 @@ type GraphNode struct {
 	Address   string
 	Timestamp string
 	Data      []byte
+	Branches  []string
+	Branch    string
 }
 
 type NodeData struct {
@@ -69,6 +72,11 @@ func (d graph) GetName() string {
 
 func (d graph) GetMetaData() string {
 	return d.metaData
+}
+
+func (d graph) GetAddress(ctx context.Context) *address.Address {
+	addr := *d.addr
+	return &addr
 }
 
 func (d graph) Get(ctx context.Context, key string) (GraphNode, bool, error) {
@@ -97,15 +105,21 @@ func (d graph) Append(ctx context.Context, keyRoot string, node NodeData) (Graph
 		}
 		keyRoot = gn.Hash
 	}
-	prev, er := d.da.GetLast(ctx, keyRoot, node.Branch)
+	last, er := d.da.GetLast(ctx, keyRoot, node.Branch)
 	if er == dag.ErrNodeNotFound {
 		return GraphNode{}, ErrPreviousNotFound
 	}
 	if er != nil {
 		return GraphNode{}, er
 	}
+	seq := int32(0)
+	if last.Hash == keyRoot && last.Branch != node.Branch {
+		seq = 1
+	} else {
+		seq = last.BranchSeq + 1
+	}
 
-	n, er := createNode(node, prev, d.addr)
+	n, er := createNode(node, last, d.addr, seq)
 	if er != nil {
 		return GraphNode{}, er
 	}
@@ -203,7 +217,7 @@ func (d graph) createFirstNode(ctx context.Context, node NodeData) (GraphNode, e
 	if !hasDefaultBranch {
 		node.Branches = append(node.Branches, node.Branch)
 	}
-	n, er := createNode(node, nil, d.addr)
+	n, er := createNode(node, nil, d.addr, 1)
 	if er != nil {
 		return GraphNode{}, d.translateError(er)
 	}
@@ -233,5 +247,7 @@ func (d graph) toGraphNode(node *dag.Node) GraphNode {
 		Address:   node.Address,
 		Timestamp: node.Timestamp,
 		Data:      node.Data,
+		Branches:  node.Branches,
+		Branch:    node.Branch,
 	}
 }
