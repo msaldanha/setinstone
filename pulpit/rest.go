@@ -250,6 +250,10 @@ func (s server) getNewsByHash(ctx iris.Context) {
 
 	c := context.Background()
 	news, er := tl.GetFrom(c, hash, 1)
+	if er == timeline.ErrNotFound {
+		returnError(ctx, er, 404)
+		return
+	}
 	if er != nil {
 		returnError(ctx, er, 500)
 		return
@@ -257,7 +261,8 @@ func (s server) getNewsByHash(ctx iris.Context) {
 
 	resp := Response{}
 	if len(news) > 0 {
-		resp.Payload = news[0]
+		i, _ := news[0].AsInterface()
+		resp.Payload = i
 	}
 
 	_, er = ctx.JSON(resp)
@@ -307,12 +312,17 @@ func (s server) getPulpit(addr string) (timeline.Timeline, error) {
 		return tl, nil
 	}
 
-	a := &address.Address{Address: addr}
-	m := graph.NewGraph(s.ld, a)
-
-	tl = timeline.NewTimeline(m)
-	s.timelines[addr] = tl
-
+	var a address.Address
+	buf, found, _ := s.store.Get(addr)
+	if !found {
+		a = address.Address{Address: addr}
+	} else {
+		er := a.FromBytes(buf)
+		if er != nil {
+			return nil, er
+		}
+	}
+	tl = s.getOrCreateTimeLine(&a)
 	return tl, nil
 }
 
@@ -348,19 +358,21 @@ func (s *server) init() error {
 		if er != nil {
 			return er
 		}
-		gr := graph.NewGraph(s.ld, a)
-
-		if a.Keys != nil {
-			if er != nil && er != graph.ErrAlreadyInitialized {
-				return er
-			}
-		}
-
-		tl := timeline.NewTimeline(gr)
-		s.timelines[a.Address] = tl
+		s.getOrCreateTimeLine(a)
 	}
 
 	return nil
+}
+
+func (s *server) getOrCreateTimeLine(a *address.Address) timeline.Timeline {
+	tl, found := s.timelines[a.Address]
+	if found {
+		return tl
+	}
+	gr := graph.NewGraph(s.ld, a)
+	tl = timeline.NewTimeline(gr)
+	s.timelines[a.Address] = tl
+	return tl
 }
 
 func returnError(ctx iris.Context, er error, statusCode int) {

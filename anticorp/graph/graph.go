@@ -138,7 +138,7 @@ func (d graph) GetIterator(ctx context.Context, keyRoot, branch string, from str
 	if keyRoot == "" {
 		gn, er := d.da.GetRoot(ctx, d.addr.Address)
 		if er == dag.ErrNodeNotFound {
-			return nil, ErrPreviousNotFound
+			return nil, ErrNotFound
 		}
 		if er != nil {
 			return nil, er

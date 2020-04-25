@@ -187,6 +187,8 @@ func (t timeline) translateError(er error) error {
 	switch er {
 	case graph.ErrReadOnly:
 		return ErrReadOnly
+	case graph.ErrNotFound:
+		return ErrNotFound
 	default:
 		return fmt.Errorf("unable to process the request: %s", er)
 	}
