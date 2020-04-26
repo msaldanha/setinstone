@@ -80,14 +80,14 @@ func (d graph) GetAddress(ctx context.Context) *address.Address {
 }
 
 func (d graph) Get(ctx context.Context, key string) (GraphNode, bool, error) {
-	tx, er := d.get(ctx, key)
+	node, er := d.get(ctx, key)
 	if er != nil {
 		if er == dag.ErrNodeNotFound {
 			return GraphNode{}, false, nil
 		}
 		return GraphNode{}, false, d.translateError(er)
 	}
-	return d.toGraphNode(tx), true, nil
+	return d.toGraphNode(node), true, nil
 }
 
 func (d graph) Append(ctx context.Context, keyRoot string, node NodeData) (GraphNode, error) {

@@ -95,11 +95,11 @@ func (da *dag) GetLast(ctx context.Context, branchRootNodeKey, branch string) (*
 
 func (da *dag) GetRoot(ctx context.Context, addr string) (*Node, error) {
 	key := da.getGenesisNodeKey(addr)
-	tx, er := da.getNodeByKey(ctx, key)
+	n, er := da.getNodeByKey(ctx, key)
 	if er != nil {
 		return nil, da.translateError(er)
 	}
-	return tx, nil
+	return n, nil
 }
 
 func (da *dag) Get(ctx context.Context, key string) (*Node, error) {
@@ -178,28 +178,28 @@ func (da *dag) VerifyNode(ctx context.Context, node *Node, branchRootNodeKey str
 	return nil
 }
 
-func (da *dag) verifyPow(tx *Node) bool {
-	ok, _ := tx.VerifyPow()
+func (da *dag) verifyPow(node *Node) bool {
+	ok, _ := node.VerifyPow()
 	return ok
 }
 
-func (da *dag) verifyTimeStamp(tx *Node) bool {
-	_, er := time.Parse(time.RFC3339, tx.Timestamp)
+func (da *dag) verifyTimeStamp(node *Node) bool {
+	_, er := time.Parse(time.RFC3339, node.Timestamp)
 	if er != nil {
 		return false
 	}
 	return true
 }
 
-func (da *dag) findPrevious(ctx context.Context, tx *Node) (*Node, error) {
-	return da.getNodeByKey(ctx, tx.Previous)
+func (da *dag) findPrevious(ctx context.Context, node *Node) (*Node, error) {
+	return da.getNodeByKey(ctx, node.Previous)
 }
 
-func (da *dag) verifyAddress(tx *Node) (bool, error) {
-	if ok, er := address.IsValid(string(tx.Address)); !ok {
+func (da *dag) verifyAddress(node *Node) (bool, error) {
+	if ok, er := address.IsValid(string(node.Address)); !ok {
 		return ok, da.translateError(er)
 	}
-	if !address.MatchesPubKey(tx.Address, tx.PubKey) {
+	if !address.MatchesPubKey(node.Address, node.PubKey) {
 		return false, ErrAddressDoesNotMatchPubKey
 	}
 	return true, nil
@@ -209,8 +209,8 @@ func (da *dag) verifyEdges(node *Node) (bool, error) {
 	return true, nil
 }
 
-func (da *dag) getPreviousNode(ctx context.Context, tx *Node) (*Node, error) {
-	previous, er := da.getNodeByKey(ctx, tx.Previous)
+func (da *dag) getPreviousNode(ctx context.Context, node *Node) (*Node, error) {
+	previous, er := da.getNodeByKey(ctx, node.Previous)
 	if er != nil {
 		return nil, da.translateError(er)
 	}
@@ -316,13 +316,13 @@ func (da *dag) getNodeByKey(ctx context.Context, key string) (*Node, error) {
 		return nil, nil
 	}
 
-	tx := &Node{}
-	er = tx.FromJson(string(json))
+	n := &Node{}
+	er = n.FromJson(string(json))
 	if er != nil {
 		return nil, da.translateError(er)
 	}
 
-	return tx, nil
+	return n, nil
 }
 
 func (da *dag) getGenesisNodeKey(addr string) string {
