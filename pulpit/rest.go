@@ -78,14 +78,16 @@ func NewServer(_ ServerOptions) (Server, error) {
 	app.Post("/media", srv.postMedia)
 
 	addresses := app.Party("/addresses")
-
-	addresses.Get("/{addr:string}/news", srv.getNews)
-	addresses.Get("/{addr:string}/news/{hash:string}", srv.getNewsByHash)
-	addresses.Post("/{addr:string}/news", srv.createNews)
-	addresses.Delete("/{addr:string}", srv.deleteAddress)
-
 	addresses.Get("/", srv.getAddresses)
 	addresses.Post("/", srv.createAddress)
+	addresses.Delete("/{addr:string}", srv.deleteAddress)
+
+	tl := app.Party("/tl")
+	ns := tl.Party("/{ns:string}")
+
+	ns.Get("/{addr:string}/items", srv.getItems)
+	ns.Get("/{addr:string}/items/{hash:string}", srv.getItemByHash)
+	ns.Post("/{addr:string}/items", srv.createItem)
 
 	return srv, nil
 }
@@ -207,12 +209,13 @@ func (s server) getAddresses(ctx iris.Context) {
 	_, _ = ctx.JSON(Response{Payload: addresses})
 }
 
-func (s server) getNews(ctx iris.Context) {
+func (s server) getItems(ctx iris.Context) {
+	ns := ctx.Params().Get("ns")
 	addr := ctx.Params().Get("addr")
 	from := ctx.URLParam("from")
 	count := ctx.URLParamIntDefault("count", defaultCount)
 
-	tl, er := s.getPulpit(addr)
+	tl, er := s.getPulpit(ns, addr)
 	if er != nil {
 		returnError(ctx, er, 500)
 		return
@@ -220,7 +223,7 @@ func (s server) getNews(ctx iris.Context) {
 
 	c := context.Background()
 	items, er := tl.GetFrom(c, from, count)
-	if er != nil {
+	if er != nil && er != timeline.ErrNotFound {
 		returnError(ctx, er, 500)
 		return
 	}
@@ -238,11 +241,12 @@ func (s server) getNews(ctx iris.Context) {
 	}
 }
 
-func (s server) getNewsByHash(ctx iris.Context) {
+func (s server) getItemByHash(ctx iris.Context) {
+	ns := ctx.Params().Get("ns")
 	addr := ctx.Params().Get("addr")
 	hash := ctx.Params().Get("hash")
 
-	tl, er := s.getPulpit(addr)
+	tl, er := s.getPulpit(ns, addr)
 	if er != nil {
 		returnError(ctx, er, 500)
 		return
@@ -272,7 +276,8 @@ func (s server) getNewsByHash(ctx iris.Context) {
 	}
 }
 
-func (s server) createNews(ctx iris.Context) {
+func (s server) createItem(ctx iris.Context) {
+	ns := ctx.Params().Get("ns")
 	addr := ctx.Params().Get("addr")
 	body := AddMessageRequest{}
 	er := ctx.ReadJSON(&body)
@@ -281,7 +286,7 @@ func (s server) createNews(ctx iris.Context) {
 		return
 	}
 
-	tl, er := s.getPulpit(addr)
+	tl, er := s.getPulpit(ns, addr)
 	if er != nil {
 		returnError(ctx, er, 500)
 		return
@@ -306,8 +311,8 @@ func (s server) createNews(ctx iris.Context) {
 	_, _ = ctx.JSON(Response{Payload: key})
 }
 
-func (s server) getPulpit(addr string) (timeline.Timeline, error) {
-	tl, found := s.timelines[addr]
+func (s server) getPulpit(ns, addr string) (timeline.Timeline, error) {
+	tl, found := s.timelines[ns+addr]
 	if found {
 		return tl, nil
 	}
@@ -322,7 +327,7 @@ func (s server) getPulpit(addr string) (timeline.Timeline, error) {
 			return nil, er
 		}
 	}
-	tl = s.getOrCreateTimeLine(&a)
+	tl = s.getOrCreateTimeLine(ns, &a)
 	return tl, nil
 }
 
@@ -346,32 +351,19 @@ func (s *server) init() error {
 	if er != nil {
 		panic(fmt.Errorf("failed to setup ipfs data store: %s", er))
 	}
-	s.ld = dag.NewDag("timeline", s.ds)
-
-	addrs, er := s.store.GetAll()
-	if er != nil {
-		return er
-	}
-	for _, buf := range addrs {
-		a := &address.Address{}
-		er = a.FromBytes(buf)
-		if er != nil {
-			return er
-		}
-		s.getOrCreateTimeLine(a)
-	}
 
 	return nil
 }
 
-func (s *server) getOrCreateTimeLine(a *address.Address) timeline.Timeline {
-	tl, found := s.timelines[a.Address]
+func (s *server) getOrCreateTimeLine(ns string, a *address.Address) timeline.Timeline {
+	tl, found := s.timelines[ns+a.Address]
 	if found {
 		return tl
 	}
-	gr := graph.NewGraph(s.ld, a)
+	ld := dag.NewDag(ns, s.ds)
+	gr := graph.NewGraph(ld, a)
 	tl = timeline.NewTimeline(gr)
-	s.timelines[a.Address] = tl
+	s.timelines[ns+a.Address] = tl
 	return tl
 }
 
