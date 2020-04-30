@@ -6,9 +6,9 @@ import (
 )
 
 const (
-	TypePost    = "Post"
-	TypeLike    = "Like"
-	TypeComment = "Comment"
+	TypePost      = "Post"
+	TypeReference = "Reference"
+	TypeComment   = "Comment"
 )
 
 type Base struct {
@@ -39,20 +39,21 @@ type PostItem struct {
 	Post
 }
 
-type Like struct {
-	Liked string `json:"liked,omitempty"`
+type Reference struct {
+	RefType string `json:"ref_type,omitempty"`
+	Target  string `json:"target,omitempty"`
 }
 
-type LikeItem struct {
+type ReferenceItem struct {
 	Base
-	Like
+	Reference
 }
 
 type Item interface {
 	IsPost() bool
 	AsPost() (PostItem, bool)
-	IsLike() bool
-	AsLike() (LikeItem, bool)
+	IsReference() bool
+	AsReference() (ReferenceItem, bool)
 	AsBase() (Base, bool)
 	AsInterface() (interface{}, bool)
 }
@@ -92,18 +93,18 @@ func (i *item) AsPost() (PostItem, bool) {
 	return item, true
 }
 
-func (i *item) IsLike() bool {
-	return i.base.Type == TypeLike
+func (i *item) IsReference() bool {
+	return i.base.Type == TypeReference
 }
 
-func (i *item) AsLike() (LikeItem, bool) {
-	if !i.IsLike() {
-		return LikeItem{}, false
+func (i *item) AsReference() (ReferenceItem, bool) {
+	if !i.IsReference() {
+		return ReferenceItem{}, false
 	}
-	item := LikeItem{}
+	item := ReferenceItem{}
 	er := json.Unmarshal(i.v.Data, &item)
 	if er != nil {
-		return LikeItem{}, false
+		return ReferenceItem{}, false
 	}
 	i.updateBase(&item.Base)
 	return item, true
@@ -115,8 +116,8 @@ func (i *item) AsBase() (Base, bool) {
 
 func (i *item) AsInterface() (interface{}, bool) {
 	switch i.base.Type {
-	case TypeLike:
-		return i.AsLike()
+	case TypeReference:
+		return i.AsReference()
 	case TypePost:
 		return i.AsPost()
 	}

@@ -73,8 +73,8 @@ var _ = Describe("Timeline", func() {
 		Expect(er).To(BeNil())
 		Expect(postKey).ToNot(Equal(""))
 
-		expectedLike := timeline.Like{Liked: postKey}
-		likeKey, er := tl2.AppendLike(ctx, expectedLike)
+		expectedLike := timeline.Reference{Target: postKey, RefType: timeline.RefTypeLike}
+		likeKey, er := tl2.AppendLike(ctx, expectedLike.Target)
 		Expect(er).To(BeNil())
 		Expect(likeKey).ToNot(Equal(""))
 
@@ -85,8 +85,9 @@ var _ = Describe("Timeline", func() {
 		i, found, er := tl1.Get(ctx, receivedKey)
 		Expect(er).To(BeNil())
 		Expect(found).To(BeTrue())
-		likeItem, _ := i.AsLike()
-		Expect(likeItem.Liked).To(Equal(likeKey))
+		likeItem, _ := i.AsReference()
+		Expect(likeItem.Target).To(Equal(likeKey))
+		Expect(likeItem.RefType).To(Equal(timeline.RefTypeLike))
 	})
 
 	It("Should NOT append like to own item", func() {
@@ -100,8 +101,8 @@ var _ = Describe("Timeline", func() {
 		Expect(er).To(BeNil())
 		Expect(key).ToNot(Equal(""))
 
-		expectedLike := timeline.Like{Liked: key}
-		key, er = p.AppendLike(ctx, expectedLike)
+		expectedLike := timeline.Reference{Target: key, RefType: timeline.RefTypeLike}
+		key, er = p.AppendLike(ctx, expectedLike.Target)
 		Expect(er).To(Equal(timeline.ErrCannotLikeOwnItem))
 		Expect(key).To(Equal(""))
 
@@ -121,13 +122,13 @@ var _ = Describe("Timeline", func() {
 		Expect(er).To(BeNil())
 		Expect(key).ToNot(Equal(""))
 
-		expectedLike := timeline.Like{Liked: key}
-		key, er = tl2.AppendLike(ctx, expectedLike)
+		expectedLike := timeline.Reference{Target: key, RefType: timeline.RefTypeLike}
+		key, er = tl2.AppendLike(ctx, expectedLike.Target)
 		Expect(er).To(BeNil())
 		Expect(key).ToNot(Equal(""))
 
-		expectedLike = timeline.Like{Liked: key}
-		key, er = tl1.AppendLike(ctx, expectedLike)
+		expectedLike = timeline.Reference{Target: key, RefType: timeline.RefTypeLike}
+		key, er = tl1.AppendLike(ctx, expectedLike.Target)
 		Expect(er).To(Equal(timeline.ErrCannotLikeALike))
 		Expect(key).To(Equal(""))
 
@@ -144,7 +145,7 @@ var _ = Describe("Timeline", func() {
 		tl2 := timeline.NewTimeline(gr2)
 
 		posts := []timeline.Post{}
-		likes := []timeline.Like{}
+		likes := []timeline.Reference{}
 		keys := []string{}
 		n := 10
 		for i := 0; i < n; i++ {
@@ -159,8 +160,8 @@ var _ = Describe("Timeline", func() {
 			Expect(er).To(BeNil())
 			Expect(key).ToNot(Equal(""))
 
-			expectedLike := timeline.Like{Liked: key}
-			key, er = tl1.AppendLike(ctx, expectedLike)
+			expectedLike := timeline.Reference{Target: key, RefType: timeline.RefTypeLike}
+			key, er = tl1.AppendLike(ctx, expectedLike.Target)
 			Expect(er).To(BeNil())
 			Expect(key).ToNot(Equal(""))
 
@@ -174,11 +175,11 @@ var _ = Describe("Timeline", func() {
 
 		Expect(er).To(BeNil())
 		Expect(len(items)).To(Equal(count))
-		l, _ := items[0].AsLike()
-		Expect(l.Liked).To(Equal(likes[5].Liked))
+		l, _ := items[0].AsReference()
+		Expect(l.Target).To(Equal(likes[5].Target))
 		m, _ := items[1].AsPost()
 		Expect(m.Body).To(Equal(posts[5].Body))
-		l, _ = items[2].AsLike()
-		Expect(l.Liked).To(Equal(likes[4].Liked))
+		l, _ = items[2].AsReference()
+		Expect(l.Target).To(Equal(likes[4].Target))
 	})
 })
