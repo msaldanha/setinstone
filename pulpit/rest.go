@@ -88,6 +88,7 @@ func NewServer(_ ServerOptions) (Server, error) {
 	ns.Get("/{addr:string}/items", srv.getItems)
 	ns.Get("/{addr:string}/items/{hash:string}", srv.getItemByHash)
 	ns.Post("/{addr:string}/items", srv.createItem)
+	ns.Post("/{addr:string}/references", srv.createReference)
 
 	return srv, nil
 }
@@ -102,12 +103,12 @@ func (s server) Run() error {
 func (s server) createAddress(ctx iris.Context) {
 	a, er := address.NewAddressWithKeys()
 	if er != nil {
-		returnError(ctx, er, 500)
+		returnError(ctx, er, getStatusCodeForError(er))
 		return
 	}
 	er = s.store.Put(a.Address, a.ToBytes())
 	if er != nil {
-		returnError(ctx, er, 500)
+		returnError(ctx, er, getStatusCodeForError(er))
 		return
 	}
 	_, _ = ctx.JSON(Response{Payload: a})
@@ -117,7 +118,7 @@ func (s server) deleteAddress(ctx iris.Context) {
 	addr := ctx.Params().Get("addr")
 	_, found, er := s.store.Get(addr)
 	if er != nil {
-		returnError(ctx, er, 500)
+		returnError(ctx, er, getStatusCodeForError(er))
 		return
 	}
 	if !found {
@@ -126,7 +127,7 @@ func (s server) deleteAddress(ctx iris.Context) {
 	}
 	er = s.store.Delete(addr)
 	if er != nil {
-		returnError(ctx, er, 500)
+		returnError(ctx, er, getStatusCodeForError(er))
 		return
 	}
 }
@@ -134,7 +135,7 @@ func (s server) deleteAddress(ctx iris.Context) {
 func (s server) getRandomAddress(ctx iris.Context) {
 	a, er := address.NewAddressWithKeys()
 	if er != nil {
-		returnError(ctx, er, 500)
+		returnError(ctx, er, getStatusCodeForError(er))
 		return
 	}
 	_, _ = ctx.JSON(Response{Payload: a})
@@ -169,7 +170,7 @@ func (s server) postMedia(ctx iris.Context) {
 	body := AddMediaRequest{}
 	er := ctx.ReadJSON(&body)
 	if er != nil {
-		returnError(ctx, er, 400)
+		returnError(ctx, er, getStatusCodeForError(er))
 		return
 	}
 
@@ -197,7 +198,7 @@ func (s server) postMedia(ctx iris.Context) {
 func (s server) getAddresses(ctx iris.Context) {
 	all, er := s.store.GetAll()
 	if er != nil {
-		returnError(ctx, er, 500)
+		returnError(ctx, er, getStatusCodeForError(er))
 		return
 	}
 	addresses := []*address.Address{}
@@ -217,14 +218,14 @@ func (s server) getItems(ctx iris.Context) {
 
 	tl, er := s.getPulpit(ns, addr)
 	if er != nil {
-		returnError(ctx, er, 500)
+		returnError(ctx, er, getStatusCodeForError(er))
 		return
 	}
 
 	c := context.Background()
 	items, er := tl.GetFrom(c, from, count)
 	if er != nil && er != timeline.ErrNotFound {
-		returnError(ctx, er, 500)
+		returnError(ctx, er, getStatusCodeForError(er))
 		return
 	}
 
@@ -236,7 +237,7 @@ func (s server) getItems(ctx iris.Context) {
 
 	_, er = ctx.JSON(Response{Payload: payload})
 	if er != nil {
-		returnError(ctx, er, 500)
+		returnError(ctx, er, getStatusCodeForError(er))
 		return
 	}
 }
@@ -254,12 +255,8 @@ func (s server) getItemByHash(ctx iris.Context) {
 
 	c := context.Background()
 	news, er := tl.GetFrom(c, hash, 1)
-	if er == timeline.ErrNotFound {
-		returnError(ctx, er, 404)
-		return
-	}
 	if er != nil {
-		returnError(ctx, er, 500)
+		returnError(ctx, er, getStatusCodeForError(er))
 		return
 	}
 
@@ -282,6 +279,37 @@ func (s server) createItem(ctx iris.Context) {
 	body := AddMessageRequest{}
 	er := ctx.ReadJSON(&body)
 	if er != nil {
+		returnError(ctx, er, getStatusCodeForError(er))
+		return
+	}
+
+	tl, er := s.getPulpit(ns, addr)
+	if er != nil {
+		returnError(ctx, er, getStatusCodeForError(er))
+		return
+	}
+
+	msg, er := s.toTimelineMessage(body)
+	if er != nil {
+		returnError(ctx, er, getStatusCodeForError(er))
+		return
+	}
+	c := context.Background()
+	key, er := tl.AppendPost(c, msg)
+	if er != nil {
+		returnError(ctx, er, getStatusCodeForError(er))
+		return
+	}
+
+	_, _ = ctx.JSON(Response{Payload: key})
+}
+
+func (s server) createReference(ctx iris.Context) {
+	ns := ctx.Params().Get("ns")
+	addr := ctx.Params().Get("addr")
+	body := AddReferenceRequest{}
+	er := ctx.ReadJSON(&body)
+	if er != nil {
 		returnError(ctx, er, 400)
 		return
 	}
@@ -292,19 +320,10 @@ func (s server) createItem(ctx iris.Context) {
 		return
 	}
 
-	msg, er := s.toTimelineMessage(body)
-	if er != nil {
-		returnError(ctx, er, 500)
-		return
-	}
 	c := context.Background()
-	key, er := tl.AppendPost(c, msg)
-	if er == timeline.ErrReadOnly {
-		returnError(ctx, er, 400)
-		return
-	}
+	key, er := tl.AppendReference(c, body.Target, body.Type)
 	if er != nil {
-		returnError(ctx, er, 500)
+		returnError(ctx, er, getStatusCodeForError(er))
 		return
 	}
 
@@ -370,4 +389,35 @@ func (s *server) getOrCreateTimeLine(ns string, a *address.Address) timeline.Tim
 func returnError(ctx iris.Context, er error, statusCode int) {
 	ctx.StatusCode(statusCode)
 	_, _ = ctx.JSON(Response{Error: er.Error()})
+}
+
+func getStatusCodeForError(er error) int {
+	switch er {
+	case timeline.ErrReadOnly:
+		fallthrough
+	case timeline.ErrCannotLike:
+		fallthrough
+	case timeline.ErrNotALike:
+		fallthrough
+	case timeline.ErrCannotLikeOwnItem:
+		fallthrough
+	case timeline.ErrCannotLikeALike:
+		fallthrough
+	case timeline.ErrCannotAddLikeToNotOwnedItem:
+		fallthrough
+	case timeline.ErrCannotRefOwnItem:
+		fallthrough
+	case timeline.ErrCannotRefARef:
+		fallthrough
+	case timeline.ErrCannotAddReference:
+		fallthrough
+	case timeline.ErrNotAReference:
+		fallthrough
+	case timeline.ErrCannotAddRefToNotOwnedItem:
+		return 400
+	case timeline.ErrNotFound:
+		return 404
+	default:
+		return 500
+	}
 }

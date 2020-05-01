@@ -17,3 +17,8 @@ type AddMediaResult struct {
 	Id    string `json:"id,omitempty"`
 	Error string `json:"error,omitempty"`
 }
+
+type AddReferenceRequest struct {
+	Target string `json:"target,omitempty"`
+	Type   string `json:"type,omitempty"`
+}
