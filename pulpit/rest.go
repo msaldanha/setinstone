@@ -23,6 +23,7 @@ import (
 const (
 	defaultCount      = 20
 	ErrNotInitialized = err.Error("Not initialized")
+	ErrAuthentication = err.Error("authentication failed")
 )
 
 type Server interface {
@@ -38,6 +39,7 @@ type server struct {
 	ds          datastore.DataStore
 	ld          dag.Dag
 	ipfs        icore.CoreAPI
+	logins      map[string]string
 }
 
 type ServerOptions struct {
@@ -66,6 +68,7 @@ func NewServer(_ ServerOptions) (Server, error) {
 		app:         app,
 		store:       store,
 		timelines:   map[string]timeline.Timeline{},
+		logins:      map[string]string{},
 	}
 
 	er = srv.init()
@@ -76,6 +79,7 @@ func NewServer(_ ServerOptions) (Server, error) {
 	app.Get("/randomaddress", srv.getRandomAddress)
 	app.Get("/media", srv.getMedia)
 	app.Post("/media", srv.postMedia)
+	app.Post("/login", srv.login)
 
 	addresses := app.Party("/addresses")
 	addresses.Get("/", srv.getAddresses)
@@ -101,16 +105,38 @@ func (s server) Run() error {
 }
 
 func (s server) createAddress(ctx iris.Context) {
+	body := LoginRequest{}
+	er := ctx.ReadJSON(&body)
+	if er != nil {
+		returnError(ctx, er, getStatusCodeForError(er))
+		return
+	}
+
+	pass := body.Password
+	if pass == "" {
+		returnError(ctx, fmt.Errorf("password cannot be empty"), 400)
+		return
+	}
+
 	a, er := address.NewAddressWithKeys()
 	if er != nil {
 		returnError(ctx, er, getStatusCodeForError(er))
 		return
 	}
-	er = s.store.Put(a.Address, a.ToBytes())
+	a.Keys.PrivateKey = encrypt(a.Keys.PrivateKey, pass)
+	ar := AddressRecord{
+		Address:  *a,
+		Bookmark: encrypt([]byte(bookmarkFlag), pass),
+	}
+
+	er = s.store.Put(a.Address, ar.ToBytes())
 	if er != nil {
 		returnError(ctx, er, getStatusCodeForError(er))
 		return
 	}
+
+	s.logins[a.Address] = pass
+
 	_, _ = ctx.JSON(Response{Payload: a})
 }
 
@@ -130,6 +156,50 @@ func (s server) deleteAddress(ctx iris.Context) {
 		returnError(ctx, er, getStatusCodeForError(er))
 		return
 	}
+}
+
+func (s server) login(ctx iris.Context) {
+	body := LoginRequest{}
+	er := ctx.ReadJSON(&body)
+	if er != nil {
+		returnError(ctx, er, getStatusCodeForError(er))
+		return
+	}
+
+	if body.Address == "" {
+		returnError(ctx, fmt.Errorf("address cannot be empty"), 400)
+		return
+	}
+
+	if body.Password == "" {
+		returnError(ctx, fmt.Errorf("password cannot be empty"), 400)
+		return
+	}
+
+	buf, found, er := s.store.Get(body.Address)
+	if er != nil {
+		returnError(ctx, er, getStatusCodeForError(er))
+		return
+	}
+	if !found {
+		returnError(ctx, err.Error("invalid addr or password"), 400)
+		return
+	}
+
+	ar := AddressRecord{}
+	er = ar.FromBytes(buf)
+	if er != nil {
+		returnError(ctx, er, getStatusCodeForError(er))
+		return
+	}
+
+	_, er = decrypt(ar.Address.Keys.PrivateKey, body.Password)
+	if er != nil {
+		returnError(ctx, err.Error("invalid addr or password"), getStatusCodeForError(er))
+		return
+	}
+
+	s.logins[body.Address] = body.Password
 }
 
 func (s server) getRandomAddress(ctx iris.Context) {
@@ -203,9 +273,9 @@ func (s server) getAddresses(ctx iris.Context) {
 	}
 	addresses := []*address.Address{}
 	for _, v := range all {
-		a := &address.Address{}
-		_ = a.FromBytes(v)
-		addresses = append(addresses, a)
+		ar := AddressRecord{}
+		_ = ar.FromBytes(v)
+		addresses = append(addresses, &ar.Address)
 	}
 	_, _ = ctx.JSON(Response{Payload: addresses})
 }
@@ -249,7 +319,7 @@ func (s server) getItemByHash(ctx iris.Context) {
 
 	tl, er := s.getPulpit(ns, addr)
 	if er != nil {
-		returnError(ctx, er, 500)
+		returnError(ctx, er, getStatusCodeForError(er))
 		return
 	}
 
@@ -329,7 +399,7 @@ func (s server) createReference(ctx iris.Context) {
 
 	tl, er := s.getPulpit(ns, addr)
 	if er != nil {
-		returnError(ctx, er, 500)
+		returnError(ctx, er, getStatusCodeForError(er))
 		return
 	}
 
@@ -349,16 +419,27 @@ func (s server) getPulpit(ns, addr string) (timeline.Timeline, error) {
 		return tl, nil
 	}
 
+	pass := s.logins[addr]
+
 	var a address.Address
-	buf, found, _ := s.store.Get(addr)
-	if !found {
-		a = address.Address{Address: addr}
-	} else {
-		er := a.FromBytes(buf)
-		if er != nil {
-			return nil, er
+	a = address.Address{Address: addr}
+	if pass != "" {
+		buf, found, _ := s.store.Get(addr)
+		if found {
+			ar := AddressRecord{}
+			er := ar.FromBytes(buf)
+			if er != nil {
+				return nil, er
+			}
+			a = ar.Address
+			pk, er := decrypt(a.Keys.PrivateKey, pass)
+			if er != nil {
+				return nil, er
+			}
+			a.Keys.PrivateKey = pk
 		}
 	}
+
 	tl = s.getOrCreateTimeLine(ns, &a)
 	return tl, nil
 }
@@ -428,6 +509,8 @@ func getStatusCodeForError(er error) int {
 		fallthrough
 	case timeline.ErrCannotAddRefToNotOwnedItem:
 		return 400
+	case ErrAuthentication:
+		return 401
 	case timeline.ErrNotFound:
 		return 404
 	default:

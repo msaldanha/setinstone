@@ -23,3 +23,8 @@ type AddReferenceRequest struct {
 	Target string `json:"target,omitempty"`
 	Type   string `json:"type,omitempty"`
 }
+
+type LoginRequest struct {
+	Address  string `json:"address,omitempty"`
+	Password string `json:"password,omitempty"`
+}

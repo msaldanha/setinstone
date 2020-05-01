@@ -1,4 +1,4 @@
-package timeline
+package pulpit
 
 import (
 	"crypto/aes"
@@ -29,7 +29,7 @@ func encrypt(data []byte, passphrase string) []byte {
 	return ciphertext
 }
 
-func decrypt(data []byte, passphrase string) []byte {
+func decrypt(data []byte, passphrase string) ([]byte, error) {
 	key := []byte(createHash(passphrase))
 	block, err := aes.NewCipher(key)
 	if err != nil {
@@ -43,7 +43,7 @@ func decrypt(data []byte, passphrase string) []byte {
 	nonce, ciphertext := data[:nonceSize], data[nonceSize:]
 	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
-		panic(err.Error())
+		return nil, ErrAuthentication
 	}
-	return plaintext
+	return plaintext, nil
 }
