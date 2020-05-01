@@ -19,14 +19,21 @@ const (
 	ErrCannotLikeALike             = err.Error("cannot like a like")
 	ErrCannotAddLikeToNotOwnedItem = err.Error("cannot add like to not owned item")
 
-	likesTimeLine = "likes"
-	RefTypeLike   = "Like"
+	ErrCannotRefOwnItem           = err.Error("cannot reference own item")
+	ErrCannotRefARef              = err.Error("cannot reference a reference")
+	ErrCannotAddReference         = err.Error("cannot add reference in this item")
+	ErrNotAReference              = err.Error("this item is not a reference")
+	ErrCannotAddRefToNotOwnedItem = err.Error("cannot add reference to not owned item")
+
+	RefTypeLike = "Like"
 )
 
 type Timeline interface {
 	AppendPost(ctx context.Context, post Post) (string, error)
 	AppendLike(ctx context.Context, target string) (string, error)
 	AddReceivedLike(ctx context.Context, key string) (string, error)
+	AppendReference(ctx context.Context, target, refType string) (string, error)
+	AddReceivedReference(ctx context.Context, refKey, refType string) (string, error)
 	Get(ctx context.Context, key string) (Item, bool, error)
 	GetFrom(ctx context.Context, key string, count int) ([]Item, error)
 }
@@ -52,7 +59,7 @@ func (t timeline) AppendPost(ctx context.Context, post Post) (string, error) {
 	if er != nil {
 		return "", t.translateError(er)
 	}
-	i, er := t.gr.Append(ctx, "", graph.NodeData{Branch: "main", Branches: []string{likesTimeLine}, Data: js})
+	i, er := t.gr.Append(ctx, "", graph.NodeData{Branch: "main", Branches: []string{RefTypeLike}, Data: js})
 	if er != nil {
 		return "", t.translateError(er)
 	}
@@ -60,22 +67,40 @@ func (t timeline) AppendPost(ctx context.Context, post Post) (string, error) {
 }
 
 func (t timeline) AppendLike(ctx context.Context, target string) (string, error) {
+	key, er := t.AppendReference(ctx, target, RefTypeLike)
+	if er == ErrCannotRefARef {
+		return "", ErrCannotLikeALike
+	}
+	if er == ErrCannotRefOwnItem {
+		return "", ErrCannotLikeOwnItem
+	}
+	if er == ErrCannotAddReference {
+		return "", ErrCannotLike
+	}
+	return key, er
+}
+
+func (t timeline) AppendReference(ctx context.Context, target, refType string) (string, error) {
 	v, _, er := t.Get(ctx, target)
 	if er != nil {
 		return "", er
 	}
 	if v.IsReference() {
-		return "", ErrCannotLikeALike
+		return "", ErrCannotRefARef
 	}
 
 	base, _ := v.AsBase()
 	if base.Address == t.gr.GetAddress(ctx).Address {
-		return "", ErrCannotLikeOwnItem
+		return "", ErrCannotRefOwnItem
+	}
+
+	if !t.canReceiveReference(base, refType) {
+		return "", ErrCannotAddReference
 	}
 
 	mi := ReferenceItem{
 		Reference: Reference{
-			RefType: RefTypeLike,
+			RefType: refType,
 			Target:  target,
 		},
 		Base: Base{
@@ -94,55 +119,65 @@ func (t timeline) AppendLike(ctx context.Context, target string) (string, error)
 }
 
 func (t timeline) AddReceivedLike(ctx context.Context, likeKey string) (string, error) {
-	v, found, er := t.Get(ctx, likeKey)
+	key, er := t.AddReceivedReference(ctx, likeKey, RefTypeLike)
+	if er == ErrNotAReference {
+		return "", ErrNotALike
+	}
+	if er == ErrCannotAddReference {
+		return "", ErrCannotLike
+	}
+	if er == ErrCannotRefOwnItem {
+		return "", ErrCannotLikeOwnItem
+	}
+	if er == ErrCannotAddRefToNotOwnedItem {
+		return "", ErrCannotAddLikeToNotOwnedItem
+	}
+	return key, er
+}
+
+func (t timeline) AddReceivedReference(ctx context.Context, refKey, refType string) (string, error) {
+	v, found, er := t.Get(ctx, refKey)
 	if er != nil {
 		return "", er
 	}
 	if !found {
 		return "", ErrNotFound
 	}
-	receivedLike, ok := v.AsReference()
+	receivedRef, ok := v.AsReference()
 	if !ok {
-		return "", ErrCannotLike
+		return "", ErrNotAReference
 	}
-	if receivedLike.Reference.RefType != RefTypeLike {
-		return "", ErrCannotLike
+	if receivedRef.Reference.RefType != refType {
+		return "", ErrCannotAddReference
 	}
-	if receivedLike.Address == t.gr.GetAddress(ctx).Address {
-		return "", ErrCannotAddLikeToNotOwnedItem
+	if receivedRef.Address == t.gr.GetAddress(ctx).Address {
+		return "", ErrCannotRefOwnItem
 	}
 
-	v, found, er = t.Get(ctx, receivedLike.Target)
+	v, found, er = t.Get(ctx, receivedRef.Target)
 	if er != nil {
 		return "", er
 	}
 	if !found {
 		return "", ErrNotFound
 	}
-	likedItem, ok := v.AsPost()
+	refItem, ok := v.AsPost()
 	if !ok {
-		return "", ErrCannotLike
+		return "", ErrCannotAddReference
 	}
 
-	if likedItem.Address != t.gr.GetAddress(ctx).Address {
-		return "", ErrCannotAddLikeToNotOwnedItem
+	if refItem.Address != t.gr.GetAddress(ctx).Address {
+		return "", ErrCannotAddRefToNotOwnedItem
 	}
 
-	found = false
-	for _, branch := range likedItem.Children {
-		if branch == likesTimeLine {
-			found = true
-			break
-		}
-	}
-	if !found {
-		return "", ErrCannotLike
+	if !t.canReceiveReference(refItem.Base, refType) {
+		return "", ErrCannotAddReference
 	}
 
 	li := ReferenceItem{
 		Reference: Reference{
-			Target:  likeKey,
-			RefType: RefTypeLike,
+			Target:  refKey,
+			RefType: refType,
 		},
 		Base: Base{
 			Type: TypeReference,
@@ -152,7 +187,7 @@ func (t timeline) AddReceivedLike(ctx context.Context, likeKey string) (string, 
 	if er != nil {
 		return "", t.translateError(er)
 	}
-	i, er := t.gr.Append(ctx, likedItem.Id, graph.NodeData{Branch: likesTimeLine, Data: js})
+	i, er := t.gr.Append(ctx, refItem.Id, graph.NodeData{Branch: refType, Data: js})
 	if er != nil {
 		return "", t.translateError(er)
 	}
@@ -191,6 +226,17 @@ func (t timeline) GetFrom(ctx context.Context, key string, count int) ([]Item, e
 		i++
 	}
 	return items, nil
+}
+
+func (t timeline) canReceiveReference(item Base, refType string) bool {
+	found := false
+	for _, branch := range item.Children {
+		if branch == refType {
+			found = true
+			break
+		}
+	}
+	return found
 }
 
 func (t timeline) translateError(er error) error {

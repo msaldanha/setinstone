@@ -73,6 +73,7 @@ func NewItemFromGraphNode(v graph.GraphNode) (Item, error) {
 	base.Id = v.Key
 	base.Address = v.Address
 	base.Timestamp = v.Timestamp
+	base.Children = v.Branches
 	return &item{v: v, base: base}, nil
 }
 
