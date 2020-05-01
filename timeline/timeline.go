@@ -29,7 +29,7 @@ const (
 )
 
 type Timeline interface {
-	AppendPost(ctx context.Context, post Post) (string, error)
+	AppendPost(ctx context.Context, post Post, refTypes []string) (string, error)
 	AppendLike(ctx context.Context, target string) (string, error)
 	AddReceivedLike(ctx context.Context, key string) (string, error)
 	AppendReference(ctx context.Context, target, refType string) (string, error)
@@ -48,7 +48,7 @@ func NewTimeline(gr graph.Graph) Timeline {
 	}
 }
 
-func (t timeline) AppendPost(ctx context.Context, post Post) (string, error) {
+func (t timeline) AppendPost(ctx context.Context, post Post, refTypes []string) (string, error) {
 	mi := PostItem{
 		Post: post,
 		Base: Base{
@@ -59,7 +59,7 @@ func (t timeline) AppendPost(ctx context.Context, post Post) (string, error) {
 	if er != nil {
 		return "", t.translateError(er)
 	}
-	i, er := t.gr.Append(ctx, "", graph.NodeData{Branch: "main", Branches: []string{RefTypeLike}, Data: js})
+	i, er := t.gr.Append(ctx, "", graph.NodeData{Branch: "main", Branches: refTypes, Data: js})
 	if er != nil {
 		return "", t.translateError(er)
 	}
@@ -230,7 +230,7 @@ func (t timeline) GetFrom(ctx context.Context, key string, count int) ([]Item, e
 
 func (t timeline) canReceiveReference(item Base, refType string) bool {
 	found := false
-	for _, branch := range item.Children {
+	for _, branch := range item.RefTypes {
 		if branch == refType {
 			found = true
 			break

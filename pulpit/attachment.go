@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 )
 
-func (s server) toTimelineMessage(req AddMessageRequest) (timeline.Post, error) {
+func (s server) toTimelinePost(req AddItemRequest) (timeline.Post, error) {
 	post := timeline.Post{}
 	post.Body = req.Body
 	post.Links = req.Links

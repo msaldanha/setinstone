@@ -2,10 +2,11 @@ package pulpit
 
 import "github.com/msaldanha/setinstone/timeline"
 
-type AddMessageRequest struct {
+type AddItemRequest struct {
 	Body        timeline.PostPart   `json:"body,omitempty"`
 	Links       []timeline.PostPart `json:"links,omitempty"`
 	Attachments []string            `json:"attachments,omitempty"`
+	RefTypes    []string            `json:"ref_types,omitempty"`
 }
 
 type AddMediaRequest struct {

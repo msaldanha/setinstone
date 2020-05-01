@@ -276,11 +276,24 @@ func (s server) getItemByHash(ctx iris.Context) {
 func (s server) createItem(ctx iris.Context) {
 	ns := ctx.Params().Get("ns")
 	addr := ctx.Params().Get("addr")
-	body := AddMessageRequest{}
+	body := AddItemRequest{}
 	er := ctx.ReadJSON(&body)
 	if er != nil {
 		returnError(ctx, er, getStatusCodeForError(er))
 		return
+	}
+
+	if len(body.RefTypes) == 0 {
+		er = fmt.Errorf("reference types cannot be empty")
+		returnError(ctx, er, 400)
+		return
+	}
+	for _, v := range body.RefTypes {
+		if v == "" {
+			er = fmt.Errorf("reference types cannot contain empty value")
+			returnError(ctx, er, 400)
+			return
+		}
 	}
 
 	tl, er := s.getPulpit(ns, addr)
@@ -289,13 +302,13 @@ func (s server) createItem(ctx iris.Context) {
 		return
 	}
 
-	msg, er := s.toTimelineMessage(body)
+	post, er := s.toTimelinePost(body)
 	if er != nil {
 		returnError(ctx, er, getStatusCodeForError(er))
 		return
 	}
 	c := context.Background()
-	key, er := tl.AppendPost(c, msg)
+	key, er := tl.AppendPost(c, post, body.RefTypes)
 	if er != nil {
 		returnError(ctx, er, getStatusCodeForError(er))
 		return

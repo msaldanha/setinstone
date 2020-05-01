@@ -17,7 +17,7 @@ type Base struct {
 	Address   string   `json:"address,omitempty"`
 	Timestamp string   `json:"timestamp,omitempty"`
 	Type      string   `json:"type,omitempty"`
-	Children  []string `json:"children,omitempty"`
+	RefTypes  []string `json:"ref_types,omitempty"`
 }
 
 type PostPart struct {
@@ -73,7 +73,7 @@ func NewItemFromGraphNode(v graph.GraphNode) (Item, error) {
 	base.Id = v.Key
 	base.Address = v.Address
 	base.Timestamp = v.Timestamp
-	base.Children = v.Branches
+	base.RefTypes = v.Branches
 	return &item{v: v, base: base}, nil
 }
 
@@ -130,5 +130,5 @@ func (i *item) updateBase(base *Base) {
 	base.Id = i.v.Key
 	base.Address = i.v.Address
 	base.Timestamp = i.v.Timestamp
-	base.Children = i.v.Branches
+	base.RefTypes = i.v.Branches
 }
