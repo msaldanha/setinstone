@@ -13,8 +13,10 @@ import (
 	"github.com/msaldanha/setinstone/anticorp/address"
 	"github.com/msaldanha/setinstone/anticorp/dag"
 	"github.com/msaldanha/setinstone/anticorp/datastore"
+	"github.com/msaldanha/setinstone/anticorp/dor"
 	"github.com/msaldanha/setinstone/anticorp/err"
 	"github.com/msaldanha/setinstone/anticorp/graph"
+	"github.com/msaldanha/setinstone/anticorp/util"
 	"github.com/msaldanha/setinstone/timeline"
 	"io"
 	"time"
@@ -123,10 +125,10 @@ func (s server) createAddress(ctx iris.Context) {
 		returnError(ctx, er, getStatusCodeForError(er))
 		return
 	}
-	a.Keys.PrivateKey = encrypt(a.Keys.PrivateKey, pass)
+	a.Keys.PrivateKey = util.Encrypt(a.Keys.PrivateKey, pass)
 	ar := AddressRecord{
 		Address:  *a,
-		Bookmark: encrypt([]byte(bookmarkFlag), pass),
+		Bookmark: util.Encrypt([]byte(bookmarkFlag), pass),
 	}
 
 	er = s.store.Put(a.Address, ar.ToBytes())
@@ -193,7 +195,7 @@ func (s server) login(ctx iris.Context) {
 		return
 	}
 
-	_, er = decrypt(ar.Address.Keys.PrivateKey, body.Password)
+	_, er = util.Decrypt(ar.Address.Keys.PrivateKey, body.Password)
 	if er != nil {
 		returnError(ctx, err.Error("invalid addr or password"), getStatusCodeForError(er))
 		return
@@ -432,7 +434,7 @@ func (s server) getPulpit(ns, addr string) (timeline.Timeline, error) {
 				return nil, er
 			}
 			a = ar.Address
-			pk, er := decrypt(a.Keys.PrivateKey, pass)
+			pk, er := util.Decrypt(a.Keys.PrivateKey, pass)
 			if er != nil {
 				return nil, er
 			}
@@ -473,7 +475,8 @@ func (s *server) getOrCreateTimeLine(ns string, a *address.Address) timeline.Tim
 	if found {
 		return tl
 	}
-	ld := dag.NewDag(ns, s.ds)
+	resolver := dor.NewLocalResolver()
+	ld := dag.NewDag(ns, s.ds, resolver)
 	gr := graph.NewGraph(ld, a)
 	tl = timeline.NewTimeline(gr)
 	s.timelines[ns+a.Address] = tl

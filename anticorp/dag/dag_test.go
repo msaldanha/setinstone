@@ -7,6 +7,7 @@ import (
 	"github.com/msaldanha/setinstone/anticorp/address"
 	"github.com/msaldanha/setinstone/anticorp/dag"
 	"github.com/msaldanha/setinstone/anticorp/datastore"
+	"github.com/msaldanha/setinstone/anticorp/dor"
 	"github.com/msaldanha/setinstone/anticorp/mock"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -26,6 +27,7 @@ var _ = Describe("Dag", func() {
 	var genesisAddr *address.Address
 	var ctx context.Context
 	var lts datastore.DataStore
+	var resolver dor.Resolver
 
 	testGenesisNode, testGenesisAddr := CreateGenesisNode()
 	testNode := CreateNode(testGenesisAddr, testGenesisNode, defaultBranch, testGenesisNode.BranchSeq+1)
@@ -34,11 +36,12 @@ var _ = Describe("Dag", func() {
 	BeforeEach(func() {
 		ctx = context.Background()
 		lts = datastore.NewLocalFileStore()
+		resolver = dor.NewLocalResolver()
 
 		genesisNode, genesisAddr = testGenesisNode, testGenesisAddr
 		node, node2 = testNode, testNode2
 
-		da = dag.NewDag("test-ledger", lts)
+		da = dag.NewDag("test-ledger", lts, resolver)
 	})
 
 	It("Should initialize with the Genesis node", func() {
@@ -282,7 +285,7 @@ var _ = Describe("Dag", func() {
 		defer mockCtrl.Finish()
 
 		dt := mock.NewMockDataStore(mockCtrl)
-		da = dag.NewDag("test-ledger", dt)
+		da = dag.NewDag("test-ledger", dt, resolver)
 
 		dt.EXPECT().Get(gomock.Any(), gomock.Any()).
 			Return(nil, datastore.ErrNotFound).Times(2)

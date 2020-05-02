@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
-	"crypto/rand"
 	"encoding/binary"
 	"log"
 	"math/big"
@@ -24,14 +23,6 @@ func int64ToBytes(num int64) []byte {
 	}
 
 	return buff.Bytes()
-}
-
-func Sign(data []byte, privateKey *ecdsa.PrivateKey) ([]byte, error) {
-	r, s, err := ecdsa.Sign(rand.Reader, privateKey, data)
-	if err != nil {
-		return nil, err
-	}
-	return append(LeftPadBytes(r.Bytes(), 32), LeftPadBytes(s.Bytes(), 32)...), nil
 }
 
 func VerifySignature(signature []byte, pubKey []byte, data []byte) bool {

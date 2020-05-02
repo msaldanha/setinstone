@@ -6,6 +6,7 @@ import (
 	"github.com/msaldanha/setinstone/anticorp/address"
 	"github.com/msaldanha/setinstone/anticorp/dag"
 	"github.com/msaldanha/setinstone/anticorp/datastore"
+	"github.com/msaldanha/setinstone/anticorp/dor"
 	"github.com/msaldanha/setinstone/anticorp/graph"
 	"github.com/msaldanha/setinstone/timeline"
 	. "github.com/onsi/ginkgo"
@@ -19,13 +20,15 @@ var _ = Describe("Timeline", func() {
 	var ctx context.Context
 	var lts datastore.DataStore
 	var gr graph.Graph
+	var resolver dor.Resolver
 
 	addr, _ := address.NewAddressWithKeys()
 
 	BeforeEach(func() {
 		ctx = context.Background()
 		lts = datastore.NewLocalFileStore()
-		da = dag.NewDag("test-ledger", lts)
+		resolver = dor.NewLocalResolver()
+		da = dag.NewDag("test-ledger", lts, resolver)
 		gr = graph.NewGraph(da, addr)
 	})
 
@@ -36,7 +39,7 @@ var _ = Describe("Timeline", func() {
 		p := timeline.NewTimeline(gr)
 
 		post := timeline.Post{Body: timeline.PostPart{MimeType: "plain/text", Data: "some text"}}
-		key, er := p.AppendPost(ctx, post)
+		key, er := p.AppendPost(ctx, post, []string{})
 		Expect(er).To(BeNil())
 		Expect(key).ToNot(Equal(""))
 	})
@@ -48,7 +51,7 @@ var _ = Describe("Timeline", func() {
 		p := timeline.NewTimeline(gr)
 
 		expectedPost := timeline.Post{Body: timeline.PostPart{MimeType: "plain/text", Data: "some text"}}
-		key, er := p.AppendPost(ctx, expectedPost)
+		key, er := p.AppendPost(ctx, expectedPost, []string{})
 		Expect(er).To(BeNil())
 		Expect(key).ToNot(Equal(""))
 
@@ -69,7 +72,7 @@ var _ = Describe("Timeline", func() {
 		tl2 := timeline.NewTimeline(gr2)
 
 		expectedPost := timeline.Post{Body: timeline.PostPart{MimeType: "plain/text", Data: "some text"}}
-		postKey, er := tl1.AppendPost(ctx, expectedPost)
+		postKey, er := tl1.AppendPost(ctx, expectedPost, []string{timeline.RefTypeLike})
 		Expect(er).To(BeNil())
 		Expect(postKey).ToNot(Equal(""))
 
@@ -97,7 +100,7 @@ var _ = Describe("Timeline", func() {
 		p := timeline.NewTimeline(gr)
 
 		expectedPost := timeline.Post{Body: timeline.PostPart{MimeType: "plain/text", Data: "some text "}}
-		key, er := p.AppendPost(ctx, expectedPost)
+		key, er := p.AppendPost(ctx, expectedPost, []string{timeline.RefTypeLike})
 		Expect(er).To(BeNil())
 		Expect(key).ToNot(Equal(""))
 
@@ -118,7 +121,7 @@ var _ = Describe("Timeline", func() {
 		tl2 := timeline.NewTimeline(gr2)
 
 		expectedPost := timeline.Post{Body: timeline.PostPart{MimeType: "plain/text", Data: "some text "}}
-		key, er := tl1.AppendPost(ctx, expectedPost)
+		key, er := tl1.AppendPost(ctx, expectedPost, []string{timeline.RefTypeLike})
 		Expect(er).To(BeNil())
 		Expect(key).ToNot(Equal(""))
 
@@ -151,12 +154,12 @@ var _ = Describe("Timeline", func() {
 		for i := 0; i < n; i++ {
 			expectedPost := timeline.Post{Body: timeline.PostPart{MimeType: "plain/text", Data: "some text " +
 				strconv.Itoa(i)}}
-			key, er := tl1.AppendPost(ctx, expectedPost)
+			key, er := tl1.AppendPost(ctx, expectedPost, []string{timeline.RefTypeLike})
 			Expect(er).To(BeNil())
 			Expect(key).ToNot(Equal(""))
 
 			key, er = tl2.AppendPost(ctx, timeline.Post{Body: timeline.PostPart{MimeType: "plain/text", Data: "some text for tl2 " +
-				strconv.Itoa(i)}})
+				strconv.Itoa(i)}}, []string{timeline.RefTypeLike})
 			Expect(er).To(BeNil())
 			Expect(key).ToNot(Equal(""))
 

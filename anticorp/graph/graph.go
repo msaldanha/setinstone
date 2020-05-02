@@ -97,7 +97,7 @@ func (d graph) Append(ctx context.Context, keyRoot string, node NodeData) (Graph
 
 	if keyRoot == "" {
 		gn, er := d.da.GetRoot(ctx, d.addr.Address)
-		if er == dag.ErrNodeNotFound {
+		if er == dag.ErrNodeNotFound || gn == nil {
 			return d.createFirstNode(ctx, node)
 		}
 		if er != nil {

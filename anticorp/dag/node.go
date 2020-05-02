@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"github.com/golang/protobuf/proto"
 	"github.com/msaldanha/setinstone/anticorp/multihash"
+	"github.com/msaldanha/setinstone/anticorp/util"
 	"math"
 	"math/big"
 )
@@ -124,7 +125,7 @@ func (m *Node) VerifyPow() (bool, error) {
 
 func (m *Node) Sign(privateKey *ecdsa.PrivateKey) error {
 	data, _ := m.GetSignableBytes()
-	s, er := Sign(data, privateKey)
+	s, er := util.Sign(data, privateKey)
 	if er != nil {
 		return er
 	}

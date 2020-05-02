@@ -1,8 +1,9 @@
-package pulpit
+package util
 
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/ecdsa"
 	"crypto/md5"
 	"crypto/rand"
 	"encoding/hex"
@@ -15,7 +16,7 @@ func createHash(key string) string {
 	return hex.EncodeToString(hasher.Sum(nil))
 }
 
-func encrypt(data []byte, passphrase string) []byte {
+func Encrypt(data []byte, passphrase string) []byte {
 	block, _ := aes.NewCipher([]byte(createHash(passphrase)))
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
@@ -29,7 +30,7 @@ func encrypt(data []byte, passphrase string) []byte {
 	return ciphertext
 }
 
-func decrypt(data []byte, passphrase string) ([]byte, error) {
+func Decrypt(data []byte, passphrase string) ([]byte, error) {
 	key := []byte(createHash(passphrase))
 	block, err := aes.NewCipher(key)
 	if err != nil {
@@ -43,7 +44,15 @@ func decrypt(data []byte, passphrase string) ([]byte, error) {
 	nonce, ciphertext := data[:nonceSize], data[nonceSize:]
 	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
-		return nil, ErrAuthentication
+		return nil, err
 	}
 	return plaintext, nil
+}
+
+func Sign(data []byte, privateKey *ecdsa.PrivateKey) ([]byte, error) {
+	r, s, err := ecdsa.Sign(rand.Reader, privateKey, data)
+	if err != nil {
+		return nil, err
+	}
+	return append(LeftPadBytes(r.Bytes(), 32), LeftPadBytes(s.Bytes(), 32)...), nil
 }
