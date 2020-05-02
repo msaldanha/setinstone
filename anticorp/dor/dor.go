@@ -10,11 +10,14 @@ import (
 const (
 	ErrInvalidName          = err.Error("invalid name")
 	ErrInvalidAddrComponent = err.Error("invalid address component")
+	ErrNoPrivateKey         = err.Error("no private key")
+	ErrUnmanagedAddress     = err.Error("unmanaged address")
 )
 
 type Resolver interface {
 	Resolve(ctx context.Context, name string) (string, error)
 	Add(ctx context.Context, name, value string) error
+	Manage(addr *address.Address) error
 }
 
 func getRecordFromName(name string) (Record, error) {

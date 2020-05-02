@@ -31,6 +31,7 @@ var _ = Describe("Graph", func() {
 		ctx = context.Background()
 		lts = datastore.NewLocalFileStore()
 		resolver = dor.NewLocalResolver()
+		_ = resolver.Manage(addr)
 		ld = dag.NewDag("test-graph", lts, resolver)
 	})
 

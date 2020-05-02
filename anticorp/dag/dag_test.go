@@ -37,6 +37,7 @@ var _ = Describe("Dag", func() {
 		ctx = context.Background()
 		lts = datastore.NewLocalFileStore()
 		resolver = dor.NewLocalResolver()
+		_ = resolver.Manage(testGenesisAddr)
 
 		genesisNode, genesisAddr = testGenesisNode, testGenesisAddr
 		node, node2 = testNode, testNode2
@@ -119,6 +120,7 @@ var _ = Describe("Dag", func() {
 		defer mockCtrl.Finish()
 
 		g, gAddr := CreateGenesisNode()
+		resolver.Manage(gAddr)
 
 		err := da.SetRoot(ctx, g)
 		Expect(err).To(BeNil())

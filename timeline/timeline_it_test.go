@@ -28,6 +28,7 @@ var _ = Describe("Timeline", func() {
 		ctx = context.Background()
 		lts = datastore.NewLocalFileStore()
 		resolver = dor.NewLocalResolver()
+		_ = resolver.Manage(addr)
 		da = dag.NewDag("test-ledger", lts, resolver)
 		gr = graph.NewGraph(da, addr)
 	})
@@ -70,6 +71,8 @@ var _ = Describe("Timeline", func() {
 		addr2, _ := address.NewAddressWithKeys()
 		gr2 := graph.NewGraph(da, addr2)
 		tl2 := timeline.NewTimeline(gr2)
+
+		_ = resolver.Manage(addr2)
 
 		expectedPost := timeline.Post{Body: timeline.PostPart{MimeType: "plain/text", Data: "some text"}}
 		postKey, er := tl1.AppendPost(ctx, expectedPost, []string{timeline.RefTypeLike})
@@ -120,6 +123,8 @@ var _ = Describe("Timeline", func() {
 		gr2 := graph.NewGraph(da, addr2)
 		tl2 := timeline.NewTimeline(gr2)
 
+		_ = resolver.Manage(addr2)
+
 		expectedPost := timeline.Post{Body: timeline.PostPart{MimeType: "plain/text", Data: "some text "}}
 		key, er := tl1.AppendPost(ctx, expectedPost, []string{timeline.RefTypeLike})
 		Expect(er).To(BeNil())
@@ -146,6 +151,8 @@ var _ = Describe("Timeline", func() {
 		addr2, _ := address.NewAddressWithKeys()
 		gr2 := graph.NewGraph(da, addr2)
 		tl2 := timeline.NewTimeline(gr2)
+
+		_ = resolver.Manage(addr2)
 
 		posts := []timeline.Post{}
 		likes := []timeline.Reference{}
