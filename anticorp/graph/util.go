@@ -7,12 +7,12 @@ import (
 	"time"
 )
 
-func createNode(node NodeData, prev *dag.Node,
+func createNode(node NodeData, prev string,
 	addr *address.Address, seq int32) (*dag.Node, error) {
 	n := dag.NewNode()
 	n.Data = node.Data
-	if prev != nil {
-		n.Previous = prev.Hash
+	if prev != "" {
+		n.Previous = prev
 	}
 	n.BranchSeq = seq
 	n.Address = addr.Address

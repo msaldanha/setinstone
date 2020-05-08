@@ -7,7 +7,6 @@ package mock
 import (
 	context "context"
 	gomock "github.com/golang/mock/gomock"
-	datastore "github.com/msaldanha/setinstone/anticorp/datastore"
 	io "io"
 	reflect "reflect"
 )
@@ -36,18 +35,18 @@ func (m *MockDataStore) EXPECT() *MockDataStoreMockRecorder {
 }
 
 // Put mocks base method
-func (m *MockDataStore) Put(ctx context.Context, key string, bytes []byte) (datastore.Link, error) {
+func (m *MockDataStore) Put(ctx context.Context, bytes []byte) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Put", ctx, key, bytes)
-	ret0, _ := ret[0].(datastore.Link)
+	ret := m.ctrl.Call(m, "Put", ctx, bytes)
+	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Put indicates an expected call of Put
-func (mr *MockDataStoreMockRecorder) Put(ctx, key, bytes interface{}) *gomock.Call {
+func (mr *MockDataStoreMockRecorder) Put(ctx, bytes interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Put", reflect.TypeOf((*MockDataStore)(nil).Put), ctx, key, bytes)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Put", reflect.TypeOf((*MockDataStore)(nil).Put), ctx, bytes)
 }
 
 // Remove mocks base method

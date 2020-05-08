@@ -19,16 +19,11 @@ func NewLocalFileStore() DataStore {
 	}
 }
 
-func (d localDataStore) Put(ctx context.Context, key string, b []byte) (Link, error) {
+func (d localDataStore) Put(ctx context.Context, b []byte) (string, error) {
 	hash := sha256.Sum256(b)
 	hexHash := hex.EncodeToString(hash[:])
-	link := Link{
-		Hash: hexHash,
-		Name: key,
-		Size: uint64(len(b)),
-	}
-	d.pairs[key] = b
-	return link, nil
+	d.pairs[hexHash] = b
+	return hexHash, nil
 }
 
 func (d localDataStore) Remove(ctx context.Context, key string) error {

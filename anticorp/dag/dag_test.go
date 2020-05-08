@@ -8,7 +8,6 @@ import (
 	"github.com/msaldanha/setinstone/anticorp/dag"
 	"github.com/msaldanha/setinstone/anticorp/datastore"
 	"github.com/msaldanha/setinstone/anticorp/dor"
-	"github.com/msaldanha/setinstone/anticorp/mock"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"math/rand"
@@ -21,8 +20,6 @@ const defaultBranch = "main"
 var _ = Describe("Dag", func() {
 
 	var da dag.Dag
-	var node *dag.Node
-	var node2 *dag.Node
 	var genesisNode *dag.Node
 	var genesisAddr *address.Address
 	var ctx context.Context
@@ -30,8 +27,6 @@ var _ = Describe("Dag", func() {
 	var resolver dor.Resolver
 
 	testGenesisNode, testGenesisAddr := CreateGenesisNode()
-	testNode := CreateNode(testGenesisAddr, testGenesisNode, defaultBranch, testGenesisNode.BranchSeq+1)
-	testNode2 := CreateNode(testGenesisAddr, testNode, defaultBranch, testNode.BranchSeq+1)
 
 	BeforeEach(func() {
 		ctx = context.Background()
@@ -40,7 +35,6 @@ var _ = Describe("Dag", func() {
 		_ = resolver.Manage(testGenesisAddr)
 
 		genesisNode, genesisAddr = testGenesisNode, testGenesisAddr
-		node, node2 = testNode, testNode2
 
 		da = dag.NewDag("test-ledger", lts, resolver)
 	})
@@ -49,10 +43,10 @@ var _ = Describe("Dag", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		err := da.SetRoot(ctx, genesisNode)
+		key, err := da.SetRoot(ctx, genesisNode)
 		Expect(err).To(BeNil())
 
-		node, err := da.Get(ctx, genesisNode.Hash)
+		node, err := da.Get(ctx, key)
 		Expect(err).To(BeNil())
 		Expect(node).NotTo(BeNil())
 		Expect(node.Address).To(Equal(genesisAddr.Address))
@@ -62,10 +56,10 @@ var _ = Describe("Dag", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		err := da.SetRoot(ctx, genesisNode)
+		_, err := da.SetRoot(ctx, genesisNode)
 		Expect(err).To(BeNil())
 
-		err = da.SetRoot(ctx, genesisNode)
+		_, err = da.SetRoot(ctx, genesisNode)
 		Expect(err).NotTo(BeNil())
 		Expect(err).To(Equal(dag.ErrDagAlreadyInitialized))
 	})
@@ -74,13 +68,13 @@ var _ = Describe("Dag", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		err := da.SetRoot(ctx, genesisNode)
+		genesisKey, err := da.SetRoot(ctx, genesisNode)
 		Expect(err).To(BeNil())
 
-		node, err := da.GetRoot(ctx, genesisNode.Address)
+		node, nodeKey, err := da.GetRoot(ctx, genesisNode.Address)
 		Expect(err).To(BeNil())
 		Expect(node).NotTo(BeNil())
-		Expect(node.Hash).To(Equal(genesisNode.Hash))
+		Expect(nodeKey).To(Equal(genesisKey))
 		Expect(node.Address).To(Equal(genesisAddr.Address))
 	})
 
@@ -88,13 +82,13 @@ var _ = Describe("Dag", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		err := da.SetRoot(ctx, genesisNode)
+		genesisKey, err := da.SetRoot(ctx, genesisNode)
 		Expect(err).To(BeNil())
 
-		node, err := da.GetLast(ctx, genesisNode.Hash, defaultBranch)
+		node, nodeKey, err := da.GetLast(ctx, genesisKey, defaultBranch)
 		Expect(err).To(BeNil())
 		Expect(node).NotTo(BeNil())
-		Expect(node.Hash).To(Equal(genesisNode.Hash))
+		Expect(nodeKey).To(Equal(genesisKey))
 		Expect(node.Address).To(Equal(genesisAddr.Address))
 	})
 
@@ -102,13 +96,14 @@ var _ = Describe("Dag", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		err := da.SetRoot(ctx, genesisNode)
+		key, err := da.SetRoot(ctx, genesisNode)
 		Expect(err).To(BeNil())
 
-		err = da.Append(ctx, node, genesisNode.Hash)
+		node := CreateNode(testGenesisAddr, key, defaultBranch, genesisNode.BranchSeq+1)
+		nodeKey, err := da.Append(ctx, node, key)
 		Expect(err).To(BeNil())
 
-		node2, err := da.Get(ctx, node.Hash)
+		node2, err := da.Get(ctx, nodeKey)
 		Expect(err).To(BeNil())
 		Expect(node2).NotTo(BeNil())
 
@@ -122,52 +117,54 @@ var _ = Describe("Dag", func() {
 		g, gAddr := CreateGenesisNode()
 		resolver.Manage(gAddr)
 
-		err := da.SetRoot(ctx, g)
+		genesisKey, err := da.SetRoot(ctx, g)
 		Expect(err).To(BeNil())
 
 		// create main branch
-		prev := g
+		prev := genesisKey
 		for x := 1; x <= 4; x++ {
-			n := CreateNode(gAddr, prev, defaultBranch, prev.BranchSeq+1)
-			err = da.Append(ctx, n, g.Hash)
+			n := CreateNode(gAddr, prev, defaultBranch, g.BranchSeq+int32(x))
+			nodeKey, err := da.Append(ctx, n, genesisKey)
 			Expect(err).To(BeNil())
-			prev = n
+			prev = nodeKey
 		}
 
 		// add one node with other branches
-		nodeWithBranches := CreateNodeWithBranches(gAddr, prev, []string{"likes", "comments"}, defaultBranch, prev.BranchSeq+1)
-		err = da.Append(ctx, nodeWithBranches, g.Hash)
+		nodeWithBranches := CreateNodeWithBranches(gAddr, prev, []string{"likes", "comments"}, defaultBranch, 6)
+		nodeWithBranchesKey, err := da.Append(ctx, nodeWithBranches, genesisKey)
 		Expect(err).To(BeNil())
 
 		// add more nodes to main branch
-		prev = nodeWithBranches
+		prev = nodeWithBranchesKey
+		var lastMainBranch *dag.Node
 		for x := 1; x <= 5; x++ {
-			n := CreateNode(gAddr, prev, defaultBranch, prev.BranchSeq+1)
-			err = da.Append(ctx, n, g.Hash)
+			n := CreateNode(gAddr, prev, defaultBranch, nodeWithBranches.BranchSeq+int32(x))
+			nodeKey, err := da.Append(ctx, n, genesisKey)
 			Expect(err).To(BeNil())
-			prev = n
+			prev = nodeKey
+			lastMainBranch = n
 		}
-
-		lastMainBranch := prev
 
 		// add nodes to the likes branch of the nodeWithBranches node
-		prev = nodeWithBranches
+		prev = nodeWithBranchesKey
+		var lastLikes *dag.Node
 		for x := 1; x <= 5; x++ {
 			n := CreateNode(gAddr, prev, "likes", int32(x))
-			err = da.Append(ctx, n, nodeWithBranches.Hash)
+			nodeKey, err := da.Append(ctx, n, nodeWithBranchesKey)
 			Expect(err).To(BeNil())
-			prev = n
+			prev = nodeKey
+			lastLikes = n
 		}
 
-		lastLikes := prev
-
 		// add nodes to the comments branch of the nodeWithBranches node
-		prev = nodeWithBranches
+		prev = nodeWithBranchesKey
+		var lastComments *dag.Node
 		for x := 1; x <= 5; x++ {
 			n := CreateNode(gAddr, prev, "comments", int32(x))
-			err = da.Append(ctx, n, nodeWithBranches.Hash)
+			nodeKey, err := da.Append(ctx, n, nodeWithBranchesKey)
 			Expect(err).To(BeNil())
-			prev = n
+			prev = nodeKey
+			lastComments = n
 		}
 
 		// final graph should have the structure:
@@ -193,23 +190,21 @@ var _ = Describe("Dag", func() {
 		//                      |
 		//                      n branch seq for this node should be 5
 
-		lastComments := prev
-
 		Expect(nodeWithBranches.BranchSeq).To(Equal(int32(6)))
 
-		n, err := da.GetLast(ctx, nodeWithBranches.Hash, "likes")
+		n, _, err := da.GetLast(ctx, nodeWithBranchesKey, "likes")
 		Expect(err).To(BeNil())
 		Expect(n).NotTo(BeNil())
 		Expect(n).To(Equal(lastLikes))
 		Expect(n.BranchSeq).To(Equal(int32(5)))
 
-		n, err = da.GetLast(ctx, nodeWithBranches.Hash, "comments")
+		n, _, err = da.GetLast(ctx, nodeWithBranchesKey, "comments")
 		Expect(err).To(BeNil())
 		Expect(n).NotTo(BeNil())
 		Expect(n).To(Equal(lastComments))
 		Expect(n.BranchSeq).To(Equal(int32(5)))
 
-		n, err = da.GetLast(ctx, g.Hash, g.Branch)
+		n, _, err = da.GetLast(ctx, genesisKey, g.Branch)
 		Expect(err).To(BeNil())
 		Expect(n).NotTo(BeNil())
 		Expect(n).To(Equal(lastMainBranch))
@@ -221,12 +216,14 @@ var _ = Describe("Dag", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		err := da.SetRoot(ctx, genesisNode)
+		genesisKey, err := da.SetRoot(ctx, genesisNode)
 		Expect(err).To(BeNil())
+
+		node := CreateNode(testGenesisAddr, genesisKey, defaultBranch, genesisNode.BranchSeq+1)
 
 		t := *node
 		t.Address = "xxxxxxxxxx"
-		err = da.Append(ctx, &t, genesisNode.Hash)
+		_, err = da.Append(ctx, &t, genesisKey)
 		Expect(err).To(Equal(address.ErrInvalidChecksum))
 	})
 
@@ -234,12 +231,12 @@ var _ = Describe("Dag", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		err := da.SetRoot(ctx, genesisNode)
+		genesisKey, err := da.SetRoot(ctx, genesisNode)
 		Expect(err).To(BeNil())
 
 		t := &dag.Node{}
 		t = BuildNode(t, testGenesisAddr)
-		err = da.Append(ctx, t, genesisNode.Hash)
+		_, err = da.Append(ctx, t, genesisKey)
 		Expect(err).To(Equal(dag.ErrInvalidNodeTimestamp))
 	})
 
@@ -247,12 +244,15 @@ var _ = Describe("Dag", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		err := da.SetRoot(ctx, genesisNode)
+		genesisKey, err := da.SetRoot(ctx, genesisNode)
 		Expect(err).To(BeNil())
 
+		node := CreateNode(testGenesisAddr, genesisKey, defaultBranch, genesisNode.BranchSeq+1)
+		node2 := CreateNode(testGenesisAddr, genesisKey, defaultBranch, genesisNode.BranchSeq+1)
+
 		t := *node
-		t.Hash = node2.Hash
-		err = da.Append(ctx, &t, genesisNode.Hash)
+		t.Pow = node2.Pow
+		_, err = da.Append(ctx, &t, genesisKey)
 		Expect(err).To(Equal(dag.ErrNodeSignatureDoesNotMatch))
 	})
 
@@ -260,12 +260,14 @@ var _ = Describe("Dag", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		err := da.SetRoot(ctx, genesisNode)
+		genesisKey, err := da.SetRoot(ctx, genesisNode)
 		Expect(err).To(BeNil())
+
+		node := CreateNode(testGenesisAddr, genesisKey, defaultBranch, genesisNode.BranchSeq+1)
 
 		t := *node
 		t.Signature = t.Signature + "3e"
-		err = da.Append(ctx, &t, genesisNode.Hash)
+		_, err = da.Append(ctx, &t, genesisKey)
 		Expect(err).To(Equal(dag.ErrNodeSignatureDoesNotMatch))
 	})
 
@@ -273,26 +275,27 @@ var _ = Describe("Dag", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		err := da.SetRoot(ctx, genesisNode)
+		genesisKey, err := da.SetRoot(ctx, genesisNode)
 		Expect(err).To(BeNil())
 
-		err = da.Append(ctx, node, genesisNode.Hash)
+		node := CreateNode(testGenesisAddr, genesisKey, defaultBranch, genesisNode.BranchSeq+1)
+
+		_, err = da.Append(ctx, node, genesisKey)
 		Expect(err).To(BeNil())
-		err = da.Append(ctx, node, genesisNode.Hash)
-		Expect(err).To(Equal(dag.ErrNodeAlreadyInDag))
+		_, err = da.Append(ctx, node, genesisKey)
+		Expect(err).To(Equal(dag.ErrPreviousNodeIsNotHead))
 	})
 
 	It("Should NOT register node if previous node does not exists", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		dt := mock.NewMockDataStore(mockCtrl)
-		da = dag.NewDag("test-ledger", dt, resolver)
+		genesisKey, err := da.SetRoot(ctx, genesisNode)
+		Expect(err).To(BeNil())
 
-		dt.EXPECT().Get(gomock.Any(), gomock.Any()).
-			Return(nil, datastore.ErrNotFound).Times(2)
+		node := CreateNode(testGenesisAddr, "somekey", defaultBranch, genesisNode.BranchSeq+1)
 
-		err := da.Append(ctx, node, genesisNode.Hash)
+		_, err = da.Append(ctx, node, genesisKey)
 		Expect(err).To(Equal(dag.ErrPreviousNodeNotFound))
 	})
 
@@ -300,19 +303,19 @@ var _ = Describe("Dag", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		err := da.SetRoot(ctx, genesisNode)
+		genesisKey, err := da.SetRoot(ctx, genesisNode)
 		Expect(err).To(BeNil())
 
-		node1 := CreateNode(genesisAddr, genesisNode, defaultBranch, 2)
-		err = da.Append(ctx, node1, genesisNode.Hash)
+		node1 := CreateNode(genesisAddr, genesisKey, defaultBranch, 2)
+		node1Key, err := da.Append(ctx, node1, genesisKey)
 		Expect(err).To(BeNil())
 
-		node2 := CreateNode(genesisAddr, node1, defaultBranch, 3)
-		err = da.Append(ctx, node2, genesisNode.Hash)
+		node2 := CreateNode(genesisAddr, node1Key, defaultBranch, 3)
+		_, err = da.Append(ctx, node2, genesisKey)
 		Expect(err).To(BeNil())
 
-		node := CreateNode(genesisAddr, node1, defaultBranch, 4)
-		err = da.Append(ctx, node, genesisNode.Hash)
+		node := CreateNode(genesisAddr, node1Key, defaultBranch, 4)
+		_, err = da.Append(ctx, node, genesisKey)
 		Expect(err).To(Equal(dag.ErrPreviousNodeIsNotHead))
 	})
 })
@@ -320,7 +323,7 @@ var _ = Describe("Dag", func() {
 func CreateGenesisNode() (*dag.Node, *address.Address) {
 	addr, _ := address.NewAddressWithKeys()
 
-	genesisNode := CreateNode(addr, nil, defaultBranch, 1)
+	genesisNode := CreateNode(addr, "", defaultBranch, 1)
 	genesisNode.Address = addr.Address
 	genesisNode.Branches = []string{defaultBranch}
 	genesisNode.PubKey = hex.EncodeToString(addr.Keys.PublicKey)
@@ -332,11 +335,11 @@ func CreateGenesisNode() (*dag.Node, *address.Address) {
 	return genesisNode, addr
 }
 
-func CreateNode(addr *address.Address, prev *dag.Node, branch string, seq int32) *dag.Node {
+func CreateNode(addr *address.Address, prev string, branch string, seq int32) *dag.Node {
 	node := &dag.Node{}
 
-	if prev != nil {
-		node.Previous = prev.Hash
+	if prev != "" {
+		node.Previous = prev
 		node.BranchSeq = seq
 	} else {
 		node.BranchSeq = 1
@@ -354,11 +357,11 @@ func CreateNode(addr *address.Address, prev *dag.Node, branch string, seq int32)
 	return node
 }
 
-func CreateNodeWithBranches(addr *address.Address, prev *dag.Node, branches []string, branch string, seq int32) *dag.Node {
+func CreateNodeWithBranches(addr *address.Address, prev string, branches []string, branch string, seq int32) *dag.Node {
 	node := &dag.Node{}
 
-	if prev != nil {
-		node.Previous = prev.Hash
+	if prev != "" {
+		node.Previous = prev
 		node.BranchSeq = seq
 	} else {
 		node.BranchSeq = 1

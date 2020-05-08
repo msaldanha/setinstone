@@ -1,15 +1,13 @@
 package datastore
 
 import (
+	"bytes"
 	"context"
 	"fmt"
-	blocks "github.com/ipfs/go-block-format"
-	"github.com/ipfs/go-ipfs/pin"
-	"github.com/msaldanha/setinstone/anticorp/multihash"
+	"github.com/ipfs/interface-go-ipfs-core/path"
 	"time"
 
 	icore "github.com/ipfs/interface-go-ipfs-core"
-	icorepath "github.com/ipfs/interface-go-ipfs-core/path"
 	// peerstore "github.com/libp2p/go-libp2p-peerstore"
 	// ma "github.com/multiformats/go-multiaddr"
 
@@ -41,78 +39,36 @@ func NewIPFSDataStore(node *core.IpfsNode) (DataStore, error) {
 	}, nil
 }
 
-func (d ipfsDataStore) Put(ctx context.Context, key string, b []byte) (Link, error) {
-	id := multihash.NewId()
-	er := id.SetData([]byte(key))
+func (d ipfsDataStore) Put(ctx context.Context, b []byte) (string, error) {
+	bs, er := d.ipfs.Block().Put(ctx, bytes.NewReader(b))
 	if er != nil {
-		return Link{}, fmt.Errorf(IpfsErrPrefix+"could not generate id: %s", er)
+		return "", fmt.Errorf(IpfsErrPrefix+"could not add block: %s", er)
 	}
 
-	bcid := id.Cid()
+	fmt.Printf("Added block to IPFS with CID %s \n", bs.Path().Cid().String())
 
-	bl, er := blocks.NewBlockWithCid(b, bcid)
-	if er != nil {
-		return Link{}, fmt.Errorf(IpfsErrPrefix+"could not create block: %s", er)
-	}
-
-	defer d.ipfsNode.Blockstore.PinLock().Unlock()
-	er = d.ipfsNode.Blockstore.Put(bl)
-	if er != nil {
-		return Link{}, fmt.Errorf(IpfsErrPrefix+"could not add block: %s", er)
-	}
-
-	d.ipfsNode.Pinning.PinWithMode(bl.Cid(), pin.Recursive)
-	if er = d.ipfsNode.Pinning.Flush(ctx); er != nil {
-		return Link{}, fmt.Errorf(IpfsErrPrefix+"could not flush pinning: %s", er)
-	}
-
-	fmt.Printf("Added block to IPFS with CID %s\n", bcid.String())
-
-	size := len(b)
-
-	return Link{
-		Hash: bcid.String(),
-		Size: uint64(size),
-	}, nil
+	return bs.Path().Cid().String(), nil
 }
 
 func (d ipfsDataStore) Remove(ctx context.Context, key string) error {
-	id := multihash.NewId()
-	er := id.SetData([]byte(key))
-	if er != nil {
-		return fmt.Errorf(IpfsErrPrefix+"could not generate id: %s", er)
-	}
-
-	er = d.ipfsNode.Blockstore.DeleteBlock(id.Cid())
+	er := d.ipfs.Block().Rm(ctx, path.New(key))
 	if er != nil {
 		return fmt.Errorf(IpfsErrPrefix+"could not remove data: %s", er)
 	}
 
-	fmt.Printf("Removed block from IPFS with CID %s\n", id.Cid().String())
+	fmt.Printf("Removed block from IPFS with CID %s\n", key)
 
 	return nil
 }
 
 func (d ipfsDataStore) Get(ctx context.Context, key string) (io.Reader, error) {
-	id := multihash.NewId()
-	er := id.SetData([]byte(key))
-	if er != nil {
-		return nil, fmt.Errorf(IpfsErrPrefix+"could not generate id: %s", er)
-	}
-
-	bcid := id.Cid()
-
-	ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel() // releases resources if slowOperation completes before timeout elapses
 
-	fileReader, er := d.ipfs.Block().Get(ctx, icorepath.New("/ipfs/"+bcid.String()))
-
-	if er == context.DeadlineExceeded {
-		return nil, ErrNotFound
-	}
-	if er != nil {
-		return nil, fmt.Errorf(IpfsErrPrefix+"could not get data with CID: %s", bcid.String())
+	reader, er := d.ipfs.Block().Get(ctx, path.New(key))
+	if er != nil || reader == nil {
+		return nil, fmt.Errorf(IpfsErrPrefix+"could not Blockstore.Get data with CID: %s %s", key, er)
 	}
 
-	return fileReader, nil
+	return reader, nil
 }

@@ -42,11 +42,15 @@ type server struct {
 	ld          dag.Dag
 	ipfs        icore.CoreAPI
 	logins      map[string]string
+	resolver    dor.Resolver
 }
 
 type ServerOptions struct {
-	Url       string
-	DataStore string
+	Url             string
+	DataStore       string
+	IpfsPort        string
+	IpfsApiPort     string
+	IpfsGatewayPort string
 }
 
 type Response struct {
@@ -54,9 +58,9 @@ type Response struct {
 	Error   string      `json:"error,omitempty"`
 }
 
-func NewServer(_ ServerOptions) (Server, error) {
+func NewServer(opts ServerOptions) (Server, error) {
 	store := NewBoltKeyValueStore()
-	er := store.Init(BoltKeyValueStoreOptions{BucketName: "addresses", DbFile: "server.dat"})
+	er := store.Init(BoltKeyValueStoreOptions{BucketName: "addresses", DbFile: opts.DataStore})
 	if er != nil {
 		return nil, er
 	}
@@ -71,6 +75,7 @@ func NewServer(_ ServerOptions) (Server, error) {
 		store:       store,
 		timelines:   map[string]timeline.Timeline{},
 		logins:      map[string]string{},
+		opts:        opts,
 	}
 
 	er = srv.init()
@@ -450,8 +455,10 @@ func (s *server) init() error {
 
 	ctx := context.Background()
 
+	s.resolver = dor.NewLocalResolver()
+
 	fmt.Println("Spawning node on a temporary repo")
-	node, er := spawnEphemeral(ctx)
+	node, er := spawnEphemeral(ctx, s.opts)
 	if er != nil {
 		panic(fmt.Errorf("failed to spawn ephemeral node: %s", er))
 	}
@@ -475,8 +482,10 @@ func (s *server) getOrCreateTimeLine(ns string, a *address.Address) timeline.Tim
 	if found {
 		return tl
 	}
-	resolver := dor.NewLocalResolver()
-	ld := dag.NewDag(ns, s.ds, resolver)
+	if a.Keys != nil && a.Keys.PrivateKey != nil {
+		_ = s.resolver.Manage(a)
+	}
+	ld := dag.NewDag(ns, s.ds, s.resolver)
 	gr := graph.NewGraph(ld, a)
 	tl = timeline.NewTimeline(gr)
 	s.timelines[ns+a.Address] = tl

@@ -15,7 +15,7 @@ message Node {
     bytes data = 8;
     int32 powTarget = 9;
     int64 powNonce = 10;
-    string hash = 11;
+    string pow = 11;
     string pubKey = 12;
     string signature = 13;
 }

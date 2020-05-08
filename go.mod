@@ -18,7 +18,10 @@ require (
 	github.com/ipfs/interface-go-ipfs-core v0.2.3
 	github.com/k0kubun/colorstring v0.0.0-20150214042306-9440f1994b88 // indirect
 	github.com/kataras/iris/v12 v12.1.8
+	github.com/libp2p/go-libp2p-core v0.2.5
+	github.com/libp2p/go-libp2p-peerstore v0.1.3
 	github.com/moul/http2curl v1.0.0 // indirect
+	github.com/multiformats/go-multiaddr v0.1.2
 	github.com/multiformats/go-multihash v0.0.8
 	github.com/onsi/ginkgo v1.8.0
 	github.com/onsi/gomega v1.5.0

@@ -20,7 +20,14 @@ func NewNode() *Node {
 	return &Node{}
 }
 
-func (m *Node) GetHashableBytes() ([][]byte, error) {
+func (m *Node) Hash() string {
+	id := multihash.NewId()
+	data, _ := m.ToBytes()
+	_ = id.SetData(data)
+	return id.Cid().String()
+}
+
+func (m *Node) GetBytesForPow() ([][]byte, error) {
 	props, er := getMapBytes(m.Properties)
 	if er != nil {
 		return nil, er
@@ -34,10 +41,10 @@ func (m *Node) GetHashableBytes() ([][]byte, error) {
 	return result, nil
 }
 
-func (m *Node) GetSignableBytes() ([]byte, error) {
+func (m *Node) GetByteForSigning() ([]byte, error) {
 	var result []byte
 	result = append(result, []byte(m.Timestamp)...)
-	result = append(result, []byte(m.Hash)...)
+	result = append(result, []byte(m.Pow)...)
 	return result, nil
 }
 
@@ -55,7 +62,7 @@ func (m *Node) CalculatePow() (int64, string, error) {
 
 	target := getTarget()
 
-	data, er := m.GetHashableBytes()
+	data, er := m.GetBytesForPow()
 	if er != nil {
 		return 0, "", er
 	}
@@ -92,7 +99,7 @@ func (m *Node) SetPow() error {
 		return er
 	}
 	m.PowNonce = nonce
-	m.Hash = hash
+	m.Pow = hash
 	return nil
 }
 
@@ -101,7 +108,7 @@ func (m *Node) VerifyPow() (bool, error) {
 
 	target := getTarget()
 
-	data, er := m.GetHashableBytes()
+	data, er := m.GetBytesForPow()
 	if er != nil {
 		return false, er
 	}
@@ -124,7 +131,7 @@ func (m *Node) VerifyPow() (bool, error) {
 }
 
 func (m *Node) Sign(privateKey *ecdsa.PrivateKey) error {
-	data, _ := m.GetSignableBytes()
+	data, _ := m.GetByteForSigning()
 	s, er := util.Sign(data, privateKey)
 	if er != nil {
 		return er
@@ -145,7 +152,7 @@ func (m *Node) VerifySignature() error {
 		return ErrUnableToDecodeNodePubKey
 	}
 
-	data, _ := m.GetSignableBytes()
+	data, _ := m.GetByteForSigning()
 	if !VerifySignature(sign, pubKey, data) {
 		return ErrNodeSignatureDoesNotMatch
 	}

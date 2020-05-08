@@ -18,7 +18,7 @@ type Link struct {
 }
 
 type DataStore interface {
-	Put(ctx context.Context, key string, bytes []byte) (Link, error)
+	Put(ctx context.Context, bytes []byte) (string, error)
 	Remove(ctx context.Context, key string) error
 	Get(ctx context.Context, key string) (io.Reader, error)
 }

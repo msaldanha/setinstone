@@ -19,7 +19,7 @@ type id struct {
 
 func NewId() Id {
 	var pref cid.Prefix
-	pref.Version = 1
+	pref.Version = 0
 	pref.Codec = cid.Codecs["v0"]
 	pref.MhType = mh.SHA2_256
 	pref.MhLength = 32

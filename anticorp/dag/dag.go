@@ -34,11 +34,11 @@ const (
 )
 
 type Dag interface {
-	SetRoot(ctx context.Context, rootNode *Node) error
-	GetLast(ctx context.Context, branchRootNodeKey, branch string) (*Node, error)
-	GetRoot(ctx context.Context, addr string) (*Node, error)
+	SetRoot(ctx context.Context, rootNode *Node) (string, error)
+	GetLast(ctx context.Context, branchRootNodeKey, branch string) (*Node, string, error)
+	GetRoot(ctx context.Context, addr string) (*Node, string, error)
 	Get(ctx context.Context, key string) (*Node, error)
-	Append(ctx context.Context, node *Node, branchRootNodeKey string) error
+	Append(ctx context.Context, node *Node, branchRootNodeKey string) (string, error)
 	VerifyNode(ctx context.Context, node *Node, branchRootNodeKey string, isNew bool) error
 }
 
@@ -52,56 +52,56 @@ func NewDag(nameSpace string, dt datastore.DataStore, resolver dor.Resolver) Dag
 	return &dag{nameSpace: nameSpace, dt: dt, resolver: resolver}
 }
 
-func (da *dag) SetRoot(ctx context.Context, rootNode *Node) error {
+func (da *dag) SetRoot(ctx context.Context, rootNode *Node) (string, error) {
 	if rootNode.Branch == "" {
-		return ErrInvalidBranch
+		return "", ErrInvalidBranch
 	}
 	if !da.hasBranch(rootNode, rootNode.Branch) {
-		return ErrDefaultBranchNotSpecified
+		return "", ErrDefaultBranchNotSpecified
 	}
-	root, er := da.GetRoot(ctx, rootNode.Address)
+	root, _, er := da.GetRoot(ctx, rootNode.Address)
 	if er == ErrNodeNotFound || root == nil {
 		return da.saveGenesisNode(ctx, rootNode)
 	}
 	if er == nil {
-		return ErrDagAlreadyInitialized
+		return "", ErrDagAlreadyInitialized
 	}
-	return da.translateError(er)
+	return "", da.translateError(er)
 }
 
-func (da *dag) Append(ctx context.Context, node *Node, branchRootNodeKey string) error {
+func (da *dag) Append(ctx context.Context, node *Node, branchRootNodeKey string) (string, error) {
 	if er := da.VerifyNode(ctx, node, branchRootNodeKey, true); er != nil {
-		return da.translateError(er)
+		return "", da.translateError(er)
 	}
 	return da.saveNode(ctx, node, branchRootNodeKey)
 }
 
-func (da *dag) GetLast(ctx context.Context, branchRootNodeKey, branch string) (*Node, error) {
+func (da *dag) GetLast(ctx context.Context, branchRootNodeKey, branch string) (*Node, string, error) {
 	if branch == "" {
-		return nil, ErrInvalidBranch
+		return nil, "", ErrInvalidBranch
 	}
 	branchRootNode, er := da.getNodeByKey(ctx, branchRootNodeKey)
 	if er != nil {
-		return nil, da.translateError(er)
+		return nil, "", da.translateError(er)
 	}
-	key := da.resolveLastNodeKey(ctx, branchRootNode, branch)
+	key := da.resolveLastNodeKey(ctx, branchRootNode, branchRootNodeKey, branch)
 	fromTipTx, er := da.getNodeByKey(ctx, key)
 	if er == ErrNodeNotFound {
-		return branchRootNode, nil
+		return branchRootNode, branchRootNodeKey, nil
 	}
 	if er != nil {
-		return nil, da.translateError(er)
+		return nil, "", da.translateError(er)
 	}
-	return fromTipTx, nil
+	return fromTipTx, key, nil
 }
 
-func (da *dag) GetRoot(ctx context.Context, addr string) (*Node, error) {
+func (da *dag) GetRoot(ctx context.Context, addr string) (*Node, string, error) {
 	key := da.resolveGenesisNodeKey(ctx, addr)
 	n, er := da.getNodeByKey(ctx, key)
 	if er != nil {
-		return nil, da.translateError(er)
+		return nil, "", da.translateError(er)
 	}
-	return n, nil
+	return n, key, nil
 }
 
 func (da *dag) Get(ctx context.Context, key string) (*Node, error) {
@@ -128,16 +128,6 @@ func (da *dag) VerifyNode(ctx context.Context, node *Node, branchRootNodeKey str
 		return ErrInvalidBranch
 	}
 
-	n, er := da.getNodeByKey(ctx, node.Hash)
-	if er != nil && er != ErrNodeNotFound {
-		return da.translateError(er)
-	}
-	if n != nil && mustBeNew {
-		return ErrNodeAlreadyInDag
-	} else if n == nil && !mustBeNew {
-		return ErrNodeNotFound
-	}
-
 	previous, er := da.getNodeByKey(ctx, node.Previous)
 	if er == ErrNodeNotFound {
 		return ErrPreviousNodeNotFound
@@ -159,17 +149,17 @@ func (da *dag) VerifyNode(ctx context.Context, node *Node, branchRootNodeKey str
 		if !da.hasBranch(branchRoot, node.Branch) {
 			return ErrInvalidBranch
 		}
-		branchHead, er := da.GetLast(ctx, branchRootNodeKey, node.Branch)
+		branchHead, branchHeadKey, er := da.GetLast(ctx, branchRootNodeKey, node.Branch)
 		if er != nil {
 			return da.translateError(er)
 		}
 		if branchHead == nil {
 			return ErrHeadNodeNotFound
 		}
-		if branchHead.Hash != previous.Hash {
+		if branchHeadKey != node.Previous {
 			return ErrPreviousNodeIsNotHead
 		}
-		if branchHead.Hash == branchRoot.Hash && node.Branch != branchHead.Branch && node.BranchSeq != 1 {
+		if branchHeadKey == branchRootNodeKey && node.Branch != branchHead.Branch && node.BranchSeq != 1 {
 			return ErrInvalidBranchSeq
 		}
 		if node.Branch == previous.Branch && node.BranchSeq != previous.BranchSeq+1 {
@@ -222,55 +212,55 @@ func (da *dag) getPreviousNode(ctx context.Context, node *Node) (*Node, error) {
 	return previous, nil
 }
 
-func (da *dag) saveNode(ctx context.Context, node *Node, branchRootNodeKey string) error {
+func (da *dag) saveNode(ctx context.Context, node *Node, branchRootNodeKey string) (string, error) {
 	branchRoot, er := da.getNodeByKey(ctx, branchRootNodeKey)
 	if er != nil {
-		return da.translateError(er)
+		return "", da.translateError(er)
 	}
 	if branchRoot == nil {
-		return ErrBranchRootNotFound
+		return "", ErrBranchRootNotFound
 	}
 
 	data, er := node.ToJson()
 	if er != nil {
-		return da.translateError(er)
+		return "", da.translateError(er)
 	}
-	_, er = da.dt.Put(ctx, node.Hash, []byte(data))
+	key, er := da.dt.Put(ctx, []byte(data))
 	if er != nil {
-		return da.translateError(er)
+		return "", da.translateError(er)
 	}
 
-	lastNodeName := da.getLastNodeName(branchRoot, node.Branch)
-	er = da.resolver.Add(ctx, lastNodeName, node.Hash)
+	lastNodeName := da.getLastNodeName(branchRoot, branchRootNodeKey, node.Branch)
+	er = da.resolver.Add(ctx, lastNodeName, key)
 	if er != nil {
-		return da.translateError(er)
+		return "", da.translateError(er)
 	}
-	return nil
+	return key, nil
 }
 
-func (da *dag) saveGenesisNode(ctx context.Context, node *Node) error {
+func (da *dag) saveGenesisNode(ctx context.Context, node *Node) (string, error) {
 	data, er := node.ToJson()
 	if er != nil {
-		return da.translateError(er)
+		return "", da.translateError(er)
 	}
 
-	_, er = da.dt.Put(ctx, node.Hash, []byte(data))
+	key, er := da.dt.Put(ctx, []byte(data))
 	if er != nil {
-		return da.translateError(er)
+		return "", da.translateError(er)
 	}
 
-	lastNodeName := da.getLastNodeName(node, node.Branch)
-	er = da.resolver.Add(ctx, lastNodeName, node.Hash)
+	lastNodeName := da.getLastNodeName(node, key, node.Branch)
+	er = da.resolver.Add(ctx, lastNodeName, key)
 	if er != nil {
-		return da.translateError(er)
+		return "", da.translateError(er)
 	}
 
 	genesisName := da.getGenesisNodeName(node.Address)
-	er = da.resolver.Add(ctx, genesisName, node.Hash)
+	er = da.resolver.Add(ctx, genesisName, key)
 	if er != nil {
-		return da.translateError(er)
+		return "", da.translateError(er)
 	}
-	return nil
+	return key, nil
 }
 
 func (da *dag) hasBranch(p *Node, branch string) bool {
@@ -321,8 +311,8 @@ func (da *dag) resolveGenesisNodeKey(ctx context.Context, addr string) string {
 	return da.resolveNodeKey(ctx, addr, strings.Repeat("0", hashSize))
 }
 
-func (da *dag) resolveLastNodeKey(ctx context.Context, node *Node, branch string) string {
-	return da.resolveNodeKey(ctx, node.Address, node.Hash, branch)
+func (da *dag) resolveLastNodeKey(ctx context.Context, node *Node, branchRootNodeKey, branch string) string {
+	return da.resolveNodeKey(ctx, node.Address, branchRootNodeKey, branch)
 }
 
 func (da *dag) resolveNodeKey(ctx context.Context, addr string, parts ...string) string {
@@ -335,8 +325,8 @@ func (da *dag) getGenesisNodeName(addr string) string {
 	return da.getName(addr, strings.Repeat("0", hashSize))
 }
 
-func (da *dag) getLastNodeName(node *Node, branch string) string {
-	return da.getName(node.Address, node.Hash, branch)
+func (da *dag) getLastNodeName(node *Node, nodeKey, branch string) string {
+	return da.getName(node.Address, nodeKey, branch)
 }
 
 func (da *dag) getName(addr string, parts ...string) string {
