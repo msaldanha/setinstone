@@ -84,7 +84,10 @@ func (da *dag) GetLast(ctx context.Context, branchRootNodeKey, branch string) (*
 	if er != nil {
 		return nil, "", da.translateError(er)
 	}
-	key := da.resolveLastNodeKey(ctx, branchRootNode, branchRootNodeKey, branch)
+	key, er := da.resolveLastNodeKey(ctx, branchRootNode, branchRootNodeKey, branch)
+	if er != nil {
+		return nil, "", da.translateError(er)
+	}
 	fromTipTx, er := da.getNodeByKey(ctx, key)
 	if er == ErrNodeNotFound {
 		return branchRootNode, branchRootNodeKey, nil
@@ -96,7 +99,10 @@ func (da *dag) GetLast(ctx context.Context, branchRootNodeKey, branch string) (*
 }
 
 func (da *dag) GetRoot(ctx context.Context, addr string) (*Node, string, error) {
-	key := da.resolveGenesisNodeKey(ctx, addr)
+	key, er := da.resolveGenesisNodeKey(ctx, addr)
+	if er != nil {
+		return nil, "", da.translateError(er)
+	}
 	n, er := da.getNodeByKey(ctx, key)
 	if er != nil {
 		return nil, "", da.translateError(er)
@@ -307,18 +313,21 @@ func (da *dag) getNodeByKey(ctx context.Context, key string) (*Node, error) {
 	return n, nil
 }
 
-func (da *dag) resolveGenesisNodeKey(ctx context.Context, addr string) string {
+func (da *dag) resolveGenesisNodeKey(ctx context.Context, addr string) (string, error) {
 	return da.resolveNodeKey(ctx, addr, strings.Repeat("0", hashSize))
 }
 
-func (da *dag) resolveLastNodeKey(ctx context.Context, node *Node, branchRootNodeKey, branch string) string {
+func (da *dag) resolveLastNodeKey(ctx context.Context, node *Node, branchRootNodeKey, branch string) (string, error) {
 	return da.resolveNodeKey(ctx, node.Address, branchRootNodeKey, branch)
 }
 
-func (da *dag) resolveNodeKey(ctx context.Context, addr string, parts ...string) string {
+func (da *dag) resolveNodeKey(ctx context.Context, addr string, parts ...string) (string, error) {
 	name := da.getName(addr, parts...)
-	resolved, _ := da.resolver.Resolve(ctx, name)
-	return resolved
+	resolved, er := da.resolver.Resolve(ctx, name)
+	if er != nil {
+		return "", er
+	}
+	return resolved, nil
 }
 
 func (da *dag) getGenesisNodeName(addr string) string {
