@@ -10,17 +10,21 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/msaldanha/setinstone/anticorp/address"
 	log "github.com/sirupsen/logrus"
+	"math/rand"
+	"sync"
 	"time"
 )
 
 const prefix = "IPFS Resolver"
 
 type ipfsResolver struct {
-	cache     map[string]Record
-	addresses map[string]address.Address
-	subs      map[string]icore.PubSubSubscription
-	ipfs      icore.CoreAPI
-	Id        peer.ID
+	cache      map[string]Record
+	addresses  map[string]address.Address
+	subs       map[string]icore.PubSubSubscription
+	pending    map[string]bool
+	pendingLck sync.Mutex
+	ipfs       icore.CoreAPI
+	Id         peer.ID
 }
 
 func NewIpfsResolver(node *core.IpfsNode, addresses []*address.Address) (Resolver, error) {
@@ -29,11 +33,13 @@ func NewIpfsResolver(node *core.IpfsNode, addresses []*address.Address) (Resolve
 		return nil, er
 	}
 	r := &ipfsResolver{
-		ipfs:      ipfs,
-		cache:     map[string]Record{},
-		addresses: map[string]address.Address{},
-		subs:      map[string]icore.PubSubSubscription{},
-		Id:        node.Identity,
+		ipfs:       ipfs,
+		cache:      map[string]Record{},
+		addresses:  map[string]address.Address{},
+		subs:       map[string]icore.PubSubSubscription{},
+		pending:    map[string]bool{},
+		Id:         node.Identity,
+		pendingLck: sync.Mutex{},
 	}
 	for _, addr := range addresses {
 		er := r.Manage(addr)
@@ -70,6 +76,7 @@ func (r *ipfsResolver) Add(ctx context.Context, name, value string) error {
 	}
 	// TODO: save to persisten storage
 	_ = r.put(ctx, rec)
+	r.addPendingQuery(rec)
 	r.sendResolution(rec)
 	return nil
 }
@@ -135,10 +142,10 @@ func (r *ipfsResolver) query(ctx context.Context, rec Record) (Record, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	for {
-		rec, er = r.get(ctx, rec.Query)
+		found, er := r.get(ctx, rec.Query)
 		if er == nil {
 			log.Infof("%s resolved %s to %s", prefix, rec.Query, rec.Resolution)
-			return rec, nil
+			return found, nil
 		}
 		select {
 		case <-time.After(300 * time.Millisecond):
@@ -213,11 +220,8 @@ func (r *ipfsResolver) dispatch(rec Record) {
 }
 
 func (r *ipfsResolver) handleQuery(rec Record) {
+	r.addPendingQuery(rec)
 	log.Infof("%s Query received: %s", prefix, rec.Query)
-	if !r.isManaged(rec) {
-		log.Infof("%s Query not handled by me: %s", prefix, rec.Query)
-		return
-	}
 	resolution, er := r.resolve(context.Background(), rec)
 	if er != nil {
 		log.Errorf("%s Failed to resolve %s: %s", prefix, rec.Query, er)
@@ -240,17 +244,50 @@ func (r *ipfsResolver) handleResolution(rec Record) {
 	} else {
 		log.Infof("%s Already have a most recent resolution for %s to %s", prefix, rec.Query, rec.Resolution)
 	}
+	r.removePendingQuery(rec)
 }
 
 func (r *ipfsResolver) sendResolution(rec Record) {
-	data, er := rec.ToJson()
-	if er != nil {
-		log.Errorf("%s Error serializing record %s", prefix, er)
-		return
+	go func() {
+		data, er := rec.ToJson()
+		if er != nil {
+			log.Errorf("%s Error serializing record %s", prefix, er)
+			return
+		}
+		if !r.canSendResolution(rec) {
+			log.Infof("%s Query %s already resolved by someone else", prefix, rec.Query)
+			return
+		}
+		log.Infof("%s Sending resolution %s -> %s", prefix, rec.Query, rec.Resolution)
+		er = r.ipfs.PubSub().Publish(context.Background(), rec.Address, []byte(data))
+		if er != nil {
+			log.Errorf("%s Error sending resolution %s", prefix, er)
+			return
+		}
+	}()
+}
+
+func (r *ipfsResolver) canSendResolution(rec Record) bool {
+	delay := time.Duration(rand.Intn(1000))
+	log.Infof("%s Will sleep for %d before sending resolution %s -> %s", prefix, delay, rec.Query, rec.Resolution)
+	time.Sleep(delay * time.Millisecond)
+	r.pendingLck.Lock()
+	defer r.pendingLck.Unlock()
+	_, exists := r.pending[rec.Query]
+	if exists {
+		delete(r.pending, rec.Query)
 	}
-	er = r.ipfs.PubSub().Publish(context.Background(), rec.Address, []byte(data))
-	if er != nil {
-		log.Errorf("%s Error sending resolution %s", prefix, er)
-		return
-	}
+	return exists
+}
+
+func (r *ipfsResolver) addPendingQuery(rec Record) {
+	r.pendingLck.Lock()
+	defer r.pendingLck.Unlock()
+	r.pending[rec.Query] = true
+}
+
+func (r *ipfsResolver) removePendingQuery(rec Record) {
+	r.pendingLck.Lock()
+	defer r.pendingLck.Unlock()
+	delete(r.pending, rec.Query)
 }
