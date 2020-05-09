@@ -1,4 +1,4 @@
-package pulpit
+package keyvaluestore
 
 import (
 	"github.com/msaldanha/setinstone/anticorp/err"

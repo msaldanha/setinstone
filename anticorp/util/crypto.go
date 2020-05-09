@@ -4,10 +4,12 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/md5"
 	"crypto/rand"
 	"encoding/hex"
 	"io"
+	"math/big"
 )
 
 func createHash(key string) string {
@@ -55,4 +57,23 @@ func Sign(data []byte, privateKey *ecdsa.PrivateKey) ([]byte, error) {
 		return nil, err
 	}
 	return append(LeftPadBytes(r.Bytes(), 32), LeftPadBytes(s.Bytes(), 32)...), nil
+}
+
+func VerifySignature(signature []byte, pubKey []byte, data []byte) bool {
+	r := big.Int{}
+	s := big.Int{}
+	sigLen := len(signature)
+	r.SetBytes(signature[:(sigLen / 2)])
+	s.SetBytes(signature[(sigLen / 2):])
+
+	x := big.Int{}
+	y := big.Int{}
+	keyLen := len(pubKey)
+	x.SetBytes(pubKey[:(keyLen / 2)])
+	y.SetBytes(pubKey[(keyLen / 2):])
+
+	curve := elliptic.P256()
+	rawPubKey := ecdsa.PublicKey{Curve: curve, X: &x, Y: &y}
+
+	return ecdsa.Verify(&rawPubKey, data, &r, &s)
 }

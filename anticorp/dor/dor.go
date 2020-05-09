@@ -12,6 +12,7 @@ const (
 	ErrInvalidAddrComponent = err.Error("invalid address component")
 	ErrNoPrivateKey         = err.Error("no private key")
 	ErrUnmanagedAddress     = err.Error("unmanaged address")
+	ErrNotFound             = err.Error("not found")
 )
 
 type Resolver interface {

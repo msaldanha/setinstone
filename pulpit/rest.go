@@ -16,6 +16,7 @@ import (
 	"github.com/msaldanha/setinstone/anticorp/dor"
 	"github.com/msaldanha/setinstone/anticorp/err"
 	"github.com/msaldanha/setinstone/anticorp/graph"
+	"github.com/msaldanha/setinstone/anticorp/keyvaluestore"
 	"github.com/msaldanha/setinstone/anticorp/util"
 	"github.com/msaldanha/setinstone/timeline"
 	"io"
@@ -36,7 +37,7 @@ type server struct {
 	initialized bool
 	app         *iris.Application
 	opts        ServerOptions
-	store       KeyValueStore
+	store       keyvaluestore.KeyValueStore
 	timelines   map[string]timeline.Timeline
 	ds          datastore.DataStore
 	ld          dag.Dag
@@ -59,8 +60,8 @@ type Response struct {
 }
 
 func NewServer(opts ServerOptions) (Server, error) {
-	store := NewBoltKeyValueStore()
-	er := store.Init(BoltKeyValueStoreOptions{BucketName: "addresses", DbFile: opts.DataStore})
+	store := keyvaluestore.NewBoltKeyValueStore()
+	er := store.Init(keyvaluestore.BoltKeyValueStoreOptions{BucketName: "addresses", DbFile: opts.DataStore})
 	if er != nil {
 		return nil, er
 	}
@@ -455,8 +456,6 @@ func (s *server) init() error {
 
 	ctx := context.Background()
 
-	s.resolver = dor.NewLocalResolver()
-
 	fmt.Println("Spawning node on a temporary repo")
 	node, er := spawnEphemeral(ctx, s.opts)
 	if er != nil {
@@ -472,6 +471,25 @@ func (s *server) init() error {
 	s.ds, er = datastore.NewIPFSDataStore(node) // .NewLocalFileStore()
 	if er != nil {
 		panic(fmt.Errorf("failed to setup ipfs data store: %s", er))
+	}
+
+	all, er := s.store.GetAll()
+	if er != nil {
+		panic(fmt.Errorf("failed to get addresses: %s", er))
+	}
+	addrs := []*address.Address{}
+	for _, data := range all {
+		addr := &address.Address{}
+		er = addr.FromBytes(data)
+		if er != nil {
+			panic(fmt.Errorf("failed to get address: %s", er))
+		}
+		addrs = append(addrs, addr)
+	}
+
+	s.resolver, er = dor.NewIpfsResolver(node, addrs)
+	if er != nil {
+		panic(fmt.Errorf("failed to setup resolver: %s", er))
 	}
 
 	return nil

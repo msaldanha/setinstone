@@ -10,7 +10,6 @@ require (
 	github.com/golang/protobuf v1.3.5
 	github.com/google/go-querystring v1.0.0 // indirect
 	github.com/imkira/go-interpol v1.1.0 // indirect
-	github.com/ipfs/go-block-format v0.0.2
 	github.com/ipfs/go-cid v0.0.3
 	github.com/ipfs/go-ipfs v0.4.22-0.20191119151441-b8ec598d5801
 	github.com/ipfs/go-ipfs-config v0.0.11
@@ -27,6 +26,7 @@ require (
 	github.com/onsi/gomega v1.5.0
 	github.com/sergi/go-diff v1.1.0 // indirect
 	github.com/shurcooL/sanitized_anchor_name v1.0.0 // indirect
+	github.com/sirupsen/logrus v1.2.0
 	github.com/valyala/fasthttp v1.9.0 // indirect
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	github.com/yalp/jsonpath v0.0.0-20180802001716-5cc68e5049a0 // indirect
