@@ -1,77 +1,78 @@
 package dag
 
 import (
-	"bytes"
 	"crypto/ecdsa"
 	"encoding/hex"
 	"encoding/json"
-	"github.com/golang/protobuf/proto"
 	"github.com/msaldanha/setinstone/anticorp/multihash"
 	"github.com/msaldanha/setinstone/anticorp/util"
 	"math"
 	"math/big"
+	"strconv"
 )
 
-//go:generate protoc node.proto --go_out=plugins=grpc:./
+const (
+	defaultPowTarget = int16(10)
+)
 
-const targetBits int16 = 16
+type Node struct {
+	BranchSeq  int32             `json:"branchSeq,omitempty"`
+	Timestamp  string            `json:"timestamp,omitempty"`
+	Address    string            `json:"address,omitempty"`
+	Previous   string            `json:"previous,omitempty"`
+	Branch     string            `json:"branch,omitempty"`
+	Properties map[string]string `json:"properties,omitempty"`
+	Branches   []string          `json:"branches,omitempty"`
+	Data       []byte            `json:"data,omitempty"`
+	PowTarget  int16             `json:"powTarget,omitempty"`
+
+	PowNonce  int64  `json:"powNonce,omitempty"`
+	Pow       string `json:"pow,omitempty"`
+	PubKey    string `json:"pubKey,omitempty"`
+	Signature string `json:"signature,omitempty"`
+}
 
 func NewNode() *Node {
-	return &Node{}
+	return &Node{PowTarget: 16}
 }
 
-func (m *Node) Hash() string {
-	id := multihash.NewId()
-	data, _ := m.ToBytes()
-	_ = id.SetData(data)
-	return id.Cid().String()
-}
-
-func (m *Node) GetBytesForPow() ([][]byte, error) {
-	props, er := getMapBytes(m.Properties)
-	if er != nil {
-		return nil, er
-	}
-	result := [][]byte{
-		[]byte(m.Address),
-		[]byte(m.Previous),
-		props,
-		m.Data,
-	}
-	return result, nil
-}
-
-func (m *Node) GetByteForSigning() ([]byte, error) {
+func (m *Node) GetBytesForPow() []byte {
 	var result []byte
+	result = append(result, []byte(strconv.Itoa(int(m.BranchSeq)))...)
 	result = append(result, []byte(m.Timestamp)...)
+	result = append(result, []byte(m.Address)...)
+	result = append(result, []byte(m.Previous)...)
+	result = append(result, []byte(m.Branch)...)
+	result = append(result, getMapBytes(m.Properties)...)
+	result = append(result, getSliceBytes(m.Branches)...)
+	result = append(result, m.Data...)
+	result = append(result, []byte(strconv.Itoa(int(m.PowTarget)))...)
+	return result
+}
+
+func (m *Node) GetBytesForSigning() ([]byte, error) {
+	var result []byte
 	result = append(result, []byte(m.Pow)...)
 	return result, nil
-}
-
-func getMapBytes(dataMap map[string]string) ([]byte, error) {
-	b, er := json.Marshal(dataMap)
-	if er != nil {
-		return nil, er
-	}
-	return b, nil
 }
 
 func (m *Node) CalculatePow() (int64, string, error) {
 	var hashInt big.Int
 	var nonce int64 = 0
 
-	target := getTarget()
-
-	data, er := m.GetBytesForPow()
-	if er != nil {
-		return 0, "", er
+	if m.PowTarget == 0 {
+		m.PowTarget = defaultPowTarget
 	}
+
+	target := getTarget(m.PowTarget)
+
+	data := m.GetBytesForPow()
 
 	id := multihash.NewId()
 
 	for nonce < math.MaxInt64 {
-		dataWithNonce := append(data, int64ToBytes(nonce))
-		er := id.SetData(bytes.Join(dataWithNonce, []byte{}))
+		dataWithNonce := append(data, int64ToBytes(nonce)...)
+		er := id.SetData(dataWithNonce)
 		if er != nil {
 			return 0, "", er
 		}
@@ -106,16 +107,13 @@ func (m *Node) SetPow() error {
 func (m *Node) VerifyPow() (bool, error) {
 	var hashInt big.Int
 
-	target := getTarget()
+	target := getTarget(m.PowTarget)
 
-	data, er := m.GetBytesForPow()
-	if er != nil {
-		return false, er
-	}
-	dataWithNonce := append(data, int64ToBytes(m.PowNonce))
+	data := m.GetBytesForPow()
+	dataWithNonce := append(data, int64ToBytes(m.PowNonce)...)
 
 	id := multihash.NewId()
-	er = id.SetData(bytes.Join(dataWithNonce, []byte{}))
+	er := id.SetData(dataWithNonce)
 	if er != nil {
 		return false, er
 	}
@@ -131,7 +129,7 @@ func (m *Node) VerifyPow() (bool, error) {
 }
 
 func (m *Node) Sign(privateKey *ecdsa.PrivateKey) error {
-	data, _ := m.GetByteForSigning()
+	data, _ := m.GetBytesForSigning()
 	s, er := util.Sign(data, privateKey)
 	if er != nil {
 		return er
@@ -152,7 +150,7 @@ func (m *Node) VerifySignature() error {
 		return ErrUnableToDecodeNodePubKey
 	}
 
-	data, _ := m.GetByteForSigning()
+	data, _ := m.GetBytesForSigning()
 	if !VerifySignature(sign, pubKey, data) {
 		return ErrNodeSignatureDoesNotMatch
 	}
@@ -160,26 +158,18 @@ func (m *Node) VerifySignature() error {
 	return nil
 }
 
-func (m *Node) ToJson() (string, error) {
+func (m *Node) ToJson() ([]byte, error) {
 	b, er := json.Marshal(m)
 	if er != nil {
-		return "", er
+		return nil, er
 	}
-	return string(b), nil
+	return b, nil
 }
 
-func (m *Node) FromJson(js string) error {
-	er := json.Unmarshal([]byte(js), m)
+func (m *Node) FromJson(js []byte) error {
+	er := json.Unmarshal(js, m)
 	if er != nil {
 		return er
 	}
 	return nil
-}
-
-func (m *Node) ToBytes() ([]byte, error) {
-	return proto.Marshal(m)
-}
-
-func (m *Node) FromBytes(b []byte) error {
-	return proto.Unmarshal(b, m)
 }

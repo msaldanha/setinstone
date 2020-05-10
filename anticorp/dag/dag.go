@@ -231,7 +231,7 @@ func (da *dag) saveNode(ctx context.Context, node *Node, branchRootNodeKey strin
 	if er != nil {
 		return "", da.translateError(er)
 	}
-	key, er := da.dt.Put(ctx, []byte(data))
+	key, er := da.dt.Put(ctx, data)
 	if er != nil {
 		return "", da.translateError(er)
 	}
@@ -250,7 +250,7 @@ func (da *dag) saveGenesisNode(ctx context.Context, node *Node) (string, error) 
 		return "", da.translateError(er)
 	}
 
-	key, er := da.dt.Put(ctx, []byte(data))
+	key, er := da.dt.Put(ctx, data)
 	if er != nil {
 		return "", da.translateError(er)
 	}
@@ -305,7 +305,7 @@ func (da *dag) getNodeByKey(ctx context.Context, key string) (*Node, error) {
 	}
 
 	n := &Node{}
-	er = n.FromJson(string(json))
+	er = n.FromJson(json)
 	if er != nil {
 		return nil, da.translateError(er)
 	}

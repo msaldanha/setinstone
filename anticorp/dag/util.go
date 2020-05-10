@@ -7,9 +7,10 @@ import (
 	"encoding/binary"
 	"log"
 	"math/big"
+	"sort"
 )
 
-func getTarget() *big.Int {
+func getTarget(targetBits int16) *big.Int {
 	target := big.NewInt(1)
 	target.Lsh(target, uint(256-targetBits))
 	return target
@@ -53,4 +54,33 @@ func LeftPadBytes(slice []byte, lenght int) []byte {
 	copy(padded[lenght-len(slice):], slice)
 
 	return padded
+}
+
+func getMapBytes(dataMap map[string]string) []byte {
+	totalSize := 0
+	keys := make([]string, 0, len(dataMap))
+	for k, v := range dataMap {
+		keys = append(keys, k)
+		totalSize += len(k)
+		totalSize += len(v)
+	}
+	sort.Strings(keys)
+	result := make([]byte, 0, totalSize)
+	for _, v := range keys {
+		result = append(result, []byte(v)...)
+		result = append(result, []byte(dataMap[v])...)
+	}
+	return result
+}
+
+func getSliceBytes(dataSlice []string) []byte {
+	totalSize := 0
+	for _, v := range dataSlice {
+		totalSize += len(v)
+	}
+	result := make([]byte, 0, totalSize)
+	for _, v := range dataSlice {
+		result = append(result, []byte(v)...)
+	}
+	return result
 }
