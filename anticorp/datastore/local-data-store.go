@@ -10,12 +10,14 @@ import (
 
 type localDataStore struct {
 	pairs map[string][]byte
+	paths map[string]string
 	tip   []byte
 }
 
 func NewLocalFileStore() DataStore {
 	return localDataStore{
 		pairs: make(map[string][]byte),
+		paths: map[string]string{},
 	}
 }
 
@@ -26,6 +28,7 @@ func (d localDataStore) Put(ctx context.Context, b []byte, pathFunc PathFunc) (s
 	p := ""
 	if pathFunc != nil {
 		p = pathFunc(hexHash)
+		d.paths[p] = hexHash
 	}
 	return hexHash, p, nil
 }

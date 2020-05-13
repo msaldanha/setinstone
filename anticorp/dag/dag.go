@@ -234,7 +234,7 @@ func (da *dag) saveNode(ctx context.Context, node *Node, branchRootNodeKey strin
 		return "", da.translateError(er)
 	}
 	key, _, er := da.dt.Put(ctx, data, func(cid string) string {
-		return strings.Join([]string{fullPath, node.Branch, cid}, "/")
+		return strings.Join([]string{fullPath, "branches", node.Branch, cid, "node"}, "/")
 	})
 	if er != nil {
 		return "", da.translateError(er)
@@ -255,7 +255,7 @@ func (da *dag) saveGenesisNode(ctx context.Context, node *Node) (string, error) 
 	}
 
 	key, _, er := da.dt.Put(ctx, data, func(cid string) string {
-		return da.getName(node.Address, cid)
+		return da.getName(node.Address, cid, "node")
 	})
 	if er != nil {
 		return "", da.translateError(er)
@@ -379,6 +379,6 @@ func (da *dag) getFullPath(ctx context.Context, key, branch string) (string, err
 	if s == "" {
 		return path, er
 	}
-	path = s + "/" + node.Branch + "/" + path
+	path = s + "/branches/" + node.Branch + "/" + path
 	return path, nil
 }

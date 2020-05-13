@@ -6,6 +6,7 @@ import (
 	files "github.com/ipfs/go-ipfs-files"
 	"github.com/ipfs/go-mfs"
 	"github.com/ipfs/interface-go-ipfs-core/path"
+	gopath "path"
 	"time"
 
 	icore "github.com/ipfs/interface-go-ipfs-core"
@@ -55,12 +56,14 @@ func (d ipfsDataStore) Put(ctx context.Context, b []byte, pathFunc PathFunc) (st
 		}
 
 		p = pathFunc(bs.Cid().String())
-		er = mfs.Mkdir(d.ipfsNode.FilesRoot, p, mfs.MkdirOpts{
+		dirtomake := gopath.Dir(p)
+
+		er = mfs.Mkdir(d.ipfsNode.FilesRoot, dirtomake, mfs.MkdirOpts{
 			Mkparents: true,
 			Flush:     true,
 		})
 		if er != nil {
-			return "", "", fmt.Errorf(IpfsErrPrefix+"could create path %s: %s", p, er)
+			return "", "", fmt.Errorf(IpfsErrPrefix+"could create dir %s: %s", dirtomake, er)
 		}
 
 		er = mfs.PutNode(d.ipfsNode.FilesRoot, p, ipldNode)
