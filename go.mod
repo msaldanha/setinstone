@@ -14,6 +14,7 @@ require (
 	github.com/ipfs/go-ipfs v0.4.22-0.20191119151441-b8ec598d5801
 	github.com/ipfs/go-ipfs-config v0.0.11
 	github.com/ipfs/go-ipfs-files v0.0.4
+	github.com/ipfs/go-mfs v0.1.1
 	github.com/ipfs/interface-go-ipfs-core v0.2.3
 	github.com/k0kubun/colorstring v0.0.0-20150214042306-9440f1994b88 // indirect
 	github.com/kataras/iris/v12 v12.1.8

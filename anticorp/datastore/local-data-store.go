@@ -19,14 +19,18 @@ func NewLocalFileStore() DataStore {
 	}
 }
 
-func (d localDataStore) Put(ctx context.Context, b []byte) (string, error) {
+func (d localDataStore) Put(ctx context.Context, b []byte, pathFunc PathFunc) (string, string, error) {
 	hash := sha256.Sum256(b)
 	hexHash := hex.EncodeToString(hash[:])
 	d.pairs[hexHash] = b
-	return hexHash, nil
+	p := ""
+	if pathFunc != nil {
+		p = pathFunc(hexHash)
+	}
+	return hexHash, p, nil
 }
 
-func (d localDataStore) Remove(ctx context.Context, key string) error {
+func (d localDataStore) Remove(ctx context.Context, key string, pathFunc PathFunc) error {
 	delete(d.pairs, key)
 	return nil
 }

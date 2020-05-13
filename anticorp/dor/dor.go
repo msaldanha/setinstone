@@ -24,11 +24,11 @@ type Resolver interface {
 func getRecordFromName(name string) (Record, error) {
 	r := Record{}
 	parts := strings.Split(name, "/")
-	if len(parts) < 2 {
+	if len(parts) < 3 {
 		return r, ErrInvalidName
 	}
 	a := address.Address{}
-	a.Address = parts[0]
+	a.Address = parts[1]
 	if ok, _ := a.IsValid(); !ok {
 		return r, ErrInvalidAddrComponent
 	}

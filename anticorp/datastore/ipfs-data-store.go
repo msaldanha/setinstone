@@ -1,15 +1,14 @@
 package datastore
 
 import (
-	"bytes"
 	"context"
 	"fmt"
+	files "github.com/ipfs/go-ipfs-files"
+	"github.com/ipfs/go-mfs"
 	"github.com/ipfs/interface-go-ipfs-core/path"
 	"time"
 
 	icore "github.com/ipfs/interface-go-ipfs-core"
-	// peerstore "github.com/libp2p/go-libp2p-peerstore"
-	// ma "github.com/multiformats/go-multiaddr"
 
 	"github.com/ipfs/go-ipfs/core"
 	"github.com/ipfs/go-ipfs/core/coreapi"
@@ -39,18 +38,41 @@ func NewIPFSDataStore(node *core.IpfsNode) (DataStore, error) {
 	}, nil
 }
 
-func (d ipfsDataStore) Put(ctx context.Context, b []byte) (string, error) {
-	bs, er := d.ipfs.Block().Put(ctx, bytes.NewReader(b))
+func (d ipfsDataStore) Put(ctx context.Context, b []byte, pathFunc PathFunc) (string, string, error) {
+	f := files.NewBytesFile(b)
+	bs, er := d.ipfs.Unixfs().Add(ctx, f)
 	if er != nil {
-		return "", fmt.Errorf(IpfsErrPrefix+"could not add block: %s", er)
+		return "", "", fmt.Errorf(IpfsErrPrefix+"could not add block: %s", er)
 	}
 
-	fmt.Printf("Added block to IPFS with CID %s \n", bs.Path().Cid().String())
+	fmt.Printf("Added block to IPFS with CID %s \n", bs.Cid().String())
 
-	return bs.Path().Cid().String(), nil
+	p := ""
+	if pathFunc != nil {
+		ipldNode, er := d.ipfs.ResolveNode(ctx, bs)
+		if er != nil {
+			return "", "", fmt.Errorf(IpfsErrPrefix+"could not resolve ipld node: %s", er)
+		}
+
+		p = pathFunc(bs.Cid().String())
+		er = mfs.Mkdir(d.ipfsNode.FilesRoot, p, mfs.MkdirOpts{
+			Mkparents: true,
+			Flush:     true,
+		})
+		if er != nil {
+			return "", "", fmt.Errorf(IpfsErrPrefix+"could create path %s: %s", p, er)
+		}
+
+		er = mfs.PutNode(d.ipfsNode.FilesRoot, p, ipldNode)
+		if er != nil {
+			return "", "", fmt.Errorf(IpfsErrPrefix+"could add node %s to path %s: %s", bs.Cid().String(), p, er)
+		}
+	}
+
+	return bs.Cid().String(), p, nil
 }
 
-func (d ipfsDataStore) Remove(ctx context.Context, key string) error {
+func (d ipfsDataStore) Remove(ctx context.Context, key string, pathFunc PathFunc) error {
 	er := d.ipfs.Block().Rm(ctx, path.New(key))
 	if er != nil {
 		return fmt.Errorf(IpfsErrPrefix+"could not remove data: %s", er)
@@ -65,9 +87,14 @@ func (d ipfsDataStore) Get(ctx context.Context, key string) (io.Reader, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel() // releases resources if slowOperation completes before timeout elapses
 
-	reader, er := d.ipfs.Block().Get(ctx, path.New(key))
-	if er != nil || reader == nil {
-		return nil, fmt.Errorf(IpfsErrPrefix+"could not Blockstore.Get data with CID: %s %s", key, er)
+	node, er := d.ipfs.Unixfs().Get(ctx, path.New(key))
+	if er != nil {
+		return nil, fmt.Errorf(IpfsErrPrefix+"could not Unixfs.Get data with CID: %s %s", key, er)
+	}
+
+	reader, ok := node.(files.File)
+	if !ok {
+		return nil, fmt.Errorf(IpfsErrPrefix+"not a file: %s ", key)
 	}
 
 	return reader, nil

@@ -227,11 +227,15 @@ func (da *dag) saveNode(ctx context.Context, node *Node, branchRootNodeKey strin
 		return "", ErrBranchRootNotFound
 	}
 
+	fullPath, er := da.getFullPath(ctx, branchRootNodeKey, node.Branch)
+
 	data, er := node.ToJson()
 	if er != nil {
 		return "", da.translateError(er)
 	}
-	key, er := da.dt.Put(ctx, data)
+	key, _, er := da.dt.Put(ctx, data, func(cid string) string {
+		return strings.Join([]string{fullPath, node.Branch, cid}, "/")
+	})
 	if er != nil {
 		return "", da.translateError(er)
 	}
@@ -250,7 +254,9 @@ func (da *dag) saveGenesisNode(ctx context.Context, node *Node) (string, error) 
 		return "", da.translateError(er)
 	}
 
-	key, er := da.dt.Put(ctx, data)
+	key, _, er := da.dt.Put(ctx, data, func(cid string) string {
+		return da.getName(node.Address, cid)
+	})
 	if er != nil {
 		return "", da.translateError(er)
 	}
@@ -339,7 +345,7 @@ func (da *dag) getLastNodeName(node *Node, nodeKey, branch string) string {
 }
 
 func (da *dag) getName(addr string, parts ...string) string {
-	return addr + "/" + da.nameSpace + "/" + strings.Join(parts, "/")
+	return "/" + addr + "/" + da.nameSpace + "/" + strings.Join(parts, "/")
 }
 
 func (da *dag) translateError(er error) error {
@@ -348,4 +354,31 @@ func (da *dag) translateError(er error) error {
 		return ErrNodeNotFound
 	}
 	return er
+}
+
+func (da *dag) getFullPath(ctx context.Context, key, branch string) (string, error) {
+	path := ""
+	if key == "" {
+		return path, nil
+	}
+	node, er := da.getNodeByKey(ctx, key)
+	if er != nil {
+		return path, er
+	}
+
+	path += key
+
+	if node.BranchRoot == "" {
+		return da.getName(node.Address, path), nil
+	}
+
+	s, er := da.getFullPath(ctx, node.BranchRoot, node.Branch)
+	if er != nil {
+		return path, er
+	}
+	if s == "" {
+		return path, er
+	}
+	path = s + "/" + node.Branch + "/" + path
+	return path, nil
 }

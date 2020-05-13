@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func createNode(node NodeData, prev string,
+func createNode(node NodeData, keyRoot, prev string,
 	addr *address.Address, seq int32) (*dag.Node, error) {
 	n := dag.NewNode()
 	n.Data = node.Data
@@ -20,6 +20,7 @@ func createNode(node NodeData, prev string,
 	n.Timestamp = time.Now().UTC().Format(time.RFC3339)
 	n.Branches = node.Branches
 	n.Branch = node.Branch
+	n.BranchRoot = keyRoot
 	er := n.SetPow()
 	if er != nil {
 		return nil, er

@@ -119,7 +119,7 @@ func (d graph) Append(ctx context.Context, keyRoot string, node NodeData) (Graph
 		seq = last.BranchSeq + 1
 	}
 
-	n, er := createNode(node, lastKey, d.addr, seq)
+	n, er := createNode(node, keyRoot, lastKey, d.addr, seq)
 	if er != nil {
 		return GraphNode{}, er
 	}
@@ -216,7 +216,7 @@ func (d graph) createFirstNode(ctx context.Context, node NodeData) (GraphNode, e
 	if !hasDefaultBranch {
 		node.Branches = append(node.Branches, node.Branch)
 	}
-	n, er := createNode(node, "", d.addr, 1)
+	n, er := createNode(node, "", "", d.addr, 1)
 	if er != nil {
 		return GraphNode{}, d.translateError(er)
 	}

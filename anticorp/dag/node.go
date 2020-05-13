@@ -21,6 +21,7 @@ type Node struct {
 	Address    string            `json:"address,omitempty"`
 	Previous   string            `json:"previous,omitempty"`
 	Branch     string            `json:"branch,omitempty"`
+	BranchRoot string            `json:"branchRoot,omitempty"`
 	Properties map[string]string `json:"properties,omitempty"`
 	Branches   []string          `json:"branches,omitempty"`
 	Data       []byte            `json:"data,omitempty"`
