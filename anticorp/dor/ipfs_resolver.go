@@ -3,14 +3,18 @@ package dor
 import (
 	"context"
 	"encoding/hex"
+	"fmt"
 	"github.com/ipfs/go-ipfs/core"
 	"github.com/ipfs/go-ipfs/core/coreapi"
+	"github.com/ipfs/go-mfs"
 	icore "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipfs/interface-go-ipfs-core/options"
+	"github.com/ipfs/interface-go-ipfs-core/path"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/msaldanha/setinstone/anticorp/address"
 	log "github.com/sirupsen/logrus"
 	"math/rand"
+	gopath "path"
 	"sync"
 	"time"
 )
@@ -24,6 +28,7 @@ type ipfsResolver struct {
 	pending    map[string]bool
 	pendingLck sync.Mutex
 	ipfs       icore.CoreAPI
+	ipfsNode   *core.IpfsNode
 	Id         peer.ID
 }
 
@@ -34,6 +39,7 @@ func NewIpfsResolver(node *core.IpfsNode, addresses []*address.Address) (Resolve
 	}
 	r := &ipfsResolver{
 		ipfs:       ipfs,
+		ipfsNode:   node,
 		cache:      map[string]Record{},
 		addresses:  map[string]address.Address{},
 		subs:       map[string]icore.PubSubSubscription{},
@@ -65,44 +71,92 @@ func (r *ipfsResolver) Add(ctx context.Context, name, value string) error {
 		log.Errorf("%s Cannot add resolution %s -> %s: %s", prefix, name, value, ErrUnmanagedAddress)
 		return ErrUnmanagedAddress
 	}
-	addr := r.addresses[rec.Address]
-	rec.PublicKey = hex.EncodeToString(addr.Keys.PublicKey)
-	rec.Timestamp = time.Now().Format(time.RFC3339)
-	rec.Resolution = value
-	er = rec.SignWithKey(addr.Keys.ToEcdsaPrivateKey())
+
+	ipldNode, er := r.ipfs.ResolveNode(ctx, path.New(value))
 	if er != nil {
-		log.Errorf("%s failed to sign resolution for %s -> %s: %s", prefix, name, value, er)
+		log.Errorf("%s failed to get ipldNode for %s -> %s: %s", prefix, name, value, er)
 		return er
 	}
-	// TODO: save to persisten storage
-	_ = r.put(ctx, rec)
-	r.addPendingQuery(rec)
-	r.sendResolution(rec)
+
+	_, er = mfs.Lookup(r.ipfsNode.FilesRoot, name)
+	filesExists := er == nil
+
+	dirtomake, file := gopath.Split(name)
+	er = mfs.Mkdir(r.ipfsNode.FilesRoot, dirtomake, mfs.MkdirOpts{
+		Mkparents: true,
+		Flush:     true,
+	})
+	if er != nil {
+		log.Errorf("%s failed to create mfs dir %s: %s", prefix, dirtomake, er)
+		return er
+	}
+
+	if filesExists {
+		parent, er := mfs.Lookup(r.ipfsNode.FilesRoot, dirtomake)
+		if er != nil {
+			log.Errorf("%s parent lookup failed %s: %s", prefix, dirtomake, er)
+			return fmt.Errorf("parent lookup: %s", er)
+		}
+
+		pdir, ok := parent.(*mfs.Directory)
+		if !ok {
+			log.Errorf("%s failed to get mfs dir %s: %s", prefix, dirtomake, er)
+			return fmt.Errorf("no such file or directory: %s", dirtomake)
+		}
+
+		er = pdir.Unlink(file)
+		if er != nil {
+			log.Errorf("%s failed to remove existing mfs file %s: %s", prefix, name, er)
+			return er
+		}
+
+		_ = pdir.Flush()
+	}
+
+	er = mfs.PutNode(r.ipfsNode.FilesRoot, name, ipldNode)
+	if er != nil {
+		log.Errorf("%s failed to put ipldNode into mfs path %s: %s", prefix, name, er)
+	}
+	// addr := r.addresses[rec.Address]
+	// rec.PublicKey = hex.EncodeToString(addr.Keys.PublicKey)
+	// rec.Timestamp = time.Now().Format(time.RFC3339)
+	// rec.Resolution = value
+	// er = rec.SignWithKey(addr.Keys.ToEcdsaPrivateKey())
+	// if er != nil {
+	// 	log.Errorf("%s failed to sign resolution for %s -> %s: %s", prefix, name, value, er)
+	// 	return er
+	// }
+	// r.addPendingQuery(rec)
+	// r.sendResolution(rec)
 	return nil
 }
 
 func (r *ipfsResolver) Resolve(ctx context.Context, name string) (string, error) {
 	log.Infof("%s Resolve %s", prefix, name)
-	rec, er := r.get(ctx, name)
-	if er == nil {
-		log.Infof("%s Resolved %s to %s", prefix, name, rec.Resolution)
-		return rec.Resolution, nil
-	}
-	rec, er = getRecordFromName(name)
+
+	rec, er := getRecordFromName(name)
 	if er != nil {
 		log.Errorf("%s invalid name %s: %s", prefix, name, er)
 		return "", er
 	}
+
 	if r.isManaged(rec) {
-		// should be got in above get
-		log.Warnf("%s Not found %s", prefix, name)
-		return "", nil
+		log.Infof("%s Is managed: %s", prefix, name)
+		resolution, er := r.get(ctx, name)
+		if er == nil {
+			log.Infof("%s Resolved %s to %s", prefix, name, resolution)
+			return resolution, nil
+		}
+		return resolution, er
 	}
-	rec, er = r.query(ctx, rec)
-	if er != nil {
-		return "", er
+	log.Infof("%s is NOT managed: %s", prefix, name)
+	rc, er := r.getFromCache(ctx, name)
+	if er == ErrNotFound {
+		log.Infof("%s NOT found in cache: %s", prefix, name)
+		rc, er = r.query(ctx, rec)
 	}
-	return rec.Resolution, nil
+
+	return rc.Resolution, er
 }
 
 func (r *ipfsResolver) Manage(addr *address.Address) error {
@@ -142,7 +196,7 @@ func (r *ipfsResolver) query(ctx context.Context, rec Record) (Record, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	for {
-		found, er := r.get(ctx, rec.Query)
+		found, er := r.getFromCache(ctx, rec.Query)
 		if er == nil {
 			log.Infof("%s resolved %s to %s", prefix, rec.Query, rec.Resolution)
 			return found, nil
@@ -156,7 +210,19 @@ func (r *ipfsResolver) query(ctx context.Context, rec Record) (Record, error) {
 	}
 }
 
-func (r *ipfsResolver) get(ctx context.Context, name string) (Record, error) {
+func (r *ipfsResolver) get(ctx context.Context, name string) (string, error) {
+	node, er := mfs.Lookup(r.ipfsNode.FilesRoot, name)
+	if er != nil {
+		return "", er
+	}
+	n, er := node.GetNode()
+	if er != nil {
+		return "", er
+	}
+	return n.Cid().String(), nil
+}
+
+func (r *ipfsResolver) getFromCache(ctx context.Context, name string) (Record, error) {
 	rec, ok := r.cache[name]
 	if !ok {
 		return Record{}, ErrNotFound
@@ -164,7 +230,7 @@ func (r *ipfsResolver) get(ctx context.Context, name string) (Record, error) {
 	return rec, nil
 }
 
-func (r *ipfsResolver) put(ctx context.Context, rec Record) error {
+func (r *ipfsResolver) putInCache(ctx context.Context, rec Record) error {
 	r.cache[rec.Query] = rec
 	return nil
 }
@@ -197,12 +263,31 @@ func (r *ipfsResolver) run() {
 	}
 }
 
-func (r *ipfsResolver) resolve(ctx context.Context, rec Record) (Record, error) {
-	rec, er := r.get(ctx, rec.Query)
+func (r *ipfsResolver) resolve(ctx context.Context, rc Record) (Record, error) {
+	rec := Record{}
+	if !r.isManaged(rc) {
+		log.Errorf("%s Cannot resolve %s: %s", prefix, rc.Query, ErrUnmanagedAddress)
+		return rec, ErrUnmanagedAddress
+	}
+	resolution, er := r.get(ctx, rc.Query)
 	if er != nil {
+		return rec, er
+	}
+	addr, found := r.addresses[rc.Address]
+	if !found {
+		log.Errorf("%s Cannot resolve %s: %s", prefix, rc.Query, ErrUnmanagedAddress)
+		return rec, ErrUnmanagedAddress
+	}
+	rec.Address = rc.Address
+	rec.PublicKey = hex.EncodeToString(addr.Keys.PublicKey)
+	rec.Timestamp = time.Now().Format(time.RFC3339)
+	rec.Query = rc.Query
+	rec.Resolution = resolution
+	er = rec.SignWithKey(addr.Keys.ToEcdsaPrivateKey())
+	if er != nil {
+		log.Errorf("%s failed to sign resolution for %s -> %s: %s", prefix, rec.Query, rec.Resolution, er)
 		return Record{}, er
 	}
-
 	return rec, nil
 }
 
@@ -240,7 +325,7 @@ func (r *ipfsResolver) handleResolution(rec Record) {
 	cached, found := r.cache[rec.Query]
 	if !found || (found && cached.Older(rec)) {
 		log.Infof("%s Adding resolution: %s to %s", prefix, rec.Query, rec.Resolution)
-		_ = r.put(context.Background(), rec)
+		_ = r.putInCache(context.Background(), rec)
 	} else {
 		log.Infof("%s Already have a most recent resolution for %s to %s", prefix, rec.Query, rec.Resolution)
 	}
