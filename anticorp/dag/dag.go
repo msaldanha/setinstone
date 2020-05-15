@@ -61,7 +61,7 @@ func (da *dag) SetRoot(ctx context.Context, rootNode *Node) (string, error) {
 	}
 	root, _, er := da.GetRoot(ctx, rootNode.Address)
 	if er == ErrNodeNotFound || root == nil {
-		return da.saveGenesisNode(ctx, rootNode)
+		return da.saveRootNode(ctx, rootNode)
 	}
 	if er == nil {
 		return "", ErrDagAlreadyInitialized
@@ -99,7 +99,7 @@ func (da *dag) GetLast(ctx context.Context, branchRootNodeKey, branch string) (*
 }
 
 func (da *dag) GetRoot(ctx context.Context, addr string) (*Node, string, error) {
-	key, er := da.resolveGenesisNodeKey(ctx, addr)
+	key, er := da.resolveRootNodeKey(ctx, addr)
 	if er != nil {
 		return nil, "", da.translateError(er)
 	}
@@ -248,7 +248,7 @@ func (da *dag) saveNode(ctx context.Context, node *Node, branchRootNodeKey strin
 	return key, nil
 }
 
-func (da *dag) saveGenesisNode(ctx context.Context, node *Node) (string, error) {
+func (da *dag) saveRootNode(ctx context.Context, node *Node) (string, error) {
 	data, er := node.ToJson()
 	if er != nil {
 		return "", da.translateError(er)
@@ -267,8 +267,8 @@ func (da *dag) saveGenesisNode(ctx context.Context, node *Node) (string, error) 
 		return "", da.translateError(er)
 	}
 
-	genesisName := da.getGenesisNodeName(node.Address)
-	er = da.resolver.Add(ctx, genesisName, key)
+	rootName := da.getRootNodeName(node.Address)
+	er = da.resolver.Add(ctx, rootName, key)
 	if er != nil {
 		return "", da.translateError(er)
 	}
@@ -319,16 +319,17 @@ func (da *dag) getNodeByKey(ctx context.Context, key string) (*Node, error) {
 	return n, nil
 }
 
-func (da *dag) resolveGenesisNodeKey(ctx context.Context, addr string) (string, error) {
-	return da.resolveNodeKey(ctx, addr, strings.Repeat("0", hashSize))
+func (da *dag) resolveRootNodeKey(ctx context.Context, addr string) (string, error) {
+	name := da.getRootNodeName(addr)
+	return da.resolveNodeKey(ctx, name)
 }
 
 func (da *dag) resolveLastNodeKey(ctx context.Context, node *Node, branchRootNodeKey, branch string) (string, error) {
-	return da.resolveNodeKey(ctx, node.Address, branchRootNodeKey, branch)
+	name := da.getLastNodeName(node, branchRootNodeKey, branch)
+	return da.resolveNodeKey(ctx, name)
 }
 
-func (da *dag) resolveNodeKey(ctx context.Context, addr string, parts ...string) (string, error) {
-	name := da.getName(addr, parts...)
+func (da *dag) resolveNodeKey(ctx context.Context, name string) (string, error) {
 	resolved, er := da.resolver.Resolve(ctx, name)
 	if er != nil {
 		return "", er
@@ -336,16 +337,16 @@ func (da *dag) resolveNodeKey(ctx context.Context, addr string, parts ...string)
 	return resolved, nil
 }
 
-func (da *dag) getGenesisNodeName(addr string) string {
-	return da.getName(addr, strings.Repeat("0", hashSize))
+func (da *dag) getRootNodeName(addr string) string {
+	return da.getName(addr, "shortcuts", "root")
 }
 
 func (da *dag) getLastNodeName(node *Node, nodeKey, branch string) string {
-	return da.getName(node.Address, nodeKey, branch)
+	return da.getName(node.Address, "shortcuts", nodeKey, branch, "last")
 }
 
 func (da *dag) getName(addr string, parts ...string) string {
-	return "/" + addr + "/" + da.nameSpace + "/" + strings.Join(parts, "/")
+	return "/" + addr + "/" + da.nameSpace + "/dag/" + strings.Join(parts, "/")
 }
 
 func (da *dag) translateError(er error) error {
