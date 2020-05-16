@@ -29,13 +29,13 @@ const (
 )
 
 type Timeline interface {
-	AppendPost(ctx context.Context, post Post, refTypes []string) (string, error)
-	AppendLike(ctx context.Context, target string) (string, error)
+	AppendPost(ctx context.Context, post PostItem, keyRoot, branch string) (string, error)
+	AppendLike(ctx context.Context, ref ReferenceItem, keyRoot, branch string) (string, error)
 	AddReceivedLike(ctx context.Context, key string) (string, error)
-	AppendReference(ctx context.Context, target, refType string) (string, error)
+	AppendReference(ctx context.Context, ref ReferenceItem, keyRoot, branch string) (string, error)
 	AddReceivedReference(ctx context.Context, refKey, refType string) (string, error)
 	Get(ctx context.Context, key string) (Item, bool, error)
-	GetFrom(ctx context.Context, key string, count int) ([]Item, error)
+	GetFrom(ctx context.Context, keyRoot, connector, key string, count int) ([]Item, error)
 }
 
 type timeline struct {
@@ -48,26 +48,21 @@ func NewTimeline(gr graph.Graph) Timeline {
 	}
 }
 
-func (t timeline) AppendPost(ctx context.Context, post Post, refTypes []string) (string, error) {
-	mi := PostItem{
-		Post: post,
-		Base: Base{
-			Type: TypePost,
-		},
-	}
-	js, er := json.Marshal(mi)
+func (t timeline) AppendPost(ctx context.Context, post PostItem, keyRoot, branch string) (string, error) {
+	post.Type = TypePost
+	js, er := json.Marshal(post)
 	if er != nil {
 		return "", t.translateError(er)
 	}
-	i, er := t.gr.Append(ctx, "", graph.NodeData{Branch: "main", Branches: refTypes, Data: js})
+	i, er := t.gr.Append(ctx, keyRoot, graph.NodeData{Branch: branch, Branches: post.Connectors, Data: js})
 	if er != nil {
 		return "", t.translateError(er)
 	}
 	return i.Key, nil
 }
 
-func (t timeline) AppendLike(ctx context.Context, target string) (string, error) {
-	key, er := t.AppendReference(ctx, target, RefTypeLike)
+func (t timeline) AppendLike(ctx context.Context, ref ReferenceItem, keyRoot, branch string) (string, error) {
+	key, er := t.AppendReference(ctx, ref, keyRoot, branch)
 	if er == ErrCannotRefARef {
 		return "", ErrCannotLikeALike
 	}
@@ -80,8 +75,9 @@ func (t timeline) AppendLike(ctx context.Context, target string) (string, error)
 	return key, er
 }
 
-func (t timeline) AppendReference(ctx context.Context, target, refType string) (string, error) {
-	v, _, er := t.Get(ctx, target)
+func (t timeline) AppendReference(ctx context.Context, ref ReferenceItem, keyRoot, branch string) (string, error) {
+	ref.Type = TypeReference
+	v, _, er := t.Get(ctx, ref.Target)
 	if er != nil {
 		return "", er
 	}
@@ -94,14 +90,14 @@ func (t timeline) AppendReference(ctx context.Context, target, refType string) (
 		return "", ErrCannotRefOwnItem
 	}
 
-	if !t.canReceiveReference(base, refType) {
+	if !t.canReceiveReference(base, ref.Connector) {
 		return "", ErrCannotAddReference
 	}
 
 	mi := ReferenceItem{
 		Reference: Reference{
-			RefType: refType,
-			Target:  target,
+			Connector: ref.Connector,
+			Target:    ref.Target,
 		},
 		Base: Base{
 			Type: TypeReference,
@@ -111,7 +107,7 @@ func (t timeline) AppendReference(ctx context.Context, target, refType string) (
 	if er != nil {
 		return "", t.translateError(er)
 	}
-	i, er := t.gr.Append(ctx, "", graph.NodeData{Branch: "main", Data: js})
+	i, er := t.gr.Append(ctx, keyRoot, graph.NodeData{Branch: branch, Data: js})
 	if er != nil {
 		return "", t.translateError(er)
 	}
@@ -119,7 +115,7 @@ func (t timeline) AppendReference(ctx context.Context, target, refType string) (
 }
 
 func (t timeline) AddReceivedLike(ctx context.Context, likeKey string) (string, error) {
-	key, er := t.AddReceivedReference(ctx, likeKey, RefTypeLike)
+	key, er := t.AddReceivedReference(ctx, likeKey, "like")
 	if er == ErrNotAReference {
 		return "", ErrNotALike
 	}
@@ -147,7 +143,7 @@ func (t timeline) AddReceivedReference(ctx context.Context, refKey, refType stri
 	if !ok {
 		return "", ErrNotAReference
 	}
-	if receivedRef.Reference.RefType != refType {
+	if receivedRef.Reference.Connector != refType {
 		return "", ErrCannotAddReference
 	}
 	if receivedRef.Address == t.gr.GetAddress(ctx).Address {
@@ -176,8 +172,8 @@ func (t timeline) AddReceivedReference(ctx context.Context, refKey, refType stri
 
 	li := ReferenceItem{
 		Reference: Reference{
-			Target:  refKey,
-			RefType: refType,
+			Target:    refKey,
+			Connector: refType,
 		},
 		Base: Base{
 			Type: TypeReference,
@@ -206,8 +202,8 @@ func (t timeline) Get(ctx context.Context, key string) (Item, bool, error) {
 	return i, found, nil
 }
 
-func (t timeline) GetFrom(ctx context.Context, key string, count int) ([]Item, error) {
-	it, er := t.gr.GetIterator(ctx, "", "main", key)
+func (t timeline) GetFrom(ctx context.Context, keyRoot, connector, key string, count int) ([]Item, error) {
+	it, er := t.gr.GetIterator(ctx, keyRoot, connector, key)
 	if er != nil {
 		return nil, t.translateError(er)
 	}
@@ -230,7 +226,7 @@ func (t timeline) GetFrom(ctx context.Context, key string, count int) ([]Item, e
 
 func (t timeline) canReceiveReference(item Base, refType string) bool {
 	found := false
-	for _, branch := range item.RefTypes {
+	for _, branch := range item.Connectors {
 		if branch == refType {
 			found = true
 			break

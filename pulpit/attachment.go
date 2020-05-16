@@ -9,18 +9,29 @@ import (
 	"path/filepath"
 )
 
-func (s server) toTimelinePost(req AddItemRequest) (timeline.Post, error) {
+func (s server) toTimelineReference(referenceItem ReferenceItem) timeline.ReferenceItem {
+	return timeline.ReferenceItem{
+		Reference: timeline.Reference{
+			Target:    referenceItem.Target,
+			Connector: referenceItem.Connector,
+		},
+		Base: timeline.Base{
+			Type: timeline.TypeReference,
+		},
+	}
+}
+func (s server) toTimelinePost(postItem PostItem) (timeline.PostItem, error) {
 	post := timeline.Post{}
-	post.Body = req.Body
-	post.Links = req.Links
-	for i, v := range req.Attachments {
+	post.Body = postItem.Body
+	post.Links = postItem.Links
+	for i, v := range postItem.Attachments {
 		mimeType, er := getFileContentType(v)
 		if er != nil {
-			return post, er
+			return timeline.PostItem{}, er
 		}
 		cid, er := s.addFile(v)
 		if er != nil {
-			return post, er
+			return timeline.PostItem{}, er
 		}
 		post.Attachments = append(post.Attachments, timeline.PostPart{
 			Seq:      i + 1,
@@ -30,7 +41,14 @@ func (s server) toTimelinePost(req AddItemRequest) (timeline.Post, error) {
 			Data:     "ipfs://" + cid,
 		})
 	}
-	return post, nil
+	mi := timeline.PostItem{
+		Post: post,
+		Base: timeline.Base{
+			Type:       timeline.TypePost,
+			Connectors: postItem.Connectors,
+		},
+	}
+	return mi, nil
 }
 
 func (s server) addFile(name string) (string, error) {

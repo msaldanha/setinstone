@@ -3,10 +3,21 @@ package pulpit
 import "github.com/msaldanha/setinstone/timeline"
 
 type AddItemRequest struct {
+	Type          string        `json:"type,omitempty"`
+	PostItem      PostItem      `json:"postItem,omitempty"`
+	ReferenceItem ReferenceItem `json:"referenceItem,omitempty"`
+}
+
+type PostItem struct {
 	Body        timeline.PostPart   `json:"body,omitempty"`
 	Links       []timeline.PostPart `json:"links,omitempty"`
 	Attachments []string            `json:"attachments,omitempty"`
-	RefTypes    []string            `json:"ref_types,omitempty"`
+	Connectors  []string            `json:"connectors,omitempty"`
+}
+
+type ReferenceItem struct {
+	Target    string `json:"target,omitempty"`
+	Connector string `json:"connector,omitempty"`
 }
 
 type AddMediaRequest struct {

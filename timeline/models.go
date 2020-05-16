@@ -12,12 +12,12 @@ const (
 )
 
 type Base struct {
-	Seq       int      `json:"seq,omitempty"`
-	Id        string   `json:"id,omitempty"`
-	Address   string   `json:"address,omitempty"`
-	Timestamp string   `json:"timestamp,omitempty"`
-	Type      string   `json:"type,omitempty"`
-	RefTypes  []string `json:"ref_types,omitempty"`
+	Seq        int      `json:"seq,omitempty"`
+	Id         string   `json:"id,omitempty"`
+	Address    string   `json:"address,omitempty"`
+	Timestamp  string   `json:"timestamp,omitempty"`
+	Type       string   `json:"type,omitempty"`
+	Connectors []string `json:"connectors,omitempty"`
 }
 
 type PostPart struct {
@@ -40,8 +40,8 @@ type PostItem struct {
 }
 
 type Reference struct {
-	RefType string `json:"ref_type,omitempty"`
-	Target  string `json:"target,omitempty"`
+	Connector string `json:"connector,omitempty"`
+	Target    string `json:"target,omitempty"`
 }
 
 type ReferenceItem struct {
@@ -73,7 +73,7 @@ func NewItemFromGraphNode(v graph.GraphNode) (Item, error) {
 	base.Id = v.Key
 	base.Address = v.Address
 	base.Timestamp = v.Timestamp
-	base.RefTypes = v.Branches
+	base.Connectors = v.Branches
 	return &item{v: v, base: base}, nil
 }
 
@@ -130,5 +130,5 @@ func (i *item) updateBase(base *Base) {
 	base.Id = i.v.Key
 	base.Address = i.v.Address
 	base.Timestamp = i.v.Timestamp
-	base.RefTypes = i.v.Branches
+	base.Connectors = i.v.Branches
 }

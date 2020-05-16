@@ -39,8 +39,8 @@ var _ = Describe("Timeline", func() {
 
 		p := timeline.NewTimeline(gr)
 
-		post := timeline.Post{Body: timeline.PostPart{MimeType: "plain/text", Data: "some text"}}
-		key, er := p.AppendPost(ctx, post, []string{})
+		post := timeline.PostItem{Post: timeline.Post{Body: timeline.PostPart{MimeType: "plain/text", Data: "some text"}}}
+		key, er := p.AppendPost(ctx, post, "", "main")
 		Expect(er).To(BeNil())
 		Expect(key).ToNot(Equal(""))
 	})
@@ -51,8 +51,8 @@ var _ = Describe("Timeline", func() {
 
 		p := timeline.NewTimeline(gr)
 
-		expectedPost := timeline.Post{Body: timeline.PostPart{MimeType: "plain/text", Data: "some text"}}
-		key, er := p.AppendPost(ctx, expectedPost, []string{})
+		expectedPost := timeline.PostItem{Post: timeline.Post{Body: timeline.PostPart{MimeType: "plain/text", Data: "some text"}}}
+		key, er := p.AppendPost(ctx, expectedPost, "", "main")
 		Expect(er).To(BeNil())
 		Expect(key).ToNot(Equal(""))
 
@@ -74,13 +74,16 @@ var _ = Describe("Timeline", func() {
 
 		_ = resolver.Manage(addr2)
 
-		expectedPost := timeline.Post{Body: timeline.PostPart{MimeType: "plain/text", Data: "some text"}}
-		postKey, er := tl1.AppendPost(ctx, expectedPost, []string{timeline.RefTypeLike})
+		expectedPost := timeline.PostItem{
+			Base: timeline.Base{Connectors: []string{"like"}},
+			Post: timeline.Post{Body: timeline.PostPart{MimeType: "plain/text", Data: "some text"}},
+		}
+		postKey, er := tl1.AppendPost(ctx, expectedPost, "", "main")
 		Expect(er).To(BeNil())
 		Expect(postKey).ToNot(Equal(""))
 
-		expectedLike := timeline.Reference{Target: postKey, RefType: timeline.RefTypeLike}
-		likeKey, er := tl2.AppendLike(ctx, expectedLike.Target)
+		expectedLike := timeline.ReferenceItem{Reference: timeline.Reference{Target: postKey, Connector: "like"}}
+		likeKey, er := tl2.AppendLike(ctx, expectedLike, "", "main")
 		Expect(er).To(BeNil())
 		Expect(likeKey).ToNot(Equal(""))
 
@@ -93,7 +96,7 @@ var _ = Describe("Timeline", func() {
 		Expect(found).To(BeTrue())
 		likeItem, _ := i.AsReference()
 		Expect(likeItem.Target).To(Equal(likeKey))
-		Expect(likeItem.RefType).To(Equal(timeline.RefTypeLike))
+		Expect(likeItem.Connector).To(Equal("like"))
 	})
 
 	It("Should NOT append like to own item", func() {
@@ -102,13 +105,13 @@ var _ = Describe("Timeline", func() {
 
 		p := timeline.NewTimeline(gr)
 
-		expectedPost := timeline.Post{Body: timeline.PostPart{MimeType: "plain/text", Data: "some text "}}
-		key, er := p.AppendPost(ctx, expectedPost, []string{timeline.RefTypeLike})
+		expectedPost := timeline.PostItem{Post: timeline.Post{Body: timeline.PostPart{MimeType: "plain/text", Data: "some text "}}}
+		key, er := p.AppendPost(ctx, expectedPost, "", "main")
 		Expect(er).To(BeNil())
 		Expect(key).ToNot(Equal(""))
 
-		expectedLike := timeline.Reference{Target: key, RefType: timeline.RefTypeLike}
-		key, er = p.AppendLike(ctx, expectedLike.Target)
+		expectedLike := timeline.ReferenceItem{Reference: timeline.Reference{Target: key, Connector: timeline.RefTypeLike}}
+		key, er = p.AppendLike(ctx, expectedLike, "", "main")
 		Expect(er).To(Equal(timeline.ErrCannotLikeOwnItem))
 		Expect(key).To(Equal(""))
 
@@ -125,18 +128,18 @@ var _ = Describe("Timeline", func() {
 
 		_ = resolver.Manage(addr2)
 
-		expectedPost := timeline.Post{Body: timeline.PostPart{MimeType: "plain/text", Data: "some text "}}
-		key, er := tl1.AppendPost(ctx, expectedPost, []string{timeline.RefTypeLike})
+		expectedPost := timeline.PostItem{Base: timeline.Base{Connectors: []string{"like"}}, Post: timeline.Post{Body: timeline.PostPart{MimeType: "plain/text", Data: "some text "}}}
+		key, er := tl1.AppendPost(ctx, expectedPost, "", "main")
 		Expect(er).To(BeNil())
 		Expect(key).ToNot(Equal(""))
 
-		expectedLike := timeline.Reference{Target: key, RefType: timeline.RefTypeLike}
-		key, er = tl2.AppendLike(ctx, expectedLike.Target)
+		expectedLike := timeline.ReferenceItem{Reference: timeline.Reference{Target: key, Connector: "like"}}
+		key, er = tl2.AppendLike(ctx, expectedLike, "", "main")
 		Expect(er).To(BeNil())
 		Expect(key).ToNot(Equal(""))
 
-		expectedLike = timeline.Reference{Target: key, RefType: timeline.RefTypeLike}
-		key, er = tl1.AppendLike(ctx, expectedLike.Target)
+		expectedLike = timeline.ReferenceItem{Reference: timeline.Reference{Target: key, Connector: "like"}}
+		key, er = tl1.AppendLike(ctx, expectedLike, "", "main")
 		Expect(er).To(Equal(timeline.ErrCannotLikeALike))
 		Expect(key).To(Equal(""))
 
@@ -154,24 +157,24 @@ var _ = Describe("Timeline", func() {
 
 		_ = resolver.Manage(addr2)
 
-		posts := []timeline.Post{}
-		likes := []timeline.Reference{}
+		posts := []timeline.PostItem{}
+		likes := []timeline.ReferenceItem{}
 		keys := []string{}
 		n := 10
 		for i := 0; i < n; i++ {
-			expectedPost := timeline.Post{Body: timeline.PostPart{MimeType: "plain/text", Data: "some text " +
-				strconv.Itoa(i)}}
-			key, er := tl1.AppendPost(ctx, expectedPost, []string{timeline.RefTypeLike})
+			expectedPost := timeline.PostItem{Base: timeline.Base{Connectors: []string{"like"}}, Post: timeline.Post{Body: timeline.PostPart{MimeType: "plain/text", Data: "some text " +
+				strconv.Itoa(i)}}}
+			key, er := tl1.AppendPost(ctx, expectedPost, "", "main")
 			Expect(er).To(BeNil())
 			Expect(key).ToNot(Equal(""))
 
-			key, er = tl2.AppendPost(ctx, timeline.Post{Body: timeline.PostPart{MimeType: "plain/text", Data: "some text for tl2 " +
-				strconv.Itoa(i)}}, []string{timeline.RefTypeLike})
+			key, er = tl2.AppendPost(ctx, timeline.PostItem{Base: timeline.Base{Connectors: []string{"like"}}, Post: timeline.Post{Body: timeline.PostPart{MimeType: "plain/text", Data: "some text for tl2 " +
+				strconv.Itoa(i)}}}, "", "main")
 			Expect(er).To(BeNil())
 			Expect(key).ToNot(Equal(""))
 
-			expectedLike := timeline.Reference{Target: key, RefType: timeline.RefTypeLike}
-			key, er = tl1.AppendLike(ctx, expectedLike.Target)
+			expectedLike := timeline.ReferenceItem{Reference: timeline.Reference{Target: key, Connector: "like"}}
+			key, er = tl1.AppendLike(ctx, expectedLike, "", "main")
 			Expect(er).To(BeNil())
 			Expect(key).ToNot(Equal(""))
 
@@ -181,7 +184,7 @@ var _ = Describe("Timeline", func() {
 		}
 
 		count := 3
-		items, er := tl1.GetFrom(ctx, keys[5], count)
+		items, er := tl1.GetFrom(ctx, "", "", keys[5], count)
 
 		Expect(er).To(BeNil())
 		Expect(len(items)).To(Equal(count))

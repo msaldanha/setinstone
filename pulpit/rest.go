@@ -97,10 +97,11 @@ func NewServer(opts ServerOptions) (Server, error) {
 	tl := app.Party("/tl")
 	ns := tl.Party("/{ns:string}")
 
-	ns.Get("/{addr:string}/items", srv.getItems)
-	ns.Get("/{addr:string}/items/{hash:string}", srv.getItemByHash)
-	ns.Post("/{addr:string}/items", srv.createItem)
-	ns.Post("/{addr:string}/references", srv.createReference)
+	ns.Get("/{addr:string}", srv.getItems)
+	ns.Get("/{addr:string}/{key:string}", srv.getItemByKey)
+	ns.Get("/{addr:string}/{key:string}/{connector:string}", srv.getItems)
+	ns.Post("/{addr:string}", srv.createItem)
+	ns.Post("/{addr:string}/{key:string}/{connector:string}", srv.createItem)
 
 	return srv, nil
 }
@@ -291,8 +292,14 @@ func (s server) getAddresses(ctx iris.Context) {
 func (s server) getItems(ctx iris.Context) {
 	ns := ctx.Params().Get("ns")
 	addr := ctx.Params().Get("addr")
+	keyRoot := ctx.Params().Get("key")
+	connector := ctx.Params().Get("connector")
 	from := ctx.URLParam("from")
 	count := ctx.URLParamIntDefault("count", defaultCount)
+
+	if connector == "" {
+		connector = "main"
+	}
 
 	tl, er := s.getPulpit(ns, addr)
 	if er != nil {
@@ -301,7 +308,7 @@ func (s server) getItems(ctx iris.Context) {
 	}
 
 	c := context.Background()
-	items, er := tl.GetFrom(c, from, count)
+	items, er := tl.GetFrom(c, keyRoot, connector, from, count)
 	if er != nil && er != timeline.ErrNotFound {
 		returnError(ctx, er, getStatusCodeForError(er))
 		return
@@ -320,10 +327,10 @@ func (s server) getItems(ctx iris.Context) {
 	}
 }
 
-func (s server) getItemByHash(ctx iris.Context) {
+func (s server) getItemByKey(ctx iris.Context) {
 	ns := ctx.Params().Get("ns")
 	addr := ctx.Params().Get("addr")
-	hash := ctx.Params().Get("hash")
+	key := ctx.Params().Get("key")
 
 	tl, er := s.getPulpit(ns, addr)
 	if er != nil {
@@ -332,15 +339,15 @@ func (s server) getItemByHash(ctx iris.Context) {
 	}
 
 	c := context.Background()
-	news, er := tl.GetFrom(c, hash, 1)
+	item, ok, er := tl.Get(c, key)
 	if er != nil {
 		returnError(ctx, er, getStatusCodeForError(er))
 		return
 	}
 
 	resp := Response{}
-	if len(news) > 0 {
-		i, _ := news[0].AsInterface()
+	if ok {
+		i, _ := item.AsInterface()
 		resp.Payload = i
 	}
 
@@ -354,6 +361,11 @@ func (s server) getItemByHash(ctx iris.Context) {
 func (s server) createItem(ctx iris.Context) {
 	ns := ctx.Params().Get("ns")
 	addr := ctx.Params().Get("addr")
+	keyRoot := ctx.Params().Get("key")
+	connector := ctx.Params().Get("connector")
+	if connector == "" {
+		connector = "main"
+	}
 	body := AddItemRequest{}
 	er := ctx.ReadJSON(&body)
 	if er != nil {
@@ -361,64 +373,71 @@ func (s server) createItem(ctx iris.Context) {
 		return
 	}
 
-	if len(body.RefTypes) == 0 {
-		er = fmt.Errorf("reference types cannot be empty")
-		returnError(ctx, er, 400)
-		return
-	}
-	for _, v := range body.RefTypes {
-		if v == "" {
-			er = fmt.Errorf("reference types cannot contain empty value")
-			returnError(ctx, er, 400)
-			return
-		}
-	}
-
 	tl, er := s.getPulpit(ns, addr)
 	if er != nil {
 		returnError(ctx, er, getStatusCodeForError(er))
 		return
 	}
 
-	post, er := s.toTimelinePost(body)
-	if er != nil {
-		returnError(ctx, er, getStatusCodeForError(er))
-		return
-	}
-	c := context.Background()
-	key, er := tl.AppendPost(c, post, body.RefTypes)
-	if er != nil {
-		returnError(ctx, er, getStatusCodeForError(er))
+	key := ""
+	switch body.Type {
+	case timeline.TypePost:
+		key, er = s.createPost(ctx, tl, body.PostItem, keyRoot, connector)
+	case timeline.TypeReference:
+		key, er = s.createReference(ctx, tl, body.ReferenceItem, keyRoot, connector)
+	default:
+		er = fmt.Errorf("unknown type %s", body.Type)
+		returnError(ctx, er, 400)
 		return
 	}
 
 	_, _ = ctx.JSON(Response{Payload: key})
 }
 
-func (s server) createReference(ctx iris.Context) {
-	ns := ctx.Params().Get("ns")
-	addr := ctx.Params().Get("addr")
-	body := AddReferenceRequest{}
-	er := ctx.ReadJSON(&body)
-	if er != nil {
+func (s server) createPost(ctx iris.Context, tl timeline.Timeline, postItem PostItem, keyRoot, connector string) (string, error) {
+	if len(postItem.Connectors) == 0 {
+		er := fmt.Errorf("reference types cannot be empty")
 		returnError(ctx, er, 400)
-		return
+		return "", er
+	}
+	for _, v := range postItem.Connectors {
+		if v == "" {
+			er := fmt.Errorf("reference types cannot contain empty value")
+			returnError(ctx, er, 400)
+			return "", er
+		}
 	}
 
-	tl, er := s.getPulpit(ns, addr)
+	post, er := s.toTimelinePost(postItem)
 	if er != nil {
 		returnError(ctx, er, getStatusCodeForError(er))
-		return
+		return "", er
 	}
+	c := context.Background()
+	key, er := tl.AppendPost(c, post, keyRoot, connector)
+	if er != nil {
+		returnError(ctx, er, getStatusCodeForError(er))
+		return "", er
+	}
+	return key, nil
+}
+
+func (s server) createReference(ctx iris.Context, tl timeline.Timeline, postItem ReferenceItem, keyRoot, connector string) (string, error) {
+	if postItem.Target == "" {
+		er := fmt.Errorf("target cannot be empty")
+		returnError(ctx, er, 400)
+		return "", er
+	}
+
+	post := s.toTimelineReference(postItem)
 
 	c := context.Background()
-	key, er := tl.AppendReference(c, body.Target, body.Type)
+	key, er := tl.AppendReference(c, post, keyRoot, connector)
 	if er != nil {
 		returnError(ctx, er, getStatusCodeForError(er))
-		return
+		return "", er
 	}
-
-	_, _ = ctx.JSON(Response{Payload: key})
+	return key, nil
 }
 
 func (s server) getPulpit(ns, addr string) (timeline.Timeline, error) {
