@@ -23,7 +23,7 @@ type Base struct {
 type PostPart struct {
 	Seq      int    `json:"seq,omitempty"`
 	Name     string `json:"name,omitempty"`
-	MimeType string `json:"mime_type,omitempty"`
+	MimeType string `json:"mimeType,omitempty"`
 	Encoding string `json:"encoding,omitempty"`
 	Data     string `json:"data,omitempty"`
 }
