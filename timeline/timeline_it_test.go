@@ -83,11 +83,11 @@ var _ = Describe("Timeline", func() {
 		Expect(postKey).ToNot(Equal(""))
 
 		expectedLike := timeline.ReferenceItem{Reference: timeline.Reference{Target: postKey, Connector: "like"}}
-		likeKey, er := tl2.AppendLike(ctx, expectedLike, "", "main")
+		likeKey, er := tl2.AppendReference(ctx, expectedLike, "", "main")
 		Expect(er).To(BeNil())
 		Expect(likeKey).ToNot(Equal(""))
 
-		receivedKey, er := tl1.AddReceivedLike(ctx, likeKey)
+		receivedKey, er := tl1.AddReceivedReference(ctx, likeKey, "like")
 		Expect(er).To(BeNil())
 		Expect(likeKey).ToNot(Equal(""))
 
@@ -110,9 +110,9 @@ var _ = Describe("Timeline", func() {
 		Expect(er).To(BeNil())
 		Expect(key).ToNot(Equal(""))
 
-		expectedLike := timeline.ReferenceItem{Reference: timeline.Reference{Target: key, Connector: timeline.RefTypeLike}}
-		key, er = p.AppendLike(ctx, expectedLike, "", "main")
-		Expect(er).To(Equal(timeline.ErrCannotLikeOwnItem))
+		expectedLike := timeline.ReferenceItem{Reference: timeline.Reference{Target: key, Connector: "connector"}}
+		key, er = p.AppendReference(ctx, expectedLike, "", "main")
+		Expect(er).To(Equal(timeline.ErrCannotRefOwnItem))
 		Expect(key).To(Equal(""))
 
 	})
@@ -134,13 +134,13 @@ var _ = Describe("Timeline", func() {
 		Expect(key).ToNot(Equal(""))
 
 		expectedLike := timeline.ReferenceItem{Reference: timeline.Reference{Target: key, Connector: "like"}}
-		key, er = tl2.AppendLike(ctx, expectedLike, "", "main")
+		key, er = tl2.AppendReference(ctx, expectedLike, "", "main")
 		Expect(er).To(BeNil())
 		Expect(key).ToNot(Equal(""))
 
 		expectedLike = timeline.ReferenceItem{Reference: timeline.Reference{Target: key, Connector: "like"}}
-		key, er = tl1.AppendLike(ctx, expectedLike, "", "main")
-		Expect(er).To(Equal(timeline.ErrCannotLikeALike))
+		key, er = tl1.AppendReference(ctx, expectedLike, "", "main")
+		Expect(er).To(Equal(timeline.ErrCannotRefARef))
 		Expect(key).To(Equal(""))
 
 	})
@@ -174,7 +174,7 @@ var _ = Describe("Timeline", func() {
 			Expect(key).ToNot(Equal(""))
 
 			expectedLike := timeline.ReferenceItem{Reference: timeline.Reference{Target: key, Connector: "like"}}
-			key, er = tl1.AppendLike(ctx, expectedLike, "", "main")
+			key, er = tl1.AppendReference(ctx, expectedLike, "", "main")
 			Expect(er).To(BeNil())
 			Expect(key).ToNot(Equal(""))
 

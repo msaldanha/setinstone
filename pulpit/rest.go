@@ -538,16 +538,6 @@ func getStatusCodeForError(er error) int {
 	switch er {
 	case timeline.ErrReadOnly:
 		fallthrough
-	case timeline.ErrCannotLike:
-		fallthrough
-	case timeline.ErrNotALike:
-		fallthrough
-	case timeline.ErrCannotLikeOwnItem:
-		fallthrough
-	case timeline.ErrCannotLikeALike:
-		fallthrough
-	case timeline.ErrCannotAddLikeToNotOwnedItem:
-		fallthrough
 	case timeline.ErrCannotRefOwnItem:
 		fallthrough
 	case timeline.ErrCannotRefARef:
