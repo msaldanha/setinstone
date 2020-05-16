@@ -9,7 +9,7 @@ type AddItemRequest struct {
 }
 
 type PostItem struct {
-	Body        timeline.PostPart   `json:"body,omitempty"`
+	timeline.Part
 	Links       []timeline.PostPart `json:"links,omitempty"`
 	Attachments []string            `json:"attachments,omitempty"`
 	Connectors  []string            `json:"connectors,omitempty"`

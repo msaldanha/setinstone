@@ -8,7 +8,6 @@ import (
 const (
 	TypePost      = "Post"
 	TypeReference = "Reference"
-	TypeComment   = "Comment"
 )
 
 type Base struct {
@@ -20,16 +19,20 @@ type Base struct {
 	Connectors []string `json:"connectors,omitempty"`
 }
 
-type PostPart struct {
-	Seq      int    `json:"seq,omitempty"`
-	Name     string `json:"name,omitempty"`
+type Part struct {
 	MimeType string `json:"mimeType,omitempty"`
 	Encoding string `json:"encoding,omitempty"`
 	Data     string `json:"data,omitempty"`
 }
 
+type PostPart struct {
+	Seq  int    `json:"seq,omitempty"`
+	Name string `json:"name,omitempty"`
+	Part
+}
+
 type Post struct {
-	Body        PostPart   `json:"body,omitempty"`
+	Part
 	Links       []PostPart `json:"links,omitempty"`
 	Attachments []PostPart `json:"attachments,omitempty"`
 }
@@ -42,6 +45,7 @@ type PostItem struct {
 type Reference struct {
 	Connector string `json:"connector,omitempty"`
 	Target    string `json:"target,omitempty"`
+	Post
 }
 
 type ReferenceItem struct {

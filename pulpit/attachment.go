@@ -22,7 +22,7 @@ func (s server) toTimelineReference(referenceItem ReferenceItem) timeline.Refere
 }
 func (s server) toTimelinePost(postItem PostItem) (timeline.PostItem, error) {
 	post := timeline.Post{}
-	post.Body = postItem.Body
+	post.Part = postItem.Part
 	post.Links = postItem.Links
 	for i, v := range postItem.Attachments {
 		mimeType, er := getFileContentType(v)
@@ -34,11 +34,13 @@ func (s server) toTimelinePost(postItem PostItem) (timeline.PostItem, error) {
 			return timeline.PostItem{}, er
 		}
 		post.Attachments = append(post.Attachments, timeline.PostPart{
-			Seq:      i + 1,
-			Name:     filepath.Base(v),
-			MimeType: mimeType,
-			Encoding: "",
-			Data:     "ipfs://" + cid,
+			Seq:  i + 1,
+			Name: filepath.Base(v),
+			Part: timeline.Part{
+				MimeType: mimeType,
+				Encoding: "",
+				Data:     "ipfs://" + cid,
+			},
 		})
 	}
 	mi := timeline.PostItem{

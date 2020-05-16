@@ -22,8 +22,8 @@ const (
 )
 
 type Timeline interface {
-	AppendPost(ctx context.Context, post PostItem, keyRoot, branch string) (string, error)
-	AppendReference(ctx context.Context, ref ReferenceItem, keyRoot, branch string) (string, error)
+	AppendPost(ctx context.Context, post PostItem, keyRoot, connector string) (string, error)
+	AppendReference(ctx context.Context, ref ReferenceItem, keyRoot, connector string) (string, error)
 	AddReceivedReference(ctx context.Context, refKey, connector string) (string, error)
 	Get(ctx context.Context, key string) (Item, bool, error)
 	GetFrom(ctx context.Context, keyRoot, connector, key string, count int) ([]Item, error)
@@ -39,20 +39,20 @@ func NewTimeline(gr graph.Graph) Timeline {
 	}
 }
 
-func (t timeline) AppendPost(ctx context.Context, post PostItem, keyRoot, branch string) (string, error) {
+func (t timeline) AppendPost(ctx context.Context, post PostItem, keyRoot, connector string) (string, error) {
 	post.Type = TypePost
 	js, er := json.Marshal(post)
 	if er != nil {
 		return "", t.translateError(er)
 	}
-	i, er := t.gr.Append(ctx, keyRoot, graph.NodeData{Branch: branch, Branches: post.Connectors, Data: js})
+	i, er := t.gr.Append(ctx, keyRoot, graph.NodeData{Branch: connector, Branches: post.Connectors, Data: js})
 	if er != nil {
 		return "", t.translateError(er)
 	}
 	return i.Key, nil
 }
 
-func (t timeline) AppendReference(ctx context.Context, ref ReferenceItem, keyRoot, branch string) (string, error) {
+func (t timeline) AppendReference(ctx context.Context, ref ReferenceItem, keyRoot, connector string) (string, error) {
 	ref.Type = TypeReference
 	v, _, er := t.Get(ctx, ref.Target)
 	if er != nil {
@@ -84,7 +84,7 @@ func (t timeline) AppendReference(ctx context.Context, ref ReferenceItem, keyRoo
 	if er != nil {
 		return "", t.translateError(er)
 	}
-	i, er := t.gr.Append(ctx, keyRoot, graph.NodeData{Branch: branch, Data: js})
+	i, er := t.gr.Append(ctx, keyRoot, graph.NodeData{Branch: connector, Data: js})
 	if er != nil {
 		return "", t.translateError(er)
 	}
@@ -184,10 +184,10 @@ func (t timeline) GetFrom(ctx context.Context, keyRoot, connector, key string, c
 	return items, nil
 }
 
-func (t timeline) canReceiveReference(item Base, refType string) bool {
+func (t timeline) canReceiveReference(item Base, con string) bool {
 	found := false
-	for _, branch := range item.Connectors {
-		if branch == refType {
+	for _, connector := range item.Connectors {
+		if connector == con {
 			found = true
 			break
 		}
