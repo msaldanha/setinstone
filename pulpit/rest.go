@@ -7,6 +7,7 @@ import (
 	"github.com/ipfs/go-ipfs/core/coreapi"
 	icore "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipfs/interface-go-ipfs-core/path"
+	"github.com/iris-contrib/middleware/cors"
 	"github.com/kataras/iris/v12"
 	"github.com/kataras/iris/v12/middleware/logger"
 	"github.com/kataras/iris/v12/middleware/recover"
@@ -69,6 +70,14 @@ func NewServer(opts ServerOptions) (Server, error) {
 	app := iris.New()
 	app.Use(recover.New())
 	app.Use(logger.New())
+
+	crs := cors.New(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "POST", "DELETE", "OPTIONS"},
+		AllowCredentials: true,
+	})
+	app.Use(crs)
+	app.AllowMethods(iris.MethodOptions)
 
 	srv := server{
 		initialized: true,
@@ -146,7 +155,7 @@ func (s server) createAddress(ctx iris.Context) {
 
 	s.logins[a.Address] = pass
 
-	_, _ = ctx.JSON(Response{Payload: a})
+	_, _ = ctx.JSON(Response{Payload: a.Address})
 }
 
 func (s server) deleteAddress(ctx iris.Context) {
@@ -209,6 +218,7 @@ func (s server) login(ctx iris.Context) {
 	}
 
 	s.logins[body.Address] = body.Password
+	_, _ = ctx.JSON(Response{})
 }
 
 func (s server) getRandomAddress(ctx iris.Context) {

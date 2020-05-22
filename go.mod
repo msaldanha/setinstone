@@ -7,7 +7,7 @@ require (
 	github.com/davecgh/go-xdr v0.0.0-20161123171359-e6a2ba005892
 	github.com/fasthttp-contrib/websocket v0.0.0-20160511215533-1f3b11f56072 // indirect
 	github.com/golang/mock v1.4.3
-	github.com/golang/protobuf v1.3.5
+	github.com/golang/protobuf v1.3.5 // indirect
 	github.com/google/go-querystring v1.0.0 // indirect
 	github.com/imkira/go-interpol v1.1.0 // indirect
 	github.com/ipfs/go-cid v0.0.3
@@ -16,6 +16,7 @@ require (
 	github.com/ipfs/go-ipfs-files v0.0.4
 	github.com/ipfs/go-mfs v0.1.1
 	github.com/ipfs/interface-go-ipfs-core v0.2.3
+	github.com/iris-contrib/middleware/cors v0.0.0-20191219204441-78279b78a367
 	github.com/k0kubun/colorstring v0.0.0-20150214042306-9440f1994b88 // indirect
 	github.com/kataras/iris/v12 v12.1.8
 	github.com/libp2p/go-libp2p-core v0.2.5
