@@ -6,6 +6,7 @@ import (
 	"github.com/ipfs/go-ipfs/core/coreapi"
 	icore "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/iris-contrib/middleware/cors"
+	"github.com/iris-contrib/middleware/jwt"
 	"github.com/kataras/iris/v12"
 	"github.com/kataras/iris/v12/middleware/logger"
 	"github.com/kataras/iris/v12/middleware/recover"
@@ -15,6 +16,7 @@ import (
 	"github.com/msaldanha/setinstone/anticorp/dor"
 	"github.com/msaldanha/setinstone/anticorp/err"
 	"github.com/msaldanha/setinstone/anticorp/keyvaluestore"
+	"github.com/msaldanha/setinstone/anticorp/util"
 	"github.com/msaldanha/setinstone/timeline"
 	"io"
 	"time"
@@ -22,6 +24,7 @@ import (
 
 const (
 	defaultCount      = 20
+	addressClaim      = "address"
 	ErrNotInitialized = err.Error("Not initialized")
 	ErrAuthentication = err.Error("authentication failed")
 )
@@ -42,6 +45,7 @@ type server struct {
 	logins      map[string]string
 	resolver    dor.Resolver
 	ps          pulpitService
+	secret      string
 }
 
 type ServerOptions struct {
@@ -81,24 +85,34 @@ func NewServer(opts ServerOptions) (Server, error) {
 		app:         app,
 		store:       store,
 		opts:        opts,
+		secret:      util.RandString(32),
 	}
+
+	j := jwt.New(jwt.Config{
+		ValidationKeyGetter: func(token *jwt.Token) (interface{}, error) {
+			return []byte(srv.secret), nil
+		},
+		SigningMethod: jwt.SigningMethodHS256,
+	})
 
 	er = srv.init()
 	if er != nil {
 		return nil, er
 	}
 
-	app.Get("/randomaddress", srv.getRandomAddress)
-	app.Get("/media", srv.getMedia)
-	app.Post("/media", srv.postMedia)
-	app.Post("/login", srv.login)
+	topLevel := app.Party("/")
 
-	addresses := app.Party("/addresses")
-	addresses.Get("/", srv.getAddresses)
+	topLevel.Get("randomaddress", j.Serve, srv.getRandomAddress)
+	topLevel.Get("media", j.Serve, srv.getMedia)
+	topLevel.Post("media", j.Serve, srv.postMedia)
+	topLevel.Post("login", srv.login)
+
+	addresses := topLevel.Party("/addresses")
+	addresses.Get("/", srv.getAddresses, j.Serve)
 	addresses.Post("/", srv.createAddress)
-	addresses.Delete("/{addr:string}", srv.deleteAddress)
+	addresses.Delete("/{addr:string}", srv.deleteAddress, j.Serve)
 
-	tl := app.Party("/tl")
+	tl := topLevel.Party("/tl", j.Serve)
 	ns := tl.Party("/{ns:string}")
 
 	ns.Get("/{addr:string}", srv.getItems)
@@ -176,7 +190,15 @@ func (s server) login(ctx iris.Context) {
 		returnError(ctx, er, getStatusCodeForError(er))
 		return
 	}
-	_, _ = ctx.JSON(Response{})
+
+	token := jwt.NewTokenWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		addressClaim: body.Address,
+	})
+
+	// Sign and get the complete encoded token as a string using the secret
+	tokenString, _ := token.SignedString([]byte(s.secret))
+
+	_, _ = ctx.JSON(Response{Payload: tokenString})
 }
 
 func (s server) getRandomAddress(ctx iris.Context) {
@@ -283,6 +305,15 @@ func (s server) createItem(ctx iris.Context) {
 	if connector == "" {
 		connector = "main"
 	}
+
+	user := ctx.Values().Get("jwt").(*jwt.Token)
+	claims := user.Claims.(jwt.MapClaims)
+
+	if claims[addressClaim] != addr {
+		ctx.StatusCode(401)
+		return
+	}
+
 	body := AddItemRequest{}
 	er := ctx.ReadJSON(&body)
 	if er != nil {

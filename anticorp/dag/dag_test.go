@@ -8,10 +8,9 @@ import (
 	"github.com/msaldanha/setinstone/anticorp/dag"
 	"github.com/msaldanha/setinstone/anticorp/datastore"
 	"github.com/msaldanha/setinstone/anticorp/dor"
+	"github.com/msaldanha/setinstone/anticorp/util"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"math/rand"
-	"strings"
 	"time"
 )
 
@@ -347,7 +346,7 @@ func CreateNode(addr *address.Address, keyRoot, prev string, branch string, seq 
 	node.Address = addr.Address
 	node.PubKey = hex.EncodeToString(addr.Keys.PublicKey)
 	node.Timestamp = time.Now().UTC().Format(time.RFC3339)
-	node.Data = []byte(randString(256))
+	node.Data = []byte(util.RandString(256))
 	node.Branch = branch
 	node.BranchRoot = keyRoot
 
@@ -370,7 +369,7 @@ func CreateNodeWithBranches(addr *address.Address, keyRoot, prev string, branche
 	node.Address = addr.Address
 	node.PubKey = hex.EncodeToString(addr.Keys.PublicKey)
 	node.Timestamp = time.Now().UTC().Format(time.RFC3339)
-	node.Data = []byte(randString(256))
+	node.Data = []byte(util.RandString(256))
 	node.Branches = branches
 	node.Branch = branch
 	node.BranchRoot = keyRoot
@@ -391,29 +390,4 @@ func BuildNode(node *dag.Node, addr *address.Address) *dag.Node {
 	_ = node.Sign(addr.Keys.ToEcdsaPrivateKey())
 
 	return node
-}
-func randString(n int) string {
-	const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	const (
-		letterIdxBits = 6                    // 6 bits to represent a letter index
-		letterIdxMask = 1<<letterIdxBits - 1 // All 1-bits, as many as letterIdxBits
-		letterIdxMax  = 63 / letterIdxBits   // # of letter indices fitting in 63 bits
-	)
-	var src = rand.NewSource(time.Now().UnixNano())
-	sb := strings.Builder{}
-	sb.Grow(n)
-	// A src.Int63() generates 63 random bits, enough for letterIdxMax characters!
-	for i, cache, remain := n-1, src.Int63(), letterIdxMax; i >= 0; {
-		if remain == 0 {
-			cache, remain = src.Int63(), letterIdxMax
-		}
-		if idx := int(cache & letterIdxMask); idx < len(letterBytes) {
-			sb.WriteByte(letterBytes[idx])
-			i--
-		}
-		cache >>= letterIdxBits
-		remain--
-	}
-
-	return sb.String()
 }
