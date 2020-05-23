@@ -3,10 +3,8 @@ package pulpit
 import (
 	"context"
 	"fmt"
-	files "github.com/ipfs/go-ipfs-files"
 	"github.com/ipfs/go-ipfs/core/coreapi"
 	icore "github.com/ipfs/interface-go-ipfs-core"
-	"github.com/ipfs/interface-go-ipfs-core/path"
 	"github.com/iris-contrib/middleware/cors"
 	"github.com/kataras/iris/v12"
 	"github.com/kataras/iris/v12/middleware/logger"
@@ -16,9 +14,7 @@ import (
 	"github.com/msaldanha/setinstone/anticorp/datastore"
 	"github.com/msaldanha/setinstone/anticorp/dor"
 	"github.com/msaldanha/setinstone/anticorp/err"
-	"github.com/msaldanha/setinstone/anticorp/graph"
 	"github.com/msaldanha/setinstone/anticorp/keyvaluestore"
-	"github.com/msaldanha/setinstone/anticorp/util"
 	"github.com/msaldanha/setinstone/timeline"
 	"io"
 	"time"
@@ -45,6 +41,7 @@ type server struct {
 	ipfs        icore.CoreAPI
 	logins      map[string]string
 	resolver    dor.Resolver
+	ps          pulpitService
 }
 
 type ServerOptions struct {
@@ -83,8 +80,6 @@ func NewServer(opts ServerOptions) (Server, error) {
 		initialized: true,
 		app:         app,
 		store:       store,
-		timelines:   map[string]timeline.Timeline{},
-		logins:      map[string]string{},
 		opts:        opts,
 	}
 
@@ -136,40 +131,21 @@ func (s server) createAddress(ctx iris.Context) {
 		return
 	}
 
-	a, er := address.NewAddressWithKeys()
-	if er != nil {
-		returnError(ctx, er, getStatusCodeForError(er))
-		return
-	}
-	a.Keys.PrivateKey = util.Encrypt(a.Keys.PrivateKey, pass)
-	ar := AddressRecord{
-		Address:  *a,
-		Bookmark: util.Encrypt([]byte(bookmarkFlag), pass),
-	}
+	c := context.Background()
+	key, er := s.ps.createAddress(c, pass)
 
-	er = s.store.Put(a.Address, ar.ToBytes())
 	if er != nil {
 		returnError(ctx, er, getStatusCodeForError(er))
 		return
 	}
 
-	s.logins[a.Address] = pass
-
-	_, _ = ctx.JSON(Response{Payload: a.Address})
+	_, _ = ctx.JSON(Response{Payload: key})
 }
 
 func (s server) deleteAddress(ctx iris.Context) {
 	addr := ctx.Params().Get("addr")
-	_, found, er := s.store.Get(addr)
-	if er != nil {
-		returnError(ctx, er, getStatusCodeForError(er))
-		return
-	}
-	if !found {
-		returnError(ctx, err.Error("addr not found in local storage"), 404)
-		return
-	}
-	er = s.store.Delete(addr)
+	c := context.Background()
+	er := s.ps.deleteAddress(c, addr)
 	if er != nil {
 		returnError(ctx, er, getStatusCodeForError(er))
 		return
@@ -194,35 +170,18 @@ func (s server) login(ctx iris.Context) {
 		return
 	}
 
-	buf, found, er := s.store.Get(body.Address)
+	c := context.Background()
+	er = s.ps.login(c, body.Address, body.Password)
 	if er != nil {
 		returnError(ctx, er, getStatusCodeForError(er))
 		return
 	}
-	if !found {
-		returnError(ctx, err.Error("invalid addr or password"), 400)
-		return
-	}
-
-	ar := AddressRecord{}
-	er = ar.FromBytes(buf)
-	if er != nil {
-		returnError(ctx, er, getStatusCodeForError(er))
-		return
-	}
-
-	_, er = util.Decrypt(ar.Address.Keys.PrivateKey, body.Password)
-	if er != nil {
-		returnError(ctx, err.Error("invalid addr or password"), getStatusCodeForError(er))
-		return
-	}
-
-	s.logins[body.Address] = body.Password
 	_, _ = ctx.JSON(Response{})
 }
 
 func (s server) getRandomAddress(ctx iris.Context) {
-	a, er := address.NewAddressWithKeys()
+	c := context.Background()
+	a, er := s.ps.getRandomAddress(c)
 	if er != nil {
 		returnError(ctx, er, getStatusCodeForError(er))
 		return
@@ -232,23 +191,14 @@ func (s server) getRandomAddress(ctx iris.Context) {
 
 func (s server) getMedia(ctx iris.Context) {
 	id := ctx.URLParam("id")
-	p := path.New(id)
 	c, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
-	node, er := s.ipfs.Unixfs().Get(c, p)
-	if er == context.DeadlineExceeded {
-		returnError(ctx, fmt.Errorf("not found: %s", id), 404)
-		return
-	}
+	f, er := s.ps.getMedia(c, id)
 	if er != nil {
 		returnError(ctx, er, 500)
 		return
 	}
-	f, ok := node.(files.File)
-	if !ok {
-		returnError(ctx, fmt.Errorf("not a file: %s", id), 400)
-		return
-	}
+	ctx.Header("Transfer-Encoding", "chunked")
 	ctx.StreamWriter(func(w io.Writer) bool {
 		io.Copy(w, f)
 		return false
@@ -263,38 +213,18 @@ func (s server) postMedia(ctx iris.Context) {
 		return
 	}
 
-	results := []AddMediaResult{}
-	for _, v := range body.Files {
-		id, er := s.addFile(v)
-		if er != nil {
-			results = append(results, AddMediaResult{
-				File:  v,
-				Id:    id,
-				Error: er.Error(),
-			})
-		} else {
-			results = append(results, AddMediaResult{
-				File:  v,
-				Id:    id,
-				Error: "",
-			})
-		}
+	c := context.Background()
+	results := s.ps.postMedia(c, body.Files)
 
-	}
 	_, _ = ctx.JSON(Response{Payload: results})
 }
 
 func (s server) getAddresses(ctx iris.Context) {
-	all, er := s.store.GetAll()
+	c := context.Background()
+	addresses, er := s.ps.getAddresses(c)
 	if er != nil {
 		returnError(ctx, er, getStatusCodeForError(er))
 		return
-	}
-	addresses := []*address.Address{}
-	for _, v := range all {
-		ar := AddressRecord{}
-		_ = ar.FromBytes(v)
-		addresses = append(addresses, &ar.Address)
 	}
 	_, _ = ctx.JSON(Response{Payload: addresses})
 }
@@ -307,27 +237,11 @@ func (s server) getItems(ctx iris.Context) {
 	from := ctx.URLParam("from")
 	count := ctx.URLParamIntDefault("count", defaultCount)
 
-	if connector == "" {
-		connector = "main"
-	}
-
-	tl, er := s.getPulpit(ns, addr)
+	c := context.Background()
+	payload, er := s.ps.getItems(c, addr, ns, keyRoot, connector, from, count)
 	if er != nil {
 		returnError(ctx, er, getStatusCodeForError(er))
 		return
-	}
-
-	c := context.Background()
-	items, er := tl.GetFrom(c, keyRoot, connector, from, count)
-	if er != nil && er != timeline.ErrNotFound {
-		returnError(ctx, er, getStatusCodeForError(er))
-		return
-	}
-
-	payload := make([]interface{}, 0, len(items))
-	for _, item := range items {
-		i, _ := item.AsInterface()
-		payload = append(payload, i)
 	}
 
 	_, er = ctx.JSON(Response{Payload: payload})
@@ -342,23 +256,16 @@ func (s server) getItemByKey(ctx iris.Context) {
 	addr := ctx.Params().Get("addr")
 	key := ctx.Params().Get("key")
 
-	tl, er := s.getPulpit(ns, addr)
-	if er != nil {
-		returnError(ctx, er, getStatusCodeForError(er))
-		return
-	}
-
 	c := context.Background()
-	item, ok, er := tl.Get(c, key)
+	item, er := s.ps.getItemByKey(c, addr, ns, key)
 	if er != nil {
 		returnError(ctx, er, getStatusCodeForError(er))
 		return
 	}
 
 	resp := Response{}
-	if ok {
-		i, _ := item.AsInterface()
-		resp.Payload = i
+	if item != nil {
+		resp.Payload = item
 	}
 
 	_, er = ctx.JSON(resp)
@@ -383,102 +290,14 @@ func (s server) createItem(ctx iris.Context) {
 		return
 	}
 
-	tl, er := s.getPulpit(ns, addr)
+	c := context.Background()
+	key, er := s.ps.createItem(c, addr, ns, keyRoot, connector, body)
 	if er != nil {
 		returnError(ctx, er, getStatusCodeForError(er))
-		return
-	}
-
-	key := ""
-	switch body.Type {
-	case timeline.TypePost:
-		key, er = s.createPost(ctx, tl, body.PostItem, keyRoot, connector)
-	case timeline.TypeReference:
-		key, er = s.createReference(ctx, tl, body.ReferenceItem, keyRoot, connector)
-	default:
-		er = fmt.Errorf("unknown type %s", body.Type)
-		returnError(ctx, er, 400)
 		return
 	}
 
 	_, _ = ctx.JSON(Response{Payload: key})
-}
-
-func (s server) createPost(ctx iris.Context, tl timeline.Timeline, postItem PostItem, keyRoot, connector string) (string, error) {
-	if len(postItem.Connectors) == 0 {
-		er := fmt.Errorf("reference types cannot be empty")
-		returnError(ctx, er, 400)
-		return "", er
-	}
-	for _, v := range postItem.Connectors {
-		if v == "" {
-			er := fmt.Errorf("reference types cannot contain empty value")
-			returnError(ctx, er, 400)
-			return "", er
-		}
-	}
-
-	post, er := s.toTimelinePost(postItem)
-	if er != nil {
-		returnError(ctx, er, getStatusCodeForError(er))
-		return "", er
-	}
-	c := context.Background()
-	key, er := tl.AppendPost(c, post, keyRoot, connector)
-	if er != nil {
-		returnError(ctx, er, getStatusCodeForError(er))
-		return "", er
-	}
-	return key, nil
-}
-
-func (s server) createReference(ctx iris.Context, tl timeline.Timeline, postItem ReferenceItem, keyRoot, connector string) (string, error) {
-	if postItem.Target == "" {
-		er := fmt.Errorf("target cannot be empty")
-		returnError(ctx, er, 400)
-		return "", er
-	}
-
-	post := s.toTimelineReference(postItem)
-
-	c := context.Background()
-	key, er := tl.AppendReference(c, post, keyRoot, connector)
-	if er != nil {
-		returnError(ctx, er, getStatusCodeForError(er))
-		return "", er
-	}
-	return key, nil
-}
-
-func (s server) getPulpit(ns, addr string) (timeline.Timeline, error) {
-	tl, found := s.timelines[ns+addr]
-	if found {
-		return tl, nil
-	}
-
-	pass := s.logins[addr]
-
-	var a address.Address
-	a = address.Address{Address: addr}
-	if pass != "" {
-		buf, found, _ := s.store.Get(addr)
-		if found {
-			ar := AddressRecord{}
-			er := ar.FromBytes(buf)
-			if er != nil {
-				return nil, er
-			}
-			a = ar.Address
-			pk, er := util.Decrypt(a.Keys.PrivateKey, pass)
-			if er != nil {
-				return nil, er
-			}
-			a.Keys.PrivateKey = pk
-		}
-	}
-
-	tl = s.getOrCreateTimeLine(ns, &a)
-	return tl, nil
 }
 
 func (s *server) init() error {
@@ -521,22 +340,8 @@ func (s *server) init() error {
 		panic(fmt.Errorf("failed to setup resolver: %s", er))
 	}
 
+	s.ps = NewPulpitService(s.store, s.ds, s.ipfs, s.resolver)
 	return nil
-}
-
-func (s *server) getOrCreateTimeLine(ns string, a *address.Address) timeline.Timeline {
-	tl, found := s.timelines[ns+a.Address]
-	if found {
-		return tl
-	}
-	if a.Keys != nil && a.Keys.PrivateKey != nil {
-		_ = s.resolver.Manage(a)
-	}
-	ld := dag.NewDag(ns, s.ds, s.resolver)
-	gr := graph.NewGraph(ld, a)
-	tl = timeline.NewTimeline(gr)
-	s.timelines[ns+a.Address] = tl
-	return tl
 }
 
 func returnError(ctx iris.Context, er error, statusCode int) {
