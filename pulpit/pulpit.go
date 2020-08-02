@@ -30,7 +30,7 @@ type pulpitService struct {
 	resolver  dor.Resolver
 }
 
-func NewPulpitService(store keyvaluestore.KeyValueStore, ds datastore.DataStore,
+func newPulpitService(store keyvaluestore.KeyValueStore, ds datastore.DataStore,
 	ipfs icore.CoreAPI, resolver dor.Resolver) pulpitService {
 	return pulpitService{
 		store:     store,
@@ -63,6 +63,11 @@ func (s pulpitService) createAddress(ctx context.Context, pass string) (string, 
 	}
 
 	s.logins[a.Address] = pass
+
+	er = s.resolver.Manage(a)
+	if er != nil {
+		return "", er
+	}
 
 	return a.Address, nil
 }
@@ -291,6 +296,16 @@ func (s pulpitService) getTimeline(ns, addr string) (timeline.Timeline, error) {
 
 	pass := s.logins[addr]
 
+	a, er := s.getAddress(addr, pass)
+	if er != nil {
+		return nil, er
+	}
+
+	tl = s.createTimeLine(ns, a)
+	return tl, nil
+}
+
+func (s pulpitService) getAddress(addr, pass string) (*address.Address, error) {
 	var a address.Address
 	a = address.Address{Address: addr}
 	if pass != "" {
@@ -309,22 +324,16 @@ func (s pulpitService) getTimeline(ns, addr string) (timeline.Timeline, error) {
 			a.Keys.PrivateKey = pk
 		}
 	}
-
-	tl = s.getOrCreateTimeLine(ns, &a)
-	return tl, nil
+	return &a, nil
 }
 
-func (s *pulpitService) getOrCreateTimeLine(ns string, a *address.Address) timeline.Timeline {
-	tl, found := s.timelines[ns+a.Address]
-	if found {
-		return tl
-	}
+func (s *pulpitService) createTimeLine(ns string, a *address.Address) timeline.Timeline {
 	if a.Keys != nil && a.Keys.PrivateKey != nil {
 		_ = s.resolver.Manage(a)
 	}
 	ld := dag.NewDag(ns, s.ds, s.resolver)
 	gr := graph.NewGraph(ld, a)
-	tl = timeline.NewTimeline(gr)
+	tl := timeline.NewTimeline(gr)
 	s.timelines[ns+a.Address] = tl
 	return tl
 }
@@ -404,7 +413,7 @@ func getFileContentType(path string) (string, error) {
 		return "", er
 	}
 
-	// Use the net/http package's handy DectectContentType function. Always returns a valid
+	// Use the net/http package's handy DetectContentType function. Always returns a valid
 	// content-type by returning "application/octet-stream" if no others seemed to match.
 	contentType := http.DetectContentType(buffer)
 

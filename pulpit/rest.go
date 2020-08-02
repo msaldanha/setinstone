@@ -75,6 +75,7 @@ func NewServer(opts ServerOptions) (Server, error) {
 	crs := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},
 		AllowedMethods:   []string{"GET", "POST", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"*"},
 		AllowCredentials: true,
 	})
 	app.Use(crs)
@@ -371,7 +372,7 @@ func (s *server) init() error {
 		panic(fmt.Errorf("failed to setup resolver: %s", er))
 	}
 
-	s.ps = NewPulpitService(s.store, s.ds, s.ipfs, s.resolver)
+	s.ps = newPulpitService(s.store, s.ds, s.ipfs, s.resolver)
 	return nil
 }
 
