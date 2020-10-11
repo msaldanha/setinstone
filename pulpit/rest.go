@@ -258,10 +258,11 @@ func (s server) getItems(ctx iris.Context) {
 	keyRoot := ctx.Params().Get("key")
 	connector := ctx.Params().Get("connector")
 	from := ctx.URLParam("from")
+	to := ctx.URLParam("to")
 	count := ctx.URLParamIntDefault("count", defaultCount)
 
 	c := context.Background()
-	payload, er := s.ps.getItems(c, addr, ns, keyRoot, connector, from, count)
+	payload, er := s.ps.getItems(c, addr, ns, keyRoot, connector, from, to, count)
 	if er != nil {
 		returnError(ctx, er, getStatusCodeForError(er))
 		return

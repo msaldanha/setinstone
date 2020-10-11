@@ -181,7 +181,7 @@ func (s pulpitService) getAddresses(ctx context.Context) ([]*address.Address, er
 	return addresses, nil
 }
 
-func (s pulpitService) getItems(ctx context.Context, addr, ns, keyRoot, connector, from string, count int) ([]interface{}, error) {
+func (s pulpitService) getItems(ctx context.Context, addr, ns, keyRoot, connector, from, to string, count int) ([]interface{}, error) {
 	if connector == "" {
 		connector = "main"
 	}
@@ -191,7 +191,7 @@ func (s pulpitService) getItems(ctx context.Context, addr, ns, keyRoot, connecto
 		return nil, er
 	}
 
-	items, er := tl.GetFrom(ctx, keyRoot, connector, from, count)
+	items, er := tl.GetFrom(ctx, keyRoot, connector, from, to, count)
 	if er != nil && er != timeline.ErrNotFound {
 		return nil, er
 	}

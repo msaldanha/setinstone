@@ -26,7 +26,7 @@ type Timeline interface {
 	AppendReference(ctx context.Context, ref ReferenceItem, keyRoot, connector string) (string, error)
 	AddReceivedReference(ctx context.Context, refKey, connector string) (string, error)
 	Get(ctx context.Context, key string) (Item, bool, error)
-	GetFrom(ctx context.Context, keyRoot, connector, key string, count int) ([]Item, error)
+	GetFrom(ctx context.Context, keyRoot, connector, keyFrom, keyTo string, count int) ([]Item, error)
 }
 
 type timeline struct {
@@ -162,14 +162,14 @@ func (t timeline) Get(ctx context.Context, key string) (Item, bool, error) {
 	return i, found, nil
 }
 
-func (t timeline) GetFrom(ctx context.Context, keyRoot, connector, key string, count int) ([]Item, error) {
-	it, er := t.gr.GetIterator(ctx, keyRoot, connector, key)
+func (t timeline) GetFrom(ctx context.Context, keyRoot, connector, keyFrom, keyTo string, count int) ([]Item, error) {
+	it, er := t.gr.GetIterator(ctx, keyRoot, connector, keyFrom)
 	if er != nil {
 		return nil, t.translateError(er)
 	}
 	i := 0
 	items := []Item{}
-	for it.HasNext() && i < count {
+	for it.HasNext() && (count == 0 || i < count) {
 		v, er := it.Next(ctx)
 		if er != nil {
 			return nil, t.translateError(er)
@@ -180,6 +180,9 @@ func (t timeline) GetFrom(ctx context.Context, keyRoot, connector, key string, c
 		}
 		items = append(items, item)
 		i++
+		if v.Key == keyTo {
+			break
+		}
 	}
 	return items, nil
 }
