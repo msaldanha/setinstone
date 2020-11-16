@@ -5,14 +5,15 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
+	"encoding/hex"
 	"encoding/pem"
 	"github.com/msaldanha/setinstone/anticorp/util"
 	"math/big"
 )
 
 type KeyPair struct {
-	PrivateKey []byte
-	PublicKey  []byte
+	PrivateKey string
+	PublicKey  string
 }
 
 func New() (*KeyPair, error) {
@@ -22,7 +23,7 @@ func New() (*KeyPair, error) {
 		return nil, err
 	}
 	pubKey := append(util.LeftPadBytes(private.PublicKey.X.Bytes(), 32), util.LeftPadBytes(private.PublicKey.Y.Bytes(), 32)...)
-	return &KeyPair{PrivateKey: private.D.Bytes(), PublicKey: pubKey}, nil
+	return &KeyPair{PrivateKey: hex.EncodeToString(private.D.Bytes()), PublicKey: hex.EncodeToString(pubKey)}, nil
 }
 
 func NewFromPem(pemEncoded []byte, password string) (*KeyPair, error) {
@@ -37,12 +38,13 @@ func NewFromPem(pemEncoded []byte, password string) (*KeyPair, error) {
 		return nil, err
 	}
 	pubKey := append(util.LeftPadBytes(private.PublicKey.X.Bytes(), 32), util.LeftPadBytes(private.PublicKey.Y.Bytes(), 32)...)
-	return &KeyPair{PrivateKey: private.D.Bytes(), PublicKey: pubKey}, nil
+	return &KeyPair{PrivateKey: hex.EncodeToString(private.D.Bytes()), PublicKey: hex.EncodeToString(pubKey)}, nil
 }
 
 func (ld *KeyPair) ToEcdsaPrivateKey() *ecdsa.PrivateKey {
+	privateKeyBytes, _ := hex.DecodeString(ld.PrivateKey)
 	D := new(big.Int)
-	D.SetBytes(ld.PrivateKey)
+	D.SetBytes(privateKeyBytes)
 
 	curve := elliptic.P256()
 	privateKey := ecdsa.PrivateKey{
@@ -54,8 +56,10 @@ func (ld *KeyPair) ToEcdsaPrivateKey() *ecdsa.PrivateKey {
 		D: D,
 	}
 
-	privateKey.PublicKey.X.SetBytes(ld.PublicKey[:len(ld.PublicKey)/2])
-	privateKey.PublicKey.Y.SetBytes(ld.PublicKey[len(ld.PublicKey)/2:])
+	publicKeyBytes, _ := hex.DecodeString(ld.PublicKey)
+
+	privateKey.PublicKey.X.SetBytes(publicKeyBytes[:len(publicKeyBytes)/2])
+	privateKey.PublicKey.Y.SetBytes(publicKeyBytes[len(publicKeyBytes)/2:])
 
 	return &privateKey
 }
@@ -73,4 +77,11 @@ func (ld *KeyPair) ToPem(password string) ([]byte, error) {
 	}
 	pemEncoded := pem.EncodeToMemory(x509EncodedCrypt)
 	return pemEncoded, nil
+}
+
+func (ld *KeyPair) Clone() *KeyPair {
+	return &KeyPair{
+		PrivateKey: ld.PrivateKey,
+		PublicKey:  ld.PublicKey,
+	}
 }

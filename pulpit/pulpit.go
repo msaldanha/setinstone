@@ -2,6 +2,7 @@ package pulpit
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	files "github.com/ipfs/go-ipfs-files"
 	icore "github.com/ipfs/interface-go-ipfs-core"
@@ -9,10 +10,10 @@ import (
 	"github.com/msaldanha/setinstone/anticorp/address"
 	"github.com/msaldanha/setinstone/anticorp/dag"
 	"github.com/msaldanha/setinstone/anticorp/datastore"
-	"github.com/msaldanha/setinstone/anticorp/dor"
 	"github.com/msaldanha/setinstone/anticorp/err"
 	"github.com/msaldanha/setinstone/anticorp/graph"
 	"github.com/msaldanha/setinstone/anticorp/keyvaluestore"
+	"github.com/msaldanha/setinstone/anticorp/resolver"
 	"github.com/msaldanha/setinstone/anticorp/util"
 	"github.com/msaldanha/setinstone/timeline"
 	"io"
@@ -27,11 +28,11 @@ type pulpitService struct {
 	ds        datastore.DataStore
 	ipfs      icore.CoreAPI
 	logins    map[string]string
-	resolver  dor.Resolver
+	resolver  resolver.Resolver
 }
 
 func newPulpitService(store keyvaluestore.KeyValueStore, ds datastore.DataStore,
-	ipfs icore.CoreAPI, resolver dor.Resolver) pulpitService {
+	ipfs icore.CoreAPI, resolver resolver.Resolver) pulpitService {
 	return pulpitService{
 		store:     store,
 		ds:        ds,
@@ -51,13 +52,15 @@ func (s pulpitService) createAddress(ctx context.Context, pass string) (string, 
 	if er != nil {
 		return "", er
 	}
-	a.Keys.PrivateKey = util.Encrypt(a.Keys.PrivateKey, pass)
+
+	dbAddress := a.Clone()
+	dbAddress.Keys.PrivateKey = hex.EncodeToString(util.Encrypt([]byte(dbAddress.Keys.PrivateKey), pass))
 	ar := AddressRecord{
-		Address:  *a,
+		Address:  *dbAddress,
 		Bookmark: util.Encrypt([]byte(bookmarkFlag), pass),
 	}
 
-	er = s.store.Put(a.Address, ar.ToBytes())
+	er = s.store.Put(dbAddress.Address, ar.ToBytes())
 	if er != nil {
 		return "", er
 	}
@@ -110,7 +113,12 @@ func (s pulpitService) login(ctx context.Context, addr, password string) error {
 		return er
 	}
 
-	_, er = util.Decrypt(ar.Address.Keys.PrivateKey, password)
+	privKey, er := hex.DecodeString(ar.Address.Keys.PrivateKey)
+	if er != nil {
+		return er
+	}
+
+	_, er = util.Decrypt(privKey, password)
 	if er != nil {
 		return err.Error("invalid addr or password")
 	}
@@ -317,18 +325,22 @@ func (s pulpitService) getAddress(addr, pass string) (*address.Address, error) {
 				return nil, er
 			}
 			a = ar.Address
-			pk, er := util.Decrypt(a.Keys.PrivateKey, pass)
+			privKey, er := hex.DecodeString(ar.Address.Keys.PrivateKey)
 			if er != nil {
 				return nil, er
 			}
-			a.Keys.PrivateKey = pk
+			pk, er := util.Decrypt(privKey, pass)
+			if er != nil {
+				return nil, er
+			}
+			a.Keys.PrivateKey = string(pk)
 		}
 	}
 	return &a, nil
 }
 
 func (s *pulpitService) createTimeLine(ns string, a *address.Address) timeline.Timeline {
-	if a.Keys != nil && a.Keys.PrivateKey != nil {
+	if a.Keys != nil && a.Keys.PrivateKey != "" {
 		_ = s.resolver.Manage(a)
 	}
 	ld := dag.NewDag(ns, s.ds, s.resolver)

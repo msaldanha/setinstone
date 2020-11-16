@@ -1,7 +1,6 @@
 package graph
 
 import (
-	"encoding/hex"
 	"github.com/msaldanha/setinstone/anticorp/address"
 	"github.com/msaldanha/setinstone/anticorp/dag"
 	"time"
@@ -16,7 +15,7 @@ func createNode(node NodeData, keyRoot, prev string,
 	}
 	n.BranchSeq = seq
 	n.Address = addr.Address
-	n.PubKey = hex.EncodeToString(addr.Keys.PublicKey)
+	n.PubKey = addr.Keys.PublicKey
 	n.Timestamp = time.Now().UTC().Format(time.RFC3339)
 	n.Branches = node.Branches
 	n.Branch = node.Branch

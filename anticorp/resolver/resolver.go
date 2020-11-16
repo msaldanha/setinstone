@@ -1,4 +1,4 @@
-package dor
+package resolver
 
 import (
 	"context"

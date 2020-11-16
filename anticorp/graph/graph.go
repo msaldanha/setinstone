@@ -91,7 +91,7 @@ func (d graph) Get(ctx context.Context, key string) (GraphNode, bool, error) {
 }
 
 func (d graph) Append(ctx context.Context, keyRoot string, node NodeData) (GraphNode, error) {
-	if d.addr.Keys == nil || d.addr.Keys.PrivateKey == nil {
+	if d.addr.Keys == nil || d.addr.Keys.PrivateKey == "" {
 		return GraphNode{}, ErrReadOnly
 	}
 

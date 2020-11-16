@@ -7,8 +7,8 @@ import (
 	"github.com/msaldanha/setinstone/anticorp/address"
 	"github.com/msaldanha/setinstone/anticorp/dag"
 	"github.com/msaldanha/setinstone/anticorp/datastore"
-	"github.com/msaldanha/setinstone/anticorp/dor"
 	"github.com/msaldanha/setinstone/anticorp/graph"
+	"github.com/msaldanha/setinstone/anticorp/resolver"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -23,16 +23,16 @@ var _ = Describe("Graph", func() {
 	var ld dag.Dag
 	var ctx context.Context
 	var lts datastore.DataStore
-	var resolver dor.Resolver
+	var res resolver.Resolver
 
 	addr, _ := address.NewAddressWithKeys()
 
 	BeforeEach(func() {
 		ctx = context.Background()
 		lts = datastore.NewLocalFileStore()
-		resolver = dor.NewLocalResolver()
-		_ = resolver.Manage(addr)
-		ld = dag.NewDag("test-graph", lts, resolver)
+		res = resolver.NewLocalResolver()
+		_ = res.Manage(addr)
+		ld = dag.NewDag("test-graph", lts, res)
 	})
 
 	It("Should add node", func() {

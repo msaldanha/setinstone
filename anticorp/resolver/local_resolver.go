@@ -1,4 +1,4 @@
-package dor
+package resolver
 
 import (
 	"context"
@@ -40,7 +40,7 @@ func (r *localResolver) Resolve(ctx context.Context, name string) (string, error
 }
 
 func (r *localResolver) Manage(addr *address.Address) error {
-	if addr.Keys.PrivateKey == nil {
+	if addr.Keys.PrivateKey == "" {
 		return ErrNoPrivateKey
 	}
 	r.addresses[addr.Address] = addr

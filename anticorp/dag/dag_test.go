@@ -2,12 +2,11 @@ package dag_test
 
 import (
 	"context"
-	"encoding/hex"
 	"github.com/golang/mock/gomock"
 	"github.com/msaldanha/setinstone/anticorp/address"
 	"github.com/msaldanha/setinstone/anticorp/dag"
 	"github.com/msaldanha/setinstone/anticorp/datastore"
-	"github.com/msaldanha/setinstone/anticorp/dor"
+	"github.com/msaldanha/setinstone/anticorp/resolver"
 	"github.com/msaldanha/setinstone/anticorp/util"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -23,19 +22,19 @@ var _ = Describe("Dag", func() {
 	var genesisAddr *address.Address
 	var ctx context.Context
 	var lts datastore.DataStore
-	var resolver dor.Resolver
+	var res resolver.Resolver
 
 	testGenesisNode, testGenesisAddr := CreateGenesisNode()
 
 	BeforeEach(func() {
 		ctx = context.Background()
 		lts = datastore.NewLocalFileStore()
-		resolver = dor.NewLocalResolver()
-		_ = resolver.Manage(testGenesisAddr)
+		res = resolver.NewLocalResolver()
+		_ = res.Manage(testGenesisAddr)
 
 		genesisNode, genesisAddr = testGenesisNode, testGenesisAddr
 
-		da = dag.NewDag("test-ledger", lts, resolver)
+		da = dag.NewDag("test-ledger", lts, res)
 	})
 
 	It("Should initialize with the Genesis node", func() {
@@ -114,7 +113,7 @@ var _ = Describe("Dag", func() {
 		defer mockCtrl.Finish()
 
 		g, gAddr := CreateGenesisNode()
-		resolver.Manage(gAddr)
+		res.Manage(gAddr)
 
 		genesisKey, err := da.SetRoot(ctx, g)
 		Expect(err).To(BeNil())
@@ -325,7 +324,7 @@ func CreateGenesisNode() (*dag.Node, *address.Address) {
 	genesisNode := CreateNode(addr, "", "", defaultBranch, 1)
 	genesisNode.Address = addr.Address
 	genesisNode.Branches = []string{defaultBranch}
-	genesisNode.PubKey = hex.EncodeToString(addr.Keys.PublicKey)
+	genesisNode.PubKey = addr.Keys.PublicKey
 
 	_ = genesisNode.SetPow()
 
@@ -344,7 +343,7 @@ func CreateNode(addr *address.Address, keyRoot, prev string, branch string, seq 
 		node.BranchSeq = 1
 	}
 	node.Address = addr.Address
-	node.PubKey = hex.EncodeToString(addr.Keys.PublicKey)
+	node.PubKey = addr.Keys.PublicKey
 	node.Timestamp = time.Now().UTC().Format(time.RFC3339)
 	node.Data = []byte(util.RandString(256))
 	node.Branch = branch
@@ -367,7 +366,7 @@ func CreateNodeWithBranches(addr *address.Address, keyRoot, prev string, branche
 		node.BranchSeq = 1
 	}
 	node.Address = addr.Address
-	node.PubKey = hex.EncodeToString(addr.Keys.PublicKey)
+	node.PubKey = addr.Keys.PublicKey
 	node.Timestamp = time.Now().UTC().Format(time.RFC3339)
 	node.Data = []byte(util.RandString(256))
 	node.Branches = branches
@@ -383,7 +382,7 @@ func CreateNodeWithBranches(addr *address.Address, keyRoot, prev string, branche
 
 func BuildNode(node *dag.Node, addr *address.Address) *dag.Node {
 	node.Address = addr.Address
-	node.PubKey = hex.EncodeToString(addr.Keys.PublicKey)
+	node.PubKey = addr.Keys.PublicKey
 
 	_ = node.SetPow()
 

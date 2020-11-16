@@ -19,7 +19,7 @@ const (
 )
 
 type Address struct {
-	Keys *keypair.KeyPair
+	Keys    *keypair.KeyPair
 	Address string
 }
 
@@ -38,7 +38,8 @@ func NewAddressWithKeys() (*Address, error) {
 
 func NewAddressForKeys(keys *keypair.KeyPair) (*Address, error) {
 	addr := &Address{Keys: keys}
-	hash, err := generateAddressHash(addr.Keys.PublicKey)
+	publicKeysBytes, _ := hex.DecodeString(addr.Keys.PublicKey)
+	hash, err := generateAddressHash(publicKeysBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -73,8 +74,8 @@ func IsValid(addr string) (bool, error) {
 	}
 	pubKeyHash := Base58Decode([]byte(addr))
 	var chksum [4]byte
-	copy(chksum[:], pubKeyHash[len(pubKeyHash) - addressChecksumLen:])
-	chkCalc := checksum(pubKeyHash[:len(pubKeyHash) - addressChecksumLen])
+	copy(chksum[:], pubKeyHash[len(pubKeyHash)-addressChecksumLen:])
+	chkCalc := checksum(pubKeyHash[:len(pubKeyHash)-addressChecksumLen])
 	if bytes.Compare(chkCalc, chksum[:]) != 0 {
 		return false, ErrInvalidChecksum
 	}
@@ -114,6 +115,13 @@ func generateAddressHash(pubKey []byte) (string, error) {
 
 func (a *Address) IsValid() (bool, error) {
 	return IsValid(a.Address)
+}
+
+func (a *Address) Clone() *Address {
+	return &Address{
+		Keys:    a.Keys.Clone(),
+		Address: a.Address,
+	}
 }
 
 func hashPubKey(pubKey []byte) ([]byte, error) {

@@ -4,8 +4,8 @@ import (
 	"context"
 	"github.com/msaldanha/setinstone/anticorp/address"
 	"github.com/msaldanha/setinstone/anticorp/datastore"
-	"github.com/msaldanha/setinstone/anticorp/dor"
 	"github.com/msaldanha/setinstone/anticorp/err"
+	"github.com/msaldanha/setinstone/anticorp/resolver"
 	"io"
 	"strings"
 	"time"
@@ -45,10 +45,10 @@ type Dag interface {
 type dag struct {
 	nameSpace string
 	dt        datastore.DataStore
-	resolver  dor.Resolver
+	resolver  resolver.Resolver
 }
 
-func NewDag(nameSpace string, dt datastore.DataStore, resolver dor.Resolver) Dag {
+func NewDag(nameSpace string, dt datastore.DataStore, resolver resolver.Resolver) Dag {
 	return &dag{nameSpace: nameSpace, dt: dt, resolver: resolver}
 }
 

@@ -13,12 +13,13 @@ import (
 	"github.com/msaldanha/setinstone/anticorp/address"
 	"github.com/msaldanha/setinstone/anticorp/dag"
 	"github.com/msaldanha/setinstone/anticorp/datastore"
-	"github.com/msaldanha/setinstone/anticorp/dor"
 	"github.com/msaldanha/setinstone/anticorp/err"
+	"github.com/msaldanha/setinstone/anticorp/event"
 	"github.com/msaldanha/setinstone/anticorp/keyvaluestore"
-	"github.com/msaldanha/setinstone/anticorp/util"
+	"github.com/msaldanha/setinstone/anticorp/resolver"
 	"github.com/msaldanha/setinstone/timeline"
 	"io"
+	"os"
 	"time"
 )
 
@@ -43,7 +44,7 @@ type server struct {
 	ld          dag.Dag
 	ipfs        icore.CoreAPI
 	logins      map[string]string
-	resolver    dor.Resolver
+	resolver    resolver.Resolver
 	ps          pulpitService
 	secret      string
 }
@@ -86,7 +87,7 @@ func NewServer(opts ServerOptions) (Server, error) {
 		app:         app,
 		store:       store,
 		opts:        opts,
-		secret:      util.RandString(32),
+		secret:      os.Getenv("SERVER_SECRET"),
 	}
 
 	j := jwt.New(jwt.Config{
@@ -368,7 +369,8 @@ func (s *server) init() error {
 		addrs = append(addrs, addr)
 	}
 
-	s.resolver, er = dor.NewIpfsResolver(node, addrs)
+	evMan := event.NewManager(s.ipfs.PubSub())
+	s.resolver, er = resolver.NewIpfsResolver(node, addrs, evMan)
 	if er != nil {
 		panic(fmt.Errorf("failed to setup resolver: %s", er))
 	}

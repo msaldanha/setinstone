@@ -6,8 +6,8 @@ import (
 	"github.com/msaldanha/setinstone/anticorp/address"
 	"github.com/msaldanha/setinstone/anticorp/dag"
 	"github.com/msaldanha/setinstone/anticorp/datastore"
-	"github.com/msaldanha/setinstone/anticorp/dor"
 	"github.com/msaldanha/setinstone/anticorp/graph"
+	"github.com/msaldanha/setinstone/anticorp/resolver"
 	"github.com/msaldanha/setinstone/timeline"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -24,16 +24,16 @@ var _ = Describe("Timeline", func() {
 	var ctx context.Context
 	var lts datastore.DataStore
 	var gr graph.Graph
-	var resolver dor.Resolver
+	var res resolver.Resolver
 
 	addr, _ := address.NewAddressWithKeys()
 
 	BeforeEach(func() {
 		ctx = context.Background()
 		lts = datastore.NewLocalFileStore()
-		resolver = dor.NewLocalResolver()
-		_ = resolver.Manage(addr)
-		da = dag.NewDag("test-ledger", lts, resolver)
+		res = resolver.NewLocalResolver()
+		_ = res.Manage(addr)
+		da = dag.NewDag("test-ledger", lts, res)
 		gr = graph.NewGraph(da, addr)
 	})
 
@@ -76,7 +76,7 @@ var _ = Describe("Timeline", func() {
 		gr2 := graph.NewGraph(da, addr2)
 		tl2 := timeline.NewTimeline(gr2)
 
-		_ = resolver.Manage(addr2)
+		_ = res.Manage(addr2)
 
 		expectedPost := timeline.PostItem{
 			Base: timeline.Base{Connectors: []string{likeRef}},
@@ -130,7 +130,7 @@ var _ = Describe("Timeline", func() {
 		gr2 := graph.NewGraph(da, addr2)
 		tl2 := timeline.NewTimeline(gr2)
 
-		_ = resolver.Manage(addr2)
+		_ = res.Manage(addr2)
 
 		expectedPost := timeline.PostItem{Base: timeline.Base{Connectors: []string{likeRef}}, Post: timeline.Post{Part: timeline.Part{MimeType: "plain/text", Data: "some text "}}}
 		key, er := tl1.AppendPost(ctx, expectedPost, "", "main")
@@ -159,7 +159,7 @@ var _ = Describe("Timeline", func() {
 		gr2 := graph.NewGraph(da, addr2)
 		tl2 := timeline.NewTimeline(gr2)
 
-		_ = resolver.Manage(addr2)
+		_ = res.Manage(addr2)
 
 		posts := []timeline.PostItem{}
 		likes := []timeline.ReferenceItem{}
@@ -188,7 +188,7 @@ var _ = Describe("Timeline", func() {
 		}
 
 		count := 3
-		items, er := tl1.GetFrom(ctx, "", "", keys[5], count)
+		items, er := tl1.GetFrom(ctx, "", "", keys[5], "", count)
 
 		Expect(er).To(BeNil())
 		Expect(len(items)).To(Equal(count))
