@@ -3,15 +3,20 @@ package event
 import (
 	"context"
 	"github.com/cenkalti/backoff"
+	"github.com/google/uuid"
 	icore "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipfs/interface-go-ipfs-core/options"
 	log "github.com/sirupsen/logrus"
 	"sync"
 )
 
+type DoneFunc func()
+type CallbackFunc func(ev Event)
+
 type Manager interface {
-	On(eventName string) (Receiver, error)
-	Signal(eventName string, data []byte) error
+	On(eventName string, callback CallbackFunc) (DoneFunc, error)
+	Next(ctx context.Context, eventName string) (Event, error)
+	Emit(eventName string, data []byte) error
 }
 
 type manager struct {
@@ -24,7 +29,7 @@ type manager struct {
 type subscription struct {
 	eventName string
 	sub       icore.PubSubSubscription
-	readers   map[string]Sender
+	callbacks map[string]CallbackFunc
 	mutex     sync.Mutex
 }
 
@@ -36,34 +41,55 @@ func NewManager(pubSub icore.PubSubAPI) Manager {
 	}
 }
 
-func (m *manager) On(eventName string) (Receiver, error) {
+func (m *manager) On(eventName string, callback CallbackFunc) (DoneFunc, error) {
 	m.subLock.Lock()
 	defer m.subLock.Unlock()
+	id := uuid.New()
 	sub, ok := m.subscriptions[eventName]
 	if ok {
 		sub.mutex.Lock()
 		defer sub.mutex.Unlock()
-		r := newReceiverSender()
-		sub.readers[r.GetId()] = r
+
+		sub.callbacks[id.String()] = callback
 		m.l.Infof("Added subscription for event %s", eventName)
-		return r, nil
+		return m.createDoneFunc(sub, id.String()), nil
 	}
 	pubSub, er := m.pubSub.Subscribe(context.Background(), eventName, options.PubSub.Discover(true))
 	if er != nil {
 		return nil, er
 	}
-	r := newReceiverSender()
+
 	sub = &subscription{
 		eventName: eventName,
 		sub:       pubSub,
-		readers:   map[string]Sender{r.GetId(): r},
+		callbacks: map[string]CallbackFunc{id.String(): callback},
 	}
 	m.subscriptions[eventName] = sub
 	m.handleEvent(sub)
-	return r, nil
+
+	return m.createDoneFunc(sub, id.String()), nil
 }
 
-func (m *manager) Signal(eventName string, data []byte) error {
+func (m *manager) Next(ctx context.Context, eventName string) (Event, error) {
+	doneChan := make(chan Event)
+
+	done, er := m.On(eventName, func(ev Event) {
+		doneChan <- ev
+	})
+	if er != nil {
+		return nil, er
+	}
+	defer done()
+
+	select {
+	case ev := <-doneChan:
+		return ev, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func (m *manager) Emit(eventName string, data []byte) error {
 	m.l.Infof("Signaling event %s : %s", eventName, string(data))
 	er := m.pubSub.Publish(context.Background(), eventName, data)
 	return er
@@ -88,16 +114,9 @@ func (m *manager) handleEvent(subs *subscription) {
 					name: subs.eventName,
 					data: msg.Data(),
 				}
-				keysToRemove := make([]string, 0)
-				ctx := context.Background()
-				for key, h := range subs.readers {
-					// TODO: handle error here
-					_, er = h.Send(ctx, ev)
-					if er == ErrIsClosed {
-						keysToRemove = append(keysToRemove, key)
-					}
+				for _, callback := range subs.callbacks {
+					callback(ev)
 				}
-				m.removeReaders(subs.readers, keysToRemove)
 				subs.mutex.Unlock()
 				return nil
 			}
@@ -110,8 +129,10 @@ func (m *manager) handleEvent(subs *subscription) {
 	}()
 }
 
-func (m *manager) removeReaders(readers map[string]Sender, keysToRemove []string) {
-	for _, k := range keysToRemove {
-		delete(readers, k)
+func (m *manager) createDoneFunc(sub *subscription, callbackKey string) func() {
+	return func() {
+		sub.mutex.Lock()
+		defer sub.mutex.Unlock()
+		delete(sub.callbacks, callbackKey)
 	}
 }

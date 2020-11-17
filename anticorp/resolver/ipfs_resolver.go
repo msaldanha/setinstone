@@ -23,7 +23,6 @@ const prefix = "IPFS Resolver"
 type ipfsResolver struct {
 	cache        map[string]Record
 	addresses    map[string]address.Address
-	receivers    map[string]event.Receiver
 	pending      map[string]bool
 	pendingLck   sync.Mutex
 	ipfs         icore.CoreAPI
@@ -42,7 +41,6 @@ func NewIpfsResolver(node *core.IpfsNode, addresses []*address.Address, eventMan
 		ipfsNode:     node,
 		cache:        map[string]Record{},
 		addresses:    map[string]address.Address{},
-		receivers:    map[string]event.Receiver{},
 		pending:      map[string]bool{},
 		Id:           node.Identity,
 		pendingLck:   sync.Mutex{},
@@ -54,10 +52,6 @@ func NewIpfsResolver(node *core.IpfsNode, addresses []*address.Address, eventMan
 			return nil, er
 		}
 	}
-
-	go func() {
-		r.cleanupTask()
-	}()
 
 	return r, nil
 }
@@ -165,19 +159,13 @@ func (r *ipfsResolver) Manage(addr *address.Address) error {
 		return ErrNoPrivateKey
 	}
 	eventName := r.resolutionQueryEventName(addr.Address)
-	receiver, found := r.receivers[addr.Address]
-	if found && !receiver.IsClosed() {
-		return nil
-	}
 
-	receiver, er := r.eventManager.On(eventName)
+	_, er := r.eventManager.On(eventName, r.handleEvent)
 	// receiver, er := r.ipfs.PubSub().Subscribe(context.Background(), addr.Address, options.PubSub.Discover(true))
 	if er != nil {
 		return er
 	}
 	r.addresses[addr.Address] = *addr
-	r.receivers[addr.Address] = receiver
-	r.runReceiver(eventName, receiver)
 	return nil
 }
 
@@ -188,15 +176,8 @@ func (r *ipfsResolver) query(ctx context.Context, rec Record) (Record, error) {
 		return Record{}, er
 	}
 	log.Infof("%s Subscribing to event %s", prefix, r.resolutionResponseEventName(rec.Address))
-	// receiver, er = r.ipfs.PubSub().Subscribe(ctx, rec.Address, options.PubSub.Discover(true))
-	receiver, er := r.eventManager.On(r.resolutionResponseEventName(rec.Address))
-	if er != nil {
-		log.Errorf("%s Failed to subscribe to pubsub %s: %s", prefix, rec.Address, er)
-		return Record{}, er
-	}
-	defer receiver.Close()
 
-	er = r.eventManager.Signal(r.resolutionQueryEventName(rec.Address), []byte(data))
+	er = r.eventManager.Emit(r.resolutionQueryEventName(rec.Address), []byte(data))
 	// er = r.ipfs.PubSub().Publish(ctx, rec.Address, []byte(data))
 	if er != nil {
 		log.Errorf("%s Failed to publish query %s: %s", prefix, rec.Query, er)
@@ -205,7 +186,7 @@ func (r *ipfsResolver) query(ctx context.Context, rec Record) (Record, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	ev, er := receiver.Receive(ctx)
+	ev, er := r.eventManager.Next(ctx, r.resolutionResponseEventName(rec.Address))
 	if er == context.DeadlineExceeded {
 		log.Infof("%s ctx Done querying %s", prefix, rec.Query)
 		return Record{}, ctx.Err()
@@ -247,45 +228,15 @@ func (r *ipfsResolver) putInCache(ctx context.Context, rec Record) error {
 	return nil
 }
 
-func (r *ipfsResolver) runReceiver(eventName string, receiver event.Receiver) {
-	go func() {
-		defer receiver.Close()
-		log.Infof("%s Running receiver %s", prefix, eventName)
-		for {
-			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-			ev, er := receiver.Receive(ctx)
-			if er == context.DeadlineExceeded {
-				continue
-			}
-			cancel()
-			if er == event.ErrIsClosed {
-				log.Infof("%s Stopping receiver %s", prefix, eventName)
-				return
-			}
-			log.Infof("%s Received %s %s", prefix, ev.Name(), string(ev.Data()))
-			rec := &Record{}
-			er = rec.FromJson(ev.Data())
-			if er != nil {
-				log.Errorf("%s Invalid msg received on subscription %s: %s", prefix, eventName, er)
-				continue
-			}
-			r.dispatch(*rec)
-		}
-	}()
-}
-
-func (r *ipfsResolver) cleanupTask() {
-	for {
-		count := 0
-		for key, receiver := range r.receivers {
-			if receiver.IsClosed() {
-				delete(r.receivers, key)
-				count++
-			}
-		}
-		log.Infof("%s Cleanup: %d removed", prefix, count)
-		time.Sleep(10 * time.Second)
+func (r *ipfsResolver) handleEvent(ev event.Event) {
+	log.Infof("%s Received %s %s", prefix, ev.Name(), string(ev.Data()))
+	rec := &Record{}
+	er := rec.FromJson(ev.Data())
+	if er != nil {
+		log.Errorf("%s Invalid msg received on subscription %s: %s", prefix, ev.Name(), er)
+		return
 	}
+	r.dispatch(*rec)
 }
 
 func (r *ipfsResolver) resolve(ctx context.Context, rc Record) (Record, error) {
@@ -374,7 +325,7 @@ func (r *ipfsResolver) sendResolution(rec Record) {
 		}
 		log.Infof("%s Sending resolution %s -> %s", prefix, rec.Query, rec.Resolution)
 		// er = r.ipfs.PubSub().Publish(context.Background(), rec.Address, []byte(data))
-		er = r.eventManager.Signal(r.resolutionResponseEventName(rec.Address), []byte(data))
+		er = r.eventManager.Emit(r.resolutionResponseEventName(rec.Address), []byte(data))
 		if er != nil {
 			log.Errorf("%s Error sending resolution %s", prefix, er)
 			return
