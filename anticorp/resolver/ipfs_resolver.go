@@ -10,6 +10,7 @@ import (
 	"github.com/ipfs/interface-go-ipfs-core/path"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/msaldanha/setinstone/anticorp/address"
+	"github.com/msaldanha/setinstone/anticorp/cache"
 	"github.com/msaldanha/setinstone/anticorp/event"
 	log "github.com/sirupsen/logrus"
 	"math/rand"
@@ -21,7 +22,7 @@ import (
 const prefix = "IPFS Resolver"
 
 type ipfsResolver struct {
-	cache        map[string]Record
+	resCache     cache.Cache
 	addresses    map[string]address.Address
 	pending      map[string]bool
 	pendingLck   sync.Mutex
@@ -31,7 +32,7 @@ type ipfsResolver struct {
 	eventManager event.Manager
 }
 
-func NewIpfsResolver(node *core.IpfsNode, addresses []*address.Address, eventManager event.Manager) (Resolver, error) {
+func NewIpfsResolver(node *core.IpfsNode, addresses []*address.Address, eventManager event.Manager, resCache cache.Cache) (Resolver, error) {
 	ipfs, er := coreapi.NewCoreAPI(node)
 	if er != nil {
 		return nil, er
@@ -39,7 +40,7 @@ func NewIpfsResolver(node *core.IpfsNode, addresses []*address.Address, eventMan
 	r := &ipfsResolver{
 		ipfs:         ipfs,
 		ipfsNode:     node,
-		cache:        map[string]Record{},
+		resCache:     resCache,
 		addresses:    map[string]address.Address{},
 		pending:      map[string]bool{},
 		Id:           node.Identity,
@@ -216,15 +217,16 @@ func (r *ipfsResolver) get(ctx context.Context, name string) (string, error) {
 }
 
 func (r *ipfsResolver) getFromCache(ctx context.Context, name string) (Record, error) {
-	rec, ok := r.cache[name]
+	v, ok, er := r.resCache.Get(name)
 	if !ok {
 		return Record{}, ErrNotFound
 	}
-	return rec, nil
+	rec := v.(Record)
+	return rec, er
 }
 
 func (r *ipfsResolver) putInCache(ctx context.Context, rec Record) error {
-	r.cache[rec.Query] = rec
+	_ = r.resCache.Add(rec.Query, rec)
 	return nil
 }
 
@@ -302,7 +304,11 @@ func (r *ipfsResolver) handleResolution(rec Record) {
 		log.Errorf("%s Invalid query resolution %s to %s: %s", prefix, rec.Query, rec.Resolution, er)
 		return
 	}
-	cached, found := r.cache[rec.Query]
+	var cached Record
+	v, found, _ := r.resCache.Get(rec.Query)
+	if found {
+		cached = v.(Record)
+	}
 	if !found || (found && cached.Older(rec)) {
 		log.Infof("%s Adding resolution: %s to %s", prefix, rec.Query, rec.Resolution)
 		_ = r.putInCache(context.Background(), rec)

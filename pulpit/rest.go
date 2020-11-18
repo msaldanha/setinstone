@@ -11,6 +11,7 @@ import (
 	"github.com/kataras/iris/v12/middleware/logger"
 	"github.com/kataras/iris/v12/middleware/recover"
 	"github.com/msaldanha/setinstone/anticorp/address"
+	"github.com/msaldanha/setinstone/anticorp/cache"
 	"github.com/msaldanha/setinstone/anticorp/dag"
 	"github.com/msaldanha/setinstone/anticorp/datastore"
 	"github.com/msaldanha/setinstone/anticorp/err"
@@ -370,7 +371,8 @@ func (s *server) init() error {
 	}
 
 	evMan := event.NewManager(s.ipfs.PubSub())
-	s.resolver, er = resolver.NewIpfsResolver(node, addrs, evMan)
+	resCache := cache.NewMemoryCache(time.Second * 10)
+	s.resolver, er = resolver.NewIpfsResolver(node, addrs, evMan, resCache)
 	if er != nil {
 		panic(fmt.Errorf("failed to setup resolver: %s", er))
 	}
