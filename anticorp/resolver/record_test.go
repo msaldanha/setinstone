@@ -6,21 +6,21 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Record", func() {
+var _ = Describe("Message", func() {
 	addr, _ := address.NewAddressWithKeys()
 	It("Should sign and verify", func() {
-		// rec := Record{
+		// rec := Message{
 		// 	Timestamp:  time.Now().Format(time.RFC3339),
 		// 	Address:    "Some Addr",
-		// 	Query:      "Some Query",
-		// 	Resolution: "Some Resolution",
+		// 	Type:      "Some Type",
+		// 	Payload: "Some Payload",
 		// }
 
-		rec := Record{
-			Timestamp:  "2020-11-15T16:31:13-03:00",
-			Address:    "17WYHM4beUNXCWwEMBiWKzR18zZmCjyy3C",
-			Query:      "/17WYHM4beUNXCWwEMBiWKzR18zZmCjyy3C/pulpit/dag/shortcuts/root",
-			Resolution: "Qme9xuLzbp9h2WtU1LabNUNMjs9zVtFLCDKMvtUqRXHN9P",
+		rec := Message{
+			Timestamp: "2020-11-15T16:31:13-03:00",
+			Address:   "17WYHM4beUNXCWwEMBiWKzR18zZmCjyy3C",
+			Type:      "/17WYHM4beUNXCWwEMBiWKzR18zZmCjyy3C/pulpit/dag/shortcuts/root",
+			Payload:   "Qme9xuLzbp9h2WtU1LabNUNMjs9zVtFLCDKMvtUqRXHN9P",
 		}
 
 		//pubkey 13464b284af5f162a2255886f30b111f6140d3d6f94bf28a5e1bbaf4216e64c760c749f05594cb6aa3673658f1a84a981128a44ae75cf8d0039ca820a3181044

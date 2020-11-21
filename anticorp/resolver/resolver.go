@@ -21,8 +21,8 @@ type Resolver interface {
 	Manage(addr *address.Address) error
 }
 
-func getRecordFromName(name string) (Record, error) {
-	r := Record{}
+func getQueryNameRequestFromName(name string) (Message, error) {
+	r := Message{}
 	parts := strings.Split(name, "/")
 	if len(parts) < 3 {
 		return r, ErrInvalidName
@@ -32,11 +32,11 @@ func getRecordFromName(name string) (Record, error) {
 	if ok, _ := a.IsValid(); !ok {
 		return r, ErrInvalidAddrComponent
 	}
-	r = Record{
-		Address:    a.Address,
-		Query:      name,
-		Resolution: "",
-		Signature:  "",
+	r = Message{
+		Address:   a.Address,
+		Type:      MessageTypes.QueryNameRequest,
+		Payload:   name,
+		Signature: "",
 	}
 	return r, nil
 }

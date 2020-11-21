@@ -245,6 +245,12 @@ func (da *dag) saveNode(ctx context.Context, node *Node, branchRootNodeKey strin
 	if er != nil {
 		return "", da.translateError(er)
 	}
+
+	er = da.addResolutionForNodeBranches(ctx, node, key)
+	if er != nil {
+		return "", da.translateError(er)
+	}
+
 	return key, nil
 }
 
@@ -272,7 +278,24 @@ func (da *dag) saveRootNode(ctx context.Context, node *Node) (string, error) {
 	if er != nil {
 		return "", da.translateError(er)
 	}
+
+	er = da.addResolutionForNodeBranches(ctx, node, key)
+	if er != nil {
+		return "", da.translateError(er)
+	}
+
 	return key, nil
+}
+
+func (da *dag) addResolutionForNodeBranches(ctx context.Context, node *Node, key string) error {
+	for _, branch := range node.Branches {
+		lastNodeName := da.getLastNodeName(node, key, branch)
+		er := da.resolver.Add(ctx, lastNodeName, key)
+		if er != nil {
+			return er
+		}
+	}
+	return nil
 }
 
 func (da *dag) hasBranch(p *Node, branch string) bool {

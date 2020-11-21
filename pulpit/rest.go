@@ -356,21 +356,9 @@ func (s *server) init() error {
 		panic(fmt.Errorf("failed to setup ipfs data store: %s", er))
 	}
 
-	all, er := s.store.GetAll()
-	if er != nil {
-		panic(fmt.Errorf("failed to get addresses: %s", er))
-	}
 	addrs := []*address.Address{}
-	for _, data := range all {
-		addr := &address.Address{}
-		er = addr.FromBytes(data)
-		if er != nil {
-			panic(fmt.Errorf("failed to get address: %s", er))
-		}
-		addrs = append(addrs, addr)
-	}
 
-	evMan := event.NewManager(s.ipfs.PubSub())
+	evMan := event.NewManager(s.ipfs.PubSub(), node)
 	resCache := cache.NewMemoryCache(time.Second * 10)
 	s.resolver, er = resolver.NewIpfsResolver(node, addrs, evMan, resCache)
 	if er != nil {

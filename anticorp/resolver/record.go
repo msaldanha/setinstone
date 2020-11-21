@@ -18,22 +18,33 @@ const (
 	ErrSignatureDoesNotMatch   = err.Error("signature does not match")
 )
 
-type Record struct {
-	Timestamp  string `json:"timestamp,omitempty"`
-	Address    string `json:"address,omitempty"`
-	Query      string `json:"query,omitempty"`
-	Resolution string `json:"resolution,omitempty"`
-	PublicKey  string `json:"publicKey,omitempty"`
-	Signature  string `json:"signature,omitempty"`
+type MessageTypesEnum struct {
+	QueryNameRequest  string
+	QueryNameResponse string
 }
 
-func (r *Record) SignWithKey(privateKey *ecdsa.PrivateKey) error {
+var MessageTypes = MessageTypesEnum{
+	QueryNameRequest:  "QUERY.NAME.REQUEST",
+	QueryNameResponse: "QUERY.NAME.RESPONSE",
+}
+
+type Message struct {
+	Timestamp string `json:"timestamp,omitempty"`
+	Address   string `json:"address,omitempty"`
+	Type      string `json:"type,omitempty"`
+	Payload   string `json:"payload,omitempty"`
+	Reference string `json:"reference,omitempty"`
+	PublicKey string `json:"publicKey,omitempty"`
+	Signature string `json:"signature,omitempty"`
+}
+
+func (m *Message) SignWithKey(privateKey *ecdsa.PrivateKey) error {
 
 	pubKey := append(util.LeftPadBytes(privateKey.PublicKey.X.Bytes(), 32),
 		util.LeftPadBytes(privateKey.PublicKey.Y.Bytes(), 32)...)
-	r.PublicKey = hex.EncodeToString(pubKey)
+	m.PublicKey = hex.EncodeToString(pubKey)
 
-	data := r.getByteForSigning()
+	data := m.getByteForSigning()
 
 	hash := sha256.Sum256(data)
 
@@ -42,14 +53,14 @@ func (r *Record) SignWithKey(privateKey *ecdsa.PrivateKey) error {
 		return er
 	}
 
-	r.Signature = hex.EncodeToString(s)
+	m.Signature = hex.EncodeToString(s)
 	return nil
 }
 
-func (r *Record) VerifySignature() error {
+func (m *Message) VerifySignature() error {
 	R := big.Int{}
 	S := big.Int{}
-	signature, er := hex.DecodeString(r.Signature)
+	signature, er := hex.DecodeString(m.Signature)
 	if er != nil {
 		return er
 	}
@@ -59,7 +70,7 @@ func (r *Record) VerifySignature() error {
 
 	x := big.Int{}
 	y := big.Int{}
-	pubKey, er := hex.DecodeString(r.PublicKey)
+	pubKey, er := hex.DecodeString(m.PublicKey)
 	if er != nil {
 		return er
 	}
@@ -67,7 +78,7 @@ func (r *Record) VerifySignature() error {
 	x.SetBytes(pubKey[:(keyLen / 2)])
 	y.SetBytes(pubKey[(keyLen / 2):])
 
-	data := r.getByteForSigning()
+	data := m.getByteForSigning()
 
 	hash := sha256.Sum256(data)
 
@@ -81,24 +92,24 @@ func (r *Record) VerifySignature() error {
 	return ErrSignatureDoesNotMatch
 }
 
-func (r *Record) ToJson() (string, error) {
-	b, er := json.Marshal(r)
+func (m *Message) ToJson() (string, error) {
+	b, er := json.Marshal(m)
 	if er != nil {
 		return "", er
 	}
 	return string(b), nil
 }
 
-func (r *Record) FromJson(js []byte) error {
-	er := json.Unmarshal(js, r)
+func (m *Message) FromJson(js []byte) error {
+	er := json.Unmarshal(js, m)
 	if er != nil {
 		return er
 	}
 	return nil
 }
 
-func (r *Record) Older(rec Record) bool {
-	rTimestamp, er := time.Parse(time.RFC3339, r.Timestamp)
+func (m *Message) Older(rec Message) bool {
+	rTimestamp, er := time.Parse(time.RFC3339, m.Timestamp)
 	if er != nil {
 		return false
 	}
@@ -109,16 +120,26 @@ func (r *Record) Older(rec Record) bool {
 	return rTimestamp.Before(recTimestamp)
 }
 
-func (r *Record) Resolved() bool {
-	return r.Resolution != ""
+func (m *Message) Resolved() bool {
+	return m.Payload != ""
 }
 
-func (r *Record) getByteForSigning() []byte {
+func (m *Message) GetID() string {
 	var data []byte
-	data = append(data, []byte(r.Timestamp)...)
-	data = append(data, []byte(r.Address)...)
-	data = append(data, []byte(r.Query)...)
-	data = append(data, []byte(r.Resolution)...)
-	data = append(data, []byte(r.PublicKey)...)
+	data = append(data, []byte(m.Address)...)
+	data = append(data, []byte(m.Type)...)
+	data = append(data, []byte(m.Payload)...)
+	hash := sha256.Sum256(data)
+	return hex.EncodeToString(hash[:])
+}
+
+func (m *Message) getByteForSigning() []byte {
+	var data []byte
+	data = append(data, []byte(m.Timestamp)...)
+	data = append(data, []byte(m.Address)...)
+	data = append(data, []byte(m.Type)...)
+	data = append(data, []byte(m.Payload)...)
+	data = append(data, []byte(m.Reference)...)
+	data = append(data, []byte(m.PublicKey)...)
 	return data
 }

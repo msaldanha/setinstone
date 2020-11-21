@@ -9,5 +9,5 @@ import (
 
 func TestRecord(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Record Suite")
+	RunSpecs(t, "Message Suite")
 }

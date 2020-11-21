@@ -18,7 +18,7 @@ func NewLocalResolver() Resolver {
 }
 
 func (r *localResolver) Add(ctx context.Context, name, value string) error {
-	rec, er := getRecordFromName(name)
+	rec, er := getQueryNameRequestFromName(name)
 	if er != nil {
 		return er
 	}
@@ -31,11 +31,14 @@ func (r *localResolver) Add(ctx context.Context, name, value string) error {
 }
 
 func (r *localResolver) Resolve(ctx context.Context, name string) (string, error) {
-	rec, er := getRecordFromName(name)
+	_, er := getQueryNameRequestFromName(name)
 	if er != nil {
 		return "", er
 	}
-	res := r.names[rec.Query]
+	res, found := r.names[name]
+	if !found {
+		return "", ErrNotFound
+	}
 	return res, nil
 }
 

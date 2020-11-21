@@ -3,7 +3,9 @@ package event_test
 import (
 	"context"
 	"github.com/golang/mock/gomock"
+	"github.com/ipfs/go-ipfs/core"
 	iface "github.com/ipfs/interface-go-ipfs-core"
+	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/msaldanha/setinstone/anticorp/event"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -20,11 +22,13 @@ var _ = Describe("Event Manager", func() {
 		pubSubMock := NewMockPubSubAPI(ctrl)
 		subs := NewMockPubSubSubscription(ctrl)
 		msg := NewMockPubSubMessage(ctrl)
+		ipfs := &core.IpfsNode{}
 
-		man := event.NewManager(pubSubMock)
+		man := event.NewManager(pubSubMock, ipfs)
 
 		pubSubMock.EXPECT().Subscribe(gomock.Any(), "test_event", gomock.Any()).Return(subs, nil)
 		msg.EXPECT().Data().Return([]byte("data")).AnyTimes()
+		msg.EXPECT().From().Return(peer.ID("some id")).AnyTimes()
 		subs.EXPECT().Next(gomock.Any()).DoAndReturn(func(ctx context.Context) (iface.PubSubMessage, error) {
 			time.Sleep(time.Millisecond * 500)
 			return msg, nil
@@ -44,11 +48,13 @@ var _ = Describe("Event Manager", func() {
 		pubSubMock := NewMockPubSubAPI(ctrl)
 		subs := NewMockPubSubSubscription(ctrl)
 		msg := NewMockPubSubMessage(ctrl)
+		ipfs := &core.IpfsNode{}
 
-		man := event.NewManager(pubSubMock)
+		man := event.NewManager(pubSubMock, ipfs)
 
 		pubSubMock.EXPECT().Subscribe(gomock.Any(), "test_event", gomock.Any()).Return(subs, nil)
 		msg.EXPECT().Data().Return([]byte("data")).AnyTimes()
+		msg.EXPECT().From().Return(peer.ID("some id")).AnyTimes()
 		subs.EXPECT().Next(gomock.Any()).DoAndReturn(func(ctx context.Context) (iface.PubSubMessage, error) {
 			time.Sleep(time.Millisecond * 500)
 			return msg, nil
@@ -66,7 +72,9 @@ var _ = Describe("Event Manager", func() {
 		defer ctrl.Finish()
 
 		pubSubMock := NewMockPubSubAPI(ctrl)
-		man := event.NewManager(pubSubMock)
+		ipfs := &core.IpfsNode{}
+
+		man := event.NewManager(pubSubMock, ipfs)
 
 		data := []byte("some data")
 		pubSubMock.EXPECT().Publish(gomock.Any(), "test_event", data).Return(nil)

@@ -99,32 +99,17 @@ func (s pulpitService) login(ctx context.Context, addr, password string) error {
 		return fmt.Errorf("password cannot be empty")
 	}
 
-	buf, found, er := s.store.Get(addr)
-	if er != nil {
-		return er
-	}
-	if !found {
-		return err.Error("invalid addr or password")
-	}
-
-	ar := AddressRecord{}
-	er = ar.FromBytes(buf)
-	if er != nil {
-		return er
-	}
-
-	privKey, er := hex.DecodeString(ar.Address.Keys.PrivateKey)
-	if er != nil {
-		return er
-	}
-
-	_, er = util.Decrypt(privKey, password)
+	a, er := s.getAddress(addr, password)
 	if er != nil {
 		return err.Error("invalid addr or password")
 	}
 
-	s.logins[addr] = password
-	return nil
+	er = s.resolver.Manage(a)
+	if er == nil {
+		s.logins[addr] = password
+	}
+
+	return er
 }
 
 func (s pulpitService) getRandomAddress(ctx context.Context) (*address.Address, error) {
