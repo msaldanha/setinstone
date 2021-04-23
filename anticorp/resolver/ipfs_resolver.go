@@ -23,10 +23,9 @@ const prefix = "IPFS Resolver"
 
 type ipfsResolver struct {
 	resCache     cache.Cache
-	addresses    map[string]address.Address
-	doneFuncs    map[string]event.DoneFunc
-	pending      map[string]bool
-	pendingLck   sync.Mutex
+	addresses    sync.Map
+	doneFuncs    sync.Map
+	pending      sync.Map
 	ipfs         icore.CoreAPI
 	ipfsNode     *core.IpfsNode
 	Id           peer.ID
@@ -42,11 +41,10 @@ func NewIpfsResolver(node *core.IpfsNode, addresses []*address.Address, eventMan
 		ipfs:         ipfs,
 		ipfsNode:     node,
 		resCache:     resCache,
-		addresses:    map[string]address.Address{},
-		doneFuncs:    map[string]event.DoneFunc{},
-		pending:      map[string]bool{},
+		addresses:    sync.Map{},
+		doneFuncs:    sync.Map{},
+		pending:      sync.Map{},
 		Id:           node.Identity,
-		pendingLck:   sync.Mutex{},
 		eventManager: eventManager,
 	}
 	for _, addr := range addresses {
@@ -158,7 +156,7 @@ func (r *ipfsResolver) Resolve(ctx context.Context, name string) (string, error)
 }
 
 func (r *ipfsResolver) Manage(addr *address.Address) error {
-	if _, exists := r.doneFuncs[addr.Address]; exists {
+	if _, exists := r.doneFuncs.Load(addr.Address); exists {
 		return nil
 	}
 	if addr.Keys.PrivateKey == "" {
@@ -169,13 +167,13 @@ func (r *ipfsResolver) Manage(addr *address.Address) error {
 	if er != nil {
 		return er
 	}
-	r.addresses[addr.Address] = *addr
-	r.doneFuncs[addr.Address] = doneFunc
+	r.addresses.Store(addr.Address, *addr)
+	r.doneFuncs.Store(addr.Address, doneFunc)
 	return nil
 }
 
 func (r *ipfsResolver) Handle(addr string) error {
-	if _, exists := r.doneFuncs[addr]; exists {
+	if _, exists := r.doneFuncs.Load(addr); exists {
 		return nil
 	}
 
@@ -183,19 +181,19 @@ func (r *ipfsResolver) Handle(addr string) error {
 	if er != nil {
 		return er
 	}
-	r.doneFuncs[addr] = doneFunc
+	r.doneFuncs.Store(addr, doneFunc)
 	return nil
 }
 
 func (r *ipfsResolver) Remove(addr string) {
-	doneFunc, exists := r.doneFuncs[addr]
+	doneFunc, exists := r.doneFuncs.Load(addr)
 	if !exists {
 		return
 	}
 
-	doneFunc()
+	doneFunc.(event.DoneFunc)()
 
-	delete(r.doneFuncs, addr)
+	r.doneFuncs.Delete(addr)
 }
 
 func (r *ipfsResolver) query(ctx context.Context, rec Message) (Message, error) {
@@ -282,7 +280,7 @@ func (r *ipfsResolver) resolve(ctx context.Context, rc Message) (Message, error)
 	if er != nil {
 		return rec, er
 	}
-	addr, found := r.addresses[rc.Address]
+	addr, found := r.addresses.Load(rc.Address)
 	if !found {
 		log.Errorf("%s Cannot resolve %s: %s", prefix, rc.Type, ErrUnmanagedAddress)
 		return rec, ErrUnmanagedAddress
@@ -296,7 +294,7 @@ func (r *ipfsResolver) resolve(ctx context.Context, rc Message) (Message, error)
 		Reference: rc.GetID(),
 	}
 
-	er = rec.SignWithKey(addr.Keys.ToEcdsaPrivateKey())
+	er = rec.SignWithKey(addr.(address.Address).Keys.ToEcdsaPrivateKey())
 	if er != nil {
 		log.Errorf("%s failed to sign resolution for %s -> %s: %s", prefix, rec.Type, rec.Payload, er)
 		return Message{}, er
@@ -310,7 +308,7 @@ func (r *ipfsResolver) resolve(ctx context.Context, rc Message) (Message, error)
 }
 
 func (r *ipfsResolver) isManaged(rec Message) bool {
-	_, found := r.addresses[rec.Address]
+	_, found := r.addresses.Load(rec.Address)
 	return found
 }
 
@@ -380,23 +378,17 @@ func (r *ipfsResolver) canSendResolution(rec Message) bool {
 	delay := time.Duration(rand.Intn(1000))
 	log.Infof("%s Will sleep for %d before sending resolution %s -> %s", prefix, delay, rec.Type, rec.Payload)
 	time.Sleep(delay * time.Millisecond)
-	r.pendingLck.Lock()
-	defer r.pendingLck.Unlock()
-	_, exists := r.pending[rec.Reference]
+	_, exists := r.pending.Load(rec.Reference)
 	if exists {
-		delete(r.pending, rec.Reference)
+		r.pending.Delete(rec.Reference)
 	}
 	return exists
 }
 
 func (r *ipfsResolver) addPendingQuery(query Message) {
-	r.pendingLck.Lock()
-	defer r.pendingLck.Unlock()
-	r.pending[query.GetID()] = true
+	r.pending.Store(query.GetID(), true)
 }
 
 func (r *ipfsResolver) removePendingQuery(resolution Message) {
-	r.pendingLck.Lock()
-	defer r.pendingLck.Unlock()
-	delete(r.pending, resolution.Reference)
+	r.pending.Delete(resolution.Reference)
 }
