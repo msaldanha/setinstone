@@ -42,13 +42,8 @@ type iterator struct {
 }
 
 type GraphNode struct {
-	Seq       int
-	Key       string
-	Address   string
-	Timestamp string
-	Data      []byte
-	Branches  []string
-	Branch    string
+	Key string `json:"key,omitempty"`
+	dag.Node
 }
 
 type NodeData struct {
@@ -241,12 +236,7 @@ func (d graph) translateError(er error) error {
 
 func (d graph) toGraphNode(key string, node *dag.Node) GraphNode {
 	return GraphNode{
-		Seq:       int(node.BranchSeq),
-		Key:       key,
-		Address:   node.Address,
-		Timestamp: node.Timestamp,
-		Data:      node.Data,
-		Branches:  node.Branches,
-		Branch:    node.Branch,
+		Key:  key,
+		Node: *node,
 	}
 }

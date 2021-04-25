@@ -58,16 +58,15 @@ func (t timeline) AppendReference(ctx context.Context, ref ReferenceItem, keyRoo
 	if er != nil {
 		return "", er
 	}
-	if v.IsReference() {
+	if _, ok := v.Data.(ReferenceItem); ok {
 		return "", ErrCannotRefARef
 	}
 
-	base, _ := v.AsBase()
-	if base.Address == t.gr.GetAddress(ctx).Address {
+	if v.Address == t.gr.GetAddress(ctx).Address {
 		return "", ErrCannotRefOwnItem
 	}
 
-	if !t.canReceiveReference(base, ref.Connector) {
+	if !t.canReceiveReference(v, ref.Connector) {
 		return "", ErrCannotAddReference
 	}
 
@@ -92,41 +91,41 @@ func (t timeline) AppendReference(ctx context.Context, ref ReferenceItem, keyRoo
 }
 
 func (t timeline) AddReceivedReference(ctx context.Context, refKey, connector string) (string, error) {
-	v, found, er := t.Get(ctx, refKey)
+	item, found, er := t.Get(ctx, refKey)
 	if er != nil {
 		return "", er
 	}
 	if !found {
 		return "", ErrNotFound
 	}
-	receivedRef, ok := v.AsReference()
+	receivedRef, ok := item.Data.(ReferenceItem)
 	if !ok {
 		return "", ErrNotAReference
 	}
 	if receivedRef.Reference.Connector != connector {
 		return "", ErrCannotAddReference
 	}
-	if receivedRef.Address == t.gr.GetAddress(ctx).Address {
+	if item.Address == t.gr.GetAddress(ctx).Address {
 		return "", ErrCannotRefOwnItem
 	}
 
-	v, found, er = t.Get(ctx, receivedRef.Target)
+	item, found, er = t.Get(ctx, receivedRef.Target)
 	if er != nil {
 		return "", er
 	}
 	if !found {
 		return "", ErrNotFound
 	}
-	refItem, ok := v.AsPost()
+	_, ok = item.Data.(PostItem)
 	if !ok {
 		return "", ErrCannotAddReference
 	}
 
-	if refItem.Address != t.gr.GetAddress(ctx).Address {
+	if item.Address != t.gr.GetAddress(ctx).Address {
 		return "", ErrCannotAddRefToNotOwnedItem
 	}
 
-	if !t.canReceiveReference(refItem.Base, connector) {
+	if !t.canReceiveReference(item, connector) {
 		return "", ErrCannotAddReference
 	}
 
@@ -143,7 +142,7 @@ func (t timeline) AddReceivedReference(ctx context.Context, refKey, connector st
 	if er != nil {
 		return "", t.translateError(er)
 	}
-	i, er := t.gr.Append(ctx, refItem.Id, graph.NodeData{Branch: connector, Data: js})
+	i, er := t.gr.Append(ctx, item.Key, graph.NodeData{Branch: connector, Data: js})
 	if er != nil {
 		return "", t.translateError(er)
 	}
@@ -153,11 +152,11 @@ func (t timeline) AddReceivedReference(ctx context.Context, refKey, connector st
 func (t timeline) Get(ctx context.Context, key string) (Item, bool, error) {
 	v, found, er := t.gr.Get(ctx, key)
 	if er != nil {
-		return nil, false, t.translateError(er)
+		return Item{}, false, t.translateError(er)
 	}
 	i, er := NewItemFromGraphNode(v)
 	if er != nil {
-		return nil, false, t.translateError(er)
+		return Item{}, false, t.translateError(er)
 	}
 	return i, found, nil
 }
@@ -187,9 +186,9 @@ func (t timeline) GetFrom(ctx context.Context, keyRoot, connector, keyFrom, keyT
 	return items, nil
 }
 
-func (t timeline) canReceiveReference(item Base, con string) bool {
+func (t timeline) canReceiveReference(item Item, con string) bool {
 	found := false
-	for _, connector := range item.Connectors {
+	for _, connector := range item.Branches {
 		if connector == con {
 			found = true
 			break

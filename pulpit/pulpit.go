@@ -191,8 +191,7 @@ func (s pulpitService) getItems(ctx context.Context, addr, ns, keyRoot, connecto
 
 	payload := make([]interface{}, 0, len(items))
 	for _, item := range items {
-		i, _ := item.AsInterface()
-		payload = append(payload, i)
+		payload = append(payload, item)
 	}
 
 	return payload, nil
@@ -210,10 +209,7 @@ func (s pulpitService) getItemByKey(ctx context.Context, addr, ns, key string) (
 	}
 
 	if ok {
-		if i, ok := item.AsInterface(); ok {
-			return i, nil
-		}
-		return nil, fmt.Errorf("unable to covert item")
+		return item, nil
 	}
 
 	return nil, nil
