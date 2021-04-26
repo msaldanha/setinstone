@@ -1,15 +1,18 @@
 package cache
 
-import "time"
+import (
+	"sync"
+	"time"
+)
 
 type memoryCache struct {
-	data       map[string]cacheRecord
+	data       sync.Map
 	defaultTTL time.Duration
 }
 
 func NewMemoryCache(defaultTTL time.Duration) Cache {
 	return &memoryCache{
-		data:       make(map[string]cacheRecord, 0),
+		data:       sync.Map{},
 		defaultTTL: defaultTTL,
 	}
 }
@@ -27,15 +30,16 @@ func (m memoryCache) AddWithTTL(key string, value interface{}, ttl time.Duration
 		expiresAt: expiresAt,
 		value:     value,
 	}
-	m.data[key] = rec
+	m.data.Store(key, rec)
 	return nil
 }
 
 func (m memoryCache) Get(key string) (interface{}, bool, error) {
-	rec, found := m.data[key]
+	r, found := m.data.Load(key)
 	if !found {
 		return nil, false, nil
 	}
+	rec := r.(cacheRecord)
 	if rec.IsExpired() {
 		return nil, false, nil
 	}
