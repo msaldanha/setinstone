@@ -23,9 +23,9 @@ const prefix = "IPFS Resolver"
 
 type ipfsResolver struct {
 	resCache     cache.Cache
-	addresses    sync.Map
-	doneFuncs    sync.Map
-	pending      sync.Map
+	addresses    *sync.Map
+	doneFuncs    *sync.Map
+	pending      *sync.Map
 	ipfs         icore.CoreAPI
 	ipfsNode     *core.IpfsNode
 	Id           peer.ID
@@ -41,9 +41,9 @@ func NewIpfsResolver(node *core.IpfsNode, addresses []*address.Address, eventMan
 		ipfs:         ipfs,
 		ipfsNode:     node,
 		resCache:     resCache,
-		addresses:    sync.Map{},
-		doneFuncs:    sync.Map{},
-		pending:      sync.Map{},
+		addresses:    &sync.Map{},
+		doneFuncs:    &sync.Map{},
+		pending:      &sync.Map{},
 		Id:           node.Identity,
 		eventManager: eventManager,
 	}
@@ -113,17 +113,7 @@ func (r *ipfsResolver) Add(ctx context.Context, name, value string) error {
 	if er != nil {
 		log.Errorf("%s failed to put ipldNode into mfs path %s: %s", prefix, name, er)
 	}
-	// addr := r.addresses[rec.Address]
-	// rec.PublicKey = hex.EncodeToString(addr.Keys.PublicKey)
-	// rec.Timestamp = time.Now().Format(time.RFC3339)
-	// rec.Payload = value
-	// er = rec.SignWithKey(addr.Keys.ToEcdsaPrivateKey())
-	// if er != nil {
-	// 	log.Errorf("%s failed to sign resolution for %s -> %s: %s", prefix, name, value, er)
-	// 	return er
-	// }
-	// r.addPendingQuery(rec)
-	// r.sendResolution(rec)
+	// TODO: send new item event to subscribers
 	return nil
 }
 
@@ -150,6 +140,9 @@ func (r *ipfsResolver) Resolve(ctx context.Context, name string) (string, error)
 	if er == ErrNotFound {
 		log.Infof("%s NOT found in cache: %s", prefix, name)
 		rc, er = r.query(ctx, rec)
+	}
+	if er != nil {
+		return "", er
 	}
 
 	return rc.Payload, er
@@ -271,6 +264,13 @@ func (r *ipfsResolver) handleEvent(ev event.Event) {
 }
 
 func (r *ipfsResolver) resolve(ctx context.Context, rc Message) (Message, error) {
+	if r.isManaged(rc) {
+		return r.resolveManaged(ctx, rc)
+	}
+	return r.resolveUnManaged(ctx, rc)
+}
+
+func (r *ipfsResolver) resolveManaged(ctx context.Context, rc Message) (Message, error) {
 	rec := Message{}
 	if !r.isManaged(rc) {
 		log.Errorf("%s Cannot resolve %s: %s", prefix, rc.Type, ErrUnmanagedAddress)
@@ -305,6 +305,10 @@ func (r *ipfsResolver) resolve(ctx context.Context, rc Message) (Message, error)
 	}
 
 	return rec, nil
+}
+
+func (r *ipfsResolver) resolveUnManaged(ctx context.Context, rc Message) (Message, error) {
+	return r.getFromCache(ctx, rc.Reference)
 }
 
 func (r *ipfsResolver) isManaged(rec Message) bool {
@@ -365,7 +369,6 @@ func (r *ipfsResolver) sendResolution(rec Message) {
 			return
 		}
 		log.Infof("%s Sending resolution %s -> %s", prefix, rec.Type, rec.Payload)
-		// er = r.ipfs.PubSub().Publish(context.Background(), rec.Address, []byte(data))
 		er = r.eventManager.Emit(rec.Address, []byte(data))
 		if er != nil {
 			log.Errorf("%s Error sending resolution %s", prefix, er)

@@ -6,13 +6,13 @@ import (
 )
 
 type memoryCache struct {
-	data       sync.Map
+	data       *sync.Map
 	defaultTTL time.Duration
 }
 
 func NewMemoryCache(defaultTTL time.Duration) Cache {
 	return &memoryCache{
-		data:       sync.Map{},
+		data:       &sync.Map{},
 		defaultTTL: defaultTTL,
 	}
 }
