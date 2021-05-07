@@ -111,7 +111,7 @@ func (d graph) Append(ctx context.Context, keyRoot string, node NodeData) (Graph
 	if lastKey == keyRoot && last.Branch != node.Branch {
 		seq = 1
 	} else {
-		seq = last.BranchSeq + 1
+		seq = last.Seq + 1
 	}
 
 	n, er := createNode(node, keyRoot, lastKey, d.addr, seq)

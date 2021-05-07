@@ -97,7 +97,7 @@ var _ = Describe("Dag", func() {
 		key, err := da.SetRoot(ctx, genesisNode)
 		Expect(err).To(BeNil())
 
-		node := CreateNode(testGenesisAddr, key, key, defaultBranch, genesisNode.BranchSeq+1)
+		node := CreateNode(testGenesisAddr, key, key, defaultBranch, genesisNode.Seq+1)
 		nodeKey, err := da.Append(ctx, node, key)
 		Expect(err).To(BeNil())
 
@@ -121,7 +121,7 @@ var _ = Describe("Dag", func() {
 		// create main branch
 		prev := genesisKey
 		for x := 1; x <= 4; x++ {
-			n := CreateNode(gAddr, genesisKey, prev, defaultBranch, g.BranchSeq+int32(x))
+			n := CreateNode(gAddr, genesisKey, prev, defaultBranch, g.Seq+int32(x))
 			nodeKey, err := da.Append(ctx, n, genesisKey)
 			Expect(err).To(BeNil())
 			prev = nodeKey
@@ -136,7 +136,7 @@ var _ = Describe("Dag", func() {
 		prev = nodeWithBranchesKey
 		var lastMainBranch *dag.Node
 		for x := 1; x <= 5; x++ {
-			n := CreateNode(gAddr, genesisKey, prev, defaultBranch, nodeWithBranches.BranchSeq+int32(x))
+			n := CreateNode(gAddr, genesisKey, prev, defaultBranch, nodeWithBranches.Seq+int32(x))
 			nodeKey, err := da.Append(ctx, n, genesisKey)
 			Expect(err).To(BeNil())
 			prev = nodeKey
@@ -188,25 +188,25 @@ var _ = Describe("Dag", func() {
 		//                      |
 		//                      n branch seq for this node should be 5
 
-		Expect(nodeWithBranches.BranchSeq).To(Equal(int32(6)))
+		Expect(nodeWithBranches.Seq).To(Equal(int32(6)))
 
 		n, _, err := da.GetLast(ctx, nodeWithBranchesKey, "likes")
 		Expect(err).To(BeNil())
 		Expect(n).NotTo(BeNil())
 		Expect(n).To(Equal(lastLikes))
-		Expect(n.BranchSeq).To(Equal(int32(5)))
+		Expect(n.Seq).To(Equal(int32(5)))
 
 		n, _, err = da.GetLast(ctx, nodeWithBranchesKey, "comments")
 		Expect(err).To(BeNil())
 		Expect(n).NotTo(BeNil())
 		Expect(n).To(Equal(lastComments))
-		Expect(n.BranchSeq).To(Equal(int32(5)))
+		Expect(n.Seq).To(Equal(int32(5)))
 
 		n, _, err = da.GetLast(ctx, genesisKey, g.Branch)
 		Expect(err).To(BeNil())
 		Expect(n).NotTo(BeNil())
 		Expect(n).To(Equal(lastMainBranch))
-		Expect(n.BranchSeq).To(Equal(int32(11)))
+		Expect(n.Seq).To(Equal(int32(11)))
 
 	})
 
@@ -217,7 +217,7 @@ var _ = Describe("Dag", func() {
 		genesisKey, err := da.SetRoot(ctx, genesisNode)
 		Expect(err).To(BeNil())
 
-		node := CreateNode(testGenesisAddr, genesisKey, genesisKey, defaultBranch, genesisNode.BranchSeq+1)
+		node := CreateNode(testGenesisAddr, genesisKey, genesisKey, defaultBranch, genesisNode.Seq+1)
 
 		t := *node
 		t.Address = "xxxxxxxxxx"
@@ -245,8 +245,8 @@ var _ = Describe("Dag", func() {
 		genesisKey, err := da.SetRoot(ctx, genesisNode)
 		Expect(err).To(BeNil())
 
-		node := CreateNode(testGenesisAddr, genesisKey, genesisKey, defaultBranch, genesisNode.BranchSeq+1)
-		node2 := CreateNode(testGenesisAddr, genesisKey, genesisKey, defaultBranch, genesisNode.BranchSeq+1)
+		node := CreateNode(testGenesisAddr, genesisKey, genesisKey, defaultBranch, genesisNode.Seq+1)
+		node2 := CreateNode(testGenesisAddr, genesisKey, genesisKey, defaultBranch, genesisNode.Seq+1)
 
 		t := *node
 		t.Pow = node2.Pow
@@ -261,7 +261,7 @@ var _ = Describe("Dag", func() {
 		genesisKey, err := da.SetRoot(ctx, genesisNode)
 		Expect(err).To(BeNil())
 
-		node := CreateNode(testGenesisAddr, genesisKey, genesisKey, defaultBranch, genesisNode.BranchSeq+1)
+		node := CreateNode(testGenesisAddr, genesisKey, genesisKey, defaultBranch, genesisNode.Seq+1)
 
 		t := *node
 		t.Signature = t.Signature + "3e"
@@ -276,7 +276,7 @@ var _ = Describe("Dag", func() {
 		genesisKey, err := da.SetRoot(ctx, genesisNode)
 		Expect(err).To(BeNil())
 
-		node := CreateNode(testGenesisAddr, genesisKey, genesisKey, defaultBranch, genesisNode.BranchSeq+1)
+		node := CreateNode(testGenesisAddr, genesisKey, genesisKey, defaultBranch, genesisNode.Seq+1)
 
 		_, err = da.Append(ctx, node, genesisKey)
 		Expect(err).To(BeNil())
@@ -291,7 +291,7 @@ var _ = Describe("Dag", func() {
 		genesisKey, err := da.SetRoot(ctx, genesisNode)
 		Expect(err).To(BeNil())
 
-		node := CreateNode(testGenesisAddr, genesisKey, "somekey", defaultBranch, genesisNode.BranchSeq+1)
+		node := CreateNode(testGenesisAddr, genesisKey, "somekey", defaultBranch, genesisNode.Seq+1)
 
 		_, err = da.Append(ctx, node, genesisKey)
 		Expect(err).To(Equal(dag.ErrPreviousNodeNotFound))
@@ -338,9 +338,9 @@ func CreateNode(addr *address.Address, keyRoot, prev string, branch string, seq 
 
 	if prev != "" {
 		node.Previous = prev
-		node.BranchSeq = seq
+		node.Seq = seq
 	} else {
-		node.BranchSeq = 1
+		node.Seq = 1
 	}
 	node.Address = addr.Address
 	node.PubKey = addr.Keys.PublicKey
@@ -361,9 +361,9 @@ func CreateNodeWithBranches(addr *address.Address, keyRoot, prev string, branche
 
 	if prev != "" {
 		node.Previous = prev
-		node.BranchSeq = seq
+		node.Seq = seq
 	} else {
-		node.BranchSeq = 1
+		node.Seq = 1
 	}
 	node.Address = addr.Address
 	node.PubKey = addr.Keys.PublicKey

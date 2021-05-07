@@ -13,7 +13,7 @@ func createNode(node NodeData, keyRoot, prev string,
 	if prev != "" {
 		n.Previous = prev
 	}
-	n.BranchSeq = seq
+	n.Seq = seq
 	n.Address = addr.Address
 	n.PubKey = addr.Keys.PublicKey
 	n.Timestamp = time.Now().UTC().Format(time.RFC3339)

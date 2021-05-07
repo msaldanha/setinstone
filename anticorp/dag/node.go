@@ -16,7 +16,7 @@ const (
 )
 
 type Node struct {
-	BranchSeq  int32             `json:"branchSeq,omitempty"`
+	Seq        int32             `json:"seq,omitempty"`
 	Timestamp  string            `json:"timestamp,omitempty"`
 	Address    string            `json:"address,omitempty"`
 	Previous   string            `json:"previous,omitempty"`
@@ -39,7 +39,7 @@ func NewNode() *Node {
 
 func (m *Node) GetBytesForPow() []byte {
 	var result []byte
-	result = append(result, []byte(strconv.Itoa(int(m.BranchSeq)))...)
+	result = append(result, []byte(strconv.Itoa(int(m.Seq)))...)
 	result = append(result, []byte(m.Timestamp)...)
 	result = append(result, []byte(m.Address)...)
 	result = append(result, []byte(m.Previous)...)

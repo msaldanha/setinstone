@@ -121,7 +121,7 @@ func (da *dag) VerifyNode(ctx context.Context, node *Node, branchRootNodeKey str
 	if !da.verifyTimeStamp(node) {
 		return ErrInvalidNodeTimestamp
 	}
-	if node.BranchSeq == 0 {
+	if node.Seq == 0 {
 		return ErrInvalidBranchSeq
 	}
 	if !da.verifyPow(node) {
@@ -165,10 +165,10 @@ func (da *dag) VerifyNode(ctx context.Context, node *Node, branchRootNodeKey str
 		if branchHeadKey != node.Previous {
 			return ErrPreviousNodeIsNotHead
 		}
-		if branchHeadKey == branchRootNodeKey && node.Branch != branchHead.Branch && node.BranchSeq != 1 {
+		if branchHeadKey == branchRootNodeKey && node.Branch != branchHead.Branch && node.Seq != 1 {
 			return ErrInvalidBranchSeq
 		}
-		if node.Branch == previous.Branch && node.BranchSeq != previous.BranchSeq+1 {
+		if node.Branch == previous.Branch && node.Seq != previous.Seq+1 {
 			return ErrInvalidBranchSeq
 		}
 	}
