@@ -1,4 +1,4 @@
-package resolver
+package message
 
 import (
 	. "github.com/onsi/ginkgo"
@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestRecord(t *testing.T) {
+func TestMessage(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Message Suite")
 }

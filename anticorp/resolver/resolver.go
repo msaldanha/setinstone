@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/msaldanha/setinstone/anticorp/address"
 	"github.com/msaldanha/setinstone/anticorp/err"
+	"github.com/msaldanha/setinstone/anticorp/message"
 	"strings"
 )
 
@@ -21,22 +22,25 @@ type Resolver interface {
 	Manage(addr *address.Address) error
 }
 
-func getQueryNameRequestFromName(name string) (Message, error) {
-	r := Message{}
+func getQueryNameRequestFromName(name string) (message.Message, error) {
 	parts := strings.Split(name, "/")
 	if len(parts) < 3 {
-		return r, ErrInvalidName
+		return message.Message{}, ErrInvalidName
 	}
 	a := address.Address{}
 	a.Address = parts[1]
 	if ok, _ := a.IsValid(); !ok {
-		return r, ErrInvalidAddrComponent
+		return message.Message{}, ErrInvalidAddrComponent
 	}
-	r = Message{
-		Address:   a.Address,
-		Type:      MessageTypes.QueryNameRequest,
-		Payload:   name,
+
+	msg := message.Message{
+		Address: a.Address,
+		Type:    MessageTypes.QueryNameRequest,
+		Payload: Message{
+			Body: name,
+		},
 		Signature: "",
 	}
-	return r, nil
+
+	return msg, nil
 }
