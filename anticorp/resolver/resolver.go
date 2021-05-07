@@ -35,9 +35,9 @@ func getQueryNameRequestFromName(name string) (message.Message, error) {
 
 	msg := message.Message{
 		Address: a.Address,
-		Type:    MessageTypes.QueryNameRequest,
-		Payload: Message{
-			Body: name,
+		Type:    QueryTypes.QueryNameRequest,
+		Payload: Query{
+			Data: name,
 		},
 		Signature: "",
 	}

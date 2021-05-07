@@ -146,7 +146,7 @@ func (r *ipfsResolver) Resolve(ctx context.Context, name string) (string, error)
 		return "", er
 	}
 
-	return ConvertToMessage(rc).Body, er
+	return ExtractQuery(rc).Data, er
 }
 
 func (r *ipfsResolver) Manage(addr *address.Address) error {
@@ -215,13 +215,13 @@ func (r *ipfsResolver) query(ctx context.Context, rec message.Message) (message.
 	for {
 		found, er := r.getFromCache(ctx, key)
 		if er == nil {
-			log.Infof("%s resolved %s to %s", prefix, ConvertToMessage(rec).Body, ConvertToMessage(found).Body)
+			log.Infof("%s resolved %s to %s", prefix, ExtractQuery(rec).Data, ExtractQuery(found).Data)
 			return found, nil
 		}
 		select {
 		case <-time.After(300 * time.Millisecond):
 		case <-ctx.Done():
-			log.Infof("%s ctx Done querying %s", prefix, ConvertToMessage(rec).Body)
+			log.Infof("%s ctx Done querying %s", prefix, ExtractQuery(rec).Data)
 			return message.Message{}, ctx.Err()
 		}
 	}
@@ -249,14 +249,14 @@ func (r *ipfsResolver) getFromCache(ctx context.Context, name string) (message.M
 }
 
 func (r *ipfsResolver) putInCache(ctx context.Context, rec message.Message) error {
-	_ = r.resCache.Add(ConvertToMessage(rec).Reference, rec)
+	_ = r.resCache.Add(ExtractQuery(rec).Reference, rec)
 	return nil
 }
 
 func (r *ipfsResolver) handleEvent(ev event.Event) {
 	log.Infof("%s Received %s %s", prefix, ev.Name(), string(ev.Data()))
 	rec := message.Message{}
-	er := rec.FromJson(ev.Data(), Message{})
+	er := rec.FromJson(ev.Data(), Query{})
 	if er != nil {
 		log.Errorf("%s Invalid msg received on subscription %s: %s", prefix, ev.Name(), er)
 		return
@@ -277,7 +277,7 @@ func (r *ipfsResolver) resolveManaged(ctx context.Context, rc message.Message) (
 		log.Errorf("%s Cannot resolve %s: %s", prefix, rc.Type, ErrUnmanagedAddress)
 		return rec, ErrUnmanagedAddress
 	}
-	resolution, er := r.get(ctx, ConvertToMessage(rc).Body)
+	resolution, er := r.get(ctx, ExtractQuery(rc).Data)
 	if er != nil {
 		return rec, er
 	}
@@ -287,21 +287,21 @@ func (r *ipfsResolver) resolveManaged(ctx context.Context, rc message.Message) (
 		return rec, ErrUnmanagedAddress
 	}
 
-	res := Message{
-		Body:      resolution,
+	res := Query{
+		Data:      resolution,
 		Reference: rc.GetID(),
 	}
 
 	rec = message.Message{
 		Timestamp: time.Now().Format(time.RFC3339),
 		Address:   rc.Address,
-		Type:      MessageTypes.QueryNameResponse,
+		Type:      QueryTypes.QueryNameResponse,
 		Payload:   res,
 	}
 
 	er = rec.SignWithKey(addr.(address.Address).Keys.ToEcdsaPrivateKey())
 	if er != nil {
-		log.Errorf("%s failed to sign resolution for %s -> %s: %s", prefix, rec.Type, res.Body, er)
+		log.Errorf("%s failed to sign resolution for %s -> %s: %s", prefix, rec.Type, res.Data, er)
 		return message.Message{}, er
 	}
 
@@ -313,7 +313,7 @@ func (r *ipfsResolver) resolveManaged(ctx context.Context, rc message.Message) (
 }
 
 func (r *ipfsResolver) resolveUnManaged(ctx context.Context, rc message.Message) (message.Message, error) {
-	return r.getFromCache(ctx, ConvertToMessage(rc).Reference)
+	return r.getFromCache(ctx, ExtractQuery(rc).Reference)
 }
 
 func (r *ipfsResolver) isManaged(rec message.Message) bool {
@@ -323,31 +323,31 @@ func (r *ipfsResolver) isManaged(rec message.Message) bool {
 
 func (r *ipfsResolver) dispatch(rec message.Message) {
 	switch rec.Type {
-	case MessageTypes.QueryNameRequest:
+	case QueryTypes.QueryNameRequest:
 		r.handleQuery(rec)
-	case MessageTypes.QueryNameResponse:
+	case QueryTypes.QueryNameResponse:
 		r.handleResolution(rec)
 	}
 }
 
-func (r *ipfsResolver) handleQuery(query message.Message) {
-	r.addPendingQuery(query)
-	q := ConvertToMessage(query)
-	log.Infof("%s Query received: %s", prefix, q.Body)
-	resolution, er := r.resolve(context.Background(), query)
+func (r *ipfsResolver) handleQuery(msg message.Message) {
+	r.addPendingQuery(msg)
+	q := ExtractQuery(msg)
+	log.Infof("%s Query received: %s", prefix, q.Data)
+	resolution, er := r.resolve(context.Background(), msg)
 	if er != nil {
-		log.Errorf("%s Failed to resolve %s: %s", prefix, q.Body, er)
+		log.Errorf("%s Failed to resolve %s: %s", prefix, q.Data, er)
 		return
 	}
-	log.Infof("%s Query %s resolved to %s", prefix, q.Body, ConvertToMessage(resolution).Body)
+	log.Infof("%s Query %s resolved to %s", prefix, q.Data, ExtractQuery(resolution).Data)
 	r.sendResolution(resolution)
 }
 
-func (r *ipfsResolver) handleResolution(resolution message.Message) {
-	res := ConvertToMessage(resolution)
-	log.Infof("%s Resolution received: %s to %s", prefix, resolution.Type, res.Body)
-	if er := resolution.VerifySignature(); er != nil {
-		log.Errorf("%s Invalid query resolution %s, %s: %s", prefix, resolution.Type, res.Body, er)
+func (r *ipfsResolver) handleResolution(msg message.Message) {
+	res := ExtractQuery(msg)
+	log.Infof("%s Resolution received: %s to %s", prefix, msg.Type, res.Data)
+	if er := msg.VerifySignature(); er != nil {
+		log.Errorf("%s Invalid query resolution %s, %s: %s", prefix, msg.Type, res.Data, er)
 		return
 	}
 	var cached message.Message
@@ -355,28 +355,28 @@ func (r *ipfsResolver) handleResolution(resolution message.Message) {
 	if found {
 		cached = v.(message.Message)
 	}
-	if !found || (found && cached.Older(resolution)) {
-		log.Infof("%s Adding resolution: %s , %s, %s", prefix, resolution.Type, res.Body, res.Reference)
-		_ = r.putInCache(context.Background(), resolution)
+	if !found || (found && cached.Older(msg)) {
+		log.Infof("%s Adding resolution: %s , %s, %s", prefix, msg.Type, res.Data, res.Reference)
+		_ = r.putInCache(context.Background(), msg)
 	} else {
-		log.Infof("%s Already have a most recent resolution for %s , %s, %s", prefix, resolution.Type, res.Body, res.Reference)
+		log.Infof("%s Already have a most recent resolution for %s , %s, %s", prefix, msg.Type, res.Data, res.Reference)
 	}
-	r.removePendingQuery(resolution)
+	r.removePendingQuery(msg)
 }
 
-func (r *ipfsResolver) sendResolution(rec message.Message) {
+func (r *ipfsResolver) sendResolution(msg message.Message) {
 	go func() {
-		data, er := rec.ToJson()
+		data, er := msg.ToJson()
 		if er != nil {
 			log.Errorf("%s Error serializing record %s", prefix, er)
 			return
 		}
-		if !r.canSendResolution(rec) {
+		if !r.canSendResolution(msg) {
 			log.Infof("%s Query already resolved by someone else", prefix)
 			return
 		}
-		log.Infof("%s Sending resolution %s -> %s", prefix, rec.Type, ConvertToMessage(rec).Body)
-		er = r.eventManager.Emit(rec.Address, []byte(data))
+		log.Infof("%s Sending resolution %s -> %s", prefix, msg.Type, ExtractQuery(msg).Data)
+		er = r.eventManager.Emit(msg.Address, []byte(data))
 		if er != nil {
 			log.Errorf("%s Error sending resolution %s", prefix, er)
 			return
@@ -384,10 +384,10 @@ func (r *ipfsResolver) sendResolution(rec message.Message) {
 	}()
 }
 
-func (r *ipfsResolver) canSendResolution(resolution message.Message) bool {
+func (r *ipfsResolver) canSendResolution(msg message.Message) bool {
 	delay := time.Duration(rand.Intn(1000))
-	res := ConvertToMessage(resolution)
-	log.Infof("%s Will sleep for %d before sending resolution %s -> %s", prefix, delay, resolution.Type, res.Body)
+	res := ExtractQuery(msg)
+	log.Infof("%s Will sleep for %d before sending resolution %s -> %s", prefix, delay, msg.Type, res.Data)
 	time.Sleep(delay * time.Millisecond)
 	_, exists := r.pending.Load(res.Reference)
 	if exists {
@@ -396,10 +396,10 @@ func (r *ipfsResolver) canSendResolution(resolution message.Message) bool {
 	return exists
 }
 
-func (r *ipfsResolver) addPendingQuery(query message.Message) {
-	r.pending.Store(query.GetID(), true)
+func (r *ipfsResolver) addPendingQuery(msg message.Message) {
+	r.pending.Store(msg.GetID(), true)
 }
 
-func (r *ipfsResolver) removePendingQuery(resolution message.Message) {
-	r.pending.Delete(ConvertToMessage(resolution).Reference)
+func (r *ipfsResolver) removePendingQuery(msg message.Message) {
+	r.pending.Delete(ExtractQuery(msg).Reference)
 }

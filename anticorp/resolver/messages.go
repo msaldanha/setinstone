@@ -2,30 +2,30 @@ package resolver
 
 import "github.com/msaldanha/setinstone/anticorp/message"
 
-type MessageTypesEnum struct {
+type QueryTypesEnum struct {
 	QueryNameRequest  string
 	QueryNameResponse string
 }
 
-var MessageTypes = MessageTypesEnum{
+var QueryTypes = QueryTypesEnum{
 	QueryNameRequest:  "QUERY.NAME.REQUEST",
 	QueryNameResponse: "QUERY.NAME.RESPONSE",
 }
 
-type Message struct {
-	Body      string `json:"payload,omitempty"`
+type Query struct {
+	Data      string `json:"data,omitempty"`
 	Reference string `json:"reference,omitempty"`
 }
 
-func (m Message) Bytes() []byte {
+func (m Query) Bytes() []byte {
 	var data []byte
-	data = append(data, []byte(m.Body)...)
+	data = append(data, []byte(m.Data)...)
 	data = append(data, []byte(m.Reference)...)
 	return data
 }
 
-func ConvertToMessage(m message.Message) Message {
-	var r Message
-	r, _ = m.Payload.(Message)
+func ExtractQuery(m message.Message) Query {
+	var r Query
+	r, _ = m.Payload.(Query)
 	return r
 }
