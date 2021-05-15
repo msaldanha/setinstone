@@ -11,6 +11,7 @@ import (
 	"github.com/msaldanha/setinstone/anticorp/dag"
 	"github.com/msaldanha/setinstone/anticorp/datastore"
 	"github.com/msaldanha/setinstone/anticorp/err"
+	"github.com/msaldanha/setinstone/anticorp/event"
 	"github.com/msaldanha/setinstone/anticorp/graph"
 	"github.com/msaldanha/setinstone/anticorp/keyvaluestore"
 	"github.com/msaldanha/setinstone/anticorp/resolver"
@@ -29,10 +30,11 @@ type pulpitService struct {
 	ipfs      icore.CoreAPI
 	logins    map[string]string
 	resolver  resolver.Resolver
+	evm       event.Manager
 }
 
 func newPulpitService(store keyvaluestore.KeyValueStore, ds datastore.DataStore,
-	ipfs icore.CoreAPI, resolver resolver.Resolver) pulpitService {
+	ipfs icore.CoreAPI, resolver resolver.Resolver, evm event.Manager) pulpitService {
 	return pulpitService{
 		store:     store,
 		ds:        ds,
@@ -40,6 +42,7 @@ func newPulpitService(store keyvaluestore.KeyValueStore, ds datastore.DataStore,
 		resolver:  resolver,
 		timelines: map[string]timeline.Timeline{},
 		logins:    map[string]string{},
+		evm:       evm,
 	}
 }
 
@@ -326,7 +329,7 @@ func (s *pulpitService) createTimeLine(ns string, a *address.Address) timeline.T
 	}
 	ld := dag.NewDag(ns, s.ds, s.resolver)
 	gr := graph.NewGraph(ld, a)
-	tl := timeline.NewTimeline(gr)
+	tl := timeline.NewTimeline(ns, gr, s.evm)
 	s.timelines[ns+a.Address] = tl
 	return tl
 }

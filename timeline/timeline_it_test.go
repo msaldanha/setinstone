@@ -6,6 +6,7 @@ import (
 	"github.com/msaldanha/setinstone/anticorp/address"
 	"github.com/msaldanha/setinstone/anticorp/dag"
 	"github.com/msaldanha/setinstone/anticorp/datastore"
+	"github.com/msaldanha/setinstone/anticorp/event"
 	"github.com/msaldanha/setinstone/anticorp/graph"
 	"github.com/msaldanha/setinstone/anticorp/resolver"
 	"github.com/msaldanha/setinstone/timeline"
@@ -27,6 +28,7 @@ var _ = Describe("Timeline", func() {
 	var res resolver.Resolver
 
 	addr, _ := address.NewAddressWithKeys()
+	ns := "test"
 
 	BeforeEach(func() {
 		ctx = context.Background()
@@ -40,8 +42,9 @@ var _ = Describe("Timeline", func() {
 	It("Should add a post", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
+		evm := event.NewMockManager(mockCtrl)
 
-		p := timeline.NewTimeline(gr)
+		p := timeline.NewTimeline(ns, gr, evm)
 
 		post := timeline.PostItem{Post: timeline.Post{Part: timeline.Part{MimeType: "plain/text", Data: "some text"}}}
 		key, er := p.AppendPost(ctx, post, "", "main")
@@ -52,8 +55,9 @@ var _ = Describe("Timeline", func() {
 	It("Should get post by key", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
+		evm := event.NewMockManager(mockCtrl)
 
-		p := timeline.NewTimeline(gr)
+		p := timeline.NewTimeline(ns, gr, evm)
 
 		expectedPost := timeline.PostItem{Post: timeline.Post{Part: timeline.Part{MimeType: "plain/text", Data: "some text"}}}
 		key, er := p.AppendPost(ctx, expectedPost, "", "main")
@@ -70,11 +74,12 @@ var _ = Describe("Timeline", func() {
 	It("Should add a received reference", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
+		evm := event.NewMockManager(mockCtrl)
 
-		tl1 := timeline.NewTimeline(gr)
+		tl1 := timeline.NewTimeline(ns, gr, evm)
 		addr2, _ := address.NewAddressWithKeys()
 		gr2 := graph.NewGraph(da, addr2)
-		tl2 := timeline.NewTimeline(gr2)
+		tl2 := timeline.NewTimeline(ns, gr2, evm)
 
 		_ = res.Manage(addr2)
 
@@ -106,8 +111,9 @@ var _ = Describe("Timeline", func() {
 	It("Should NOT append reference to own reference", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
+		evm := event.NewMockManager(mockCtrl)
 
-		p := timeline.NewTimeline(gr)
+		p := timeline.NewTimeline(ns, gr, evm)
 
 		expectedPost := timeline.PostItem{Post: timeline.Post{Part: timeline.Part{MimeType: "plain/text", Data: "some text "}}}
 		key, er := p.AppendPost(ctx, expectedPost, "", "main")
@@ -124,11 +130,12 @@ var _ = Describe("Timeline", func() {
 	It("Should NOT append a reference to reference", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
+		evm := event.NewMockManager(mockCtrl)
 
-		tl1 := timeline.NewTimeline(gr)
+		tl1 := timeline.NewTimeline(ns, gr, evm)
 		addr2, _ := address.NewAddressWithKeys()
 		gr2 := graph.NewGraph(da, addr2)
-		tl2 := timeline.NewTimeline(gr2)
+		tl2 := timeline.NewTimeline(ns, gr2, evm)
 
 		_ = res.Manage(addr2)
 
@@ -152,12 +159,13 @@ var _ = Describe("Timeline", func() {
 	It("Should get different items by key and count", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
+		evm := event.NewMockManager(mockCtrl)
 
-		tl1 := timeline.NewTimeline(gr)
+		tl1 := timeline.NewTimeline(ns, gr, evm)
 
 		addr2, _ := address.NewAddressWithKeys()
 		gr2 := graph.NewGraph(da, addr2)
-		tl2 := timeline.NewTimeline(gr2)
+		tl2 := timeline.NewTimeline(ns, gr2, evm)
 
 		_ = res.Manage(addr2)
 

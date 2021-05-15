@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/msaldanha/setinstone/anticorp/err"
+	"github.com/msaldanha/setinstone/anticorp/event"
 	"github.com/msaldanha/setinstone/anticorp/graph"
 )
 
@@ -30,12 +31,16 @@ type Timeline interface {
 }
 
 type timeline struct {
-	gr graph.Graph
+	gr  graph.Graph
+	evm event.Manager
+	ns  string
 }
 
-func NewTimeline(gr graph.Graph) Timeline {
+func NewTimeline(ns string, gr graph.Graph, evm event.Manager) Timeline {
 	return timeline{
-		gr: gr,
+		gr:  gr,
+		evm: evm,
+		ns:  ns,
 	}
 }
 

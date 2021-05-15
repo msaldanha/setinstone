@@ -46,6 +46,7 @@ type server struct {
 	ipfs        icore.CoreAPI
 	logins      map[string]string
 	resolver    resolver.Resolver
+	evm         event.Manager
 	ps          pulpitService
 	secret      string
 }
@@ -358,14 +359,14 @@ func (s *server) init() error {
 
 	addrs := []*address.Address{}
 
-	evMan := event.NewManager(s.ipfs.PubSub(), node)
+	s.evm = event.NewManager(s.ipfs.PubSub(), node.Identity)
 	resCache := cache.NewMemoryCache(time.Second * 10)
-	s.resolver, er = resolver.NewIpfsResolver(node, addrs, evMan, resCache)
+	s.resolver, er = resolver.NewIpfsResolver(node, addrs, s.evm, resCache)
 	if er != nil {
 		panic(fmt.Errorf("failed to setup resolver: %s", er))
 	}
 
-	s.ps = newPulpitService(s.store, s.ds, s.ipfs, s.resolver)
+	s.ps = newPulpitService(s.store, s.ds, s.ipfs, s.resolver, s.evm)
 	return nil
 }
 

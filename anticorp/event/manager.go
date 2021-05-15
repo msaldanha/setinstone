@@ -4,12 +4,14 @@ import (
 	"context"
 	"github.com/cenkalti/backoff"
 	"github.com/google/uuid"
-	"github.com/ipfs/go-ipfs/core"
 	icore "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipfs/interface-go-ipfs-core/options"
+	"github.com/libp2p/go-libp2p-core/peer"
 	log "github.com/sirupsen/logrus"
 	"sync"
 )
+
+//go:generate mockgen -source=manager.go -destination=manager_mock.go -package=event
 
 type DoneFunc func()
 type CallbackFunc func(ev Event)
@@ -22,7 +24,7 @@ type Manager interface {
 
 type manager struct {
 	pubSub        icore.PubSubAPI
-	ipfsNode      *core.IpfsNode
+	id            peer.ID
 	subscriptions map[string]*subscription
 	l             *log.Entry
 	subLock       sync.Mutex
@@ -35,11 +37,11 @@ type subscription struct {
 	mutex     sync.Mutex
 }
 
-func NewManager(pubSub icore.PubSubAPI, ipfsNode *core.IpfsNode) Manager {
+func NewManager(pubSub icore.PubSubAPI, id peer.ID) Manager {
 	return &manager{
 		l:             log.WithField("name", "Event Manager"),
 		pubSub:        pubSub,
-		ipfsNode:      ipfsNode,
+		id:            id,
 		subscriptions: make(map[string]*subscription, 0),
 	}
 }
@@ -112,7 +114,7 @@ func (m *manager) handleEvent(subs *subscription) {
 					return er
 				}
 				m.l.Infof("Event arrived for %s : %s", subs.eventName, string(msg.Data()))
-				if msg.From() == m.ipfsNode.Identity {
+				if msg.From() == m.id {
 					m.l.Infof("Event arrived was from ourselves for %s : %s", subs.eventName, string(msg.Data()))
 					return nil
 				}
