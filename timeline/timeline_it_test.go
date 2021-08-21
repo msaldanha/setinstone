@@ -43,8 +43,9 @@ var _ = Describe("Timeline", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 		evm := event.NewMockManager(mockCtrl)
+		evm.EXPECT().On(ns, gomock.Any()).Return(func() {}, nil)
 
-		p := timeline.NewTimeline(ns, gr, evm)
+		p, _ := timeline.NewTimeline(ns, gr, evm)
 
 		post := timeline.PostItem{Post: timeline.Post{Part: timeline.Part{MimeType: "plain/text", Data: "some text"}}}
 		key, er := p.AppendPost(ctx, post, "", "main")
@@ -56,8 +57,9 @@ var _ = Describe("Timeline", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 		evm := event.NewMockManager(mockCtrl)
+		evm.EXPECT().On(ns, gomock.Any()).Return(func() {}, nil)
 
-		p := timeline.NewTimeline(ns, gr, evm)
+		p, _ := timeline.NewTimeline(ns, gr, evm)
 
 		expectedPost := timeline.PostItem{Post: timeline.Post{Part: timeline.Part{MimeType: "plain/text", Data: "some text"}}}
 		key, er := p.AppendPost(ctx, expectedPost, "", "main")
@@ -75,11 +77,12 @@ var _ = Describe("Timeline", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 		evm := event.NewMockManager(mockCtrl)
+		evm.EXPECT().On(ns, gomock.Any()).Return(func() {}, nil).Times(2)
 
-		tl1 := timeline.NewTimeline(ns, gr, evm)
+		tl1, _ := timeline.NewTimeline(ns, gr, evm)
 		addr2, _ := address.NewAddressWithKeys()
 		gr2 := graph.NewGraph(da, addr2)
-		tl2 := timeline.NewTimeline(ns, gr2, evm)
+		tl2, _ := timeline.NewTimeline(ns, gr2, evm)
 
 		_ = res.Manage(addr2)
 
@@ -112,8 +115,9 @@ var _ = Describe("Timeline", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 		evm := event.NewMockManager(mockCtrl)
+		evm.EXPECT().On(ns, gomock.Any()).Return(func() {}, nil)
 
-		p := timeline.NewTimeline(ns, gr, evm)
+		p, _ := timeline.NewTimeline(ns, gr, evm)
 
 		expectedPost := timeline.PostItem{Post: timeline.Post{Part: timeline.Part{MimeType: "plain/text", Data: "some text "}}}
 		key, er := p.AppendPost(ctx, expectedPost, "", "main")
@@ -131,11 +135,12 @@ var _ = Describe("Timeline", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 		evm := event.NewMockManager(mockCtrl)
+		evm.EXPECT().On(ns, gomock.Any()).Return(func() {}, nil).Times(2)
 
-		tl1 := timeline.NewTimeline(ns, gr, evm)
+		tl1, _ := timeline.NewTimeline(ns, gr, evm)
 		addr2, _ := address.NewAddressWithKeys()
 		gr2 := graph.NewGraph(da, addr2)
-		tl2 := timeline.NewTimeline(ns, gr2, evm)
+		tl2, _ := timeline.NewTimeline(ns, gr2, evm)
 
 		_ = res.Manage(addr2)
 
@@ -160,12 +165,13 @@ var _ = Describe("Timeline", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 		evm := event.NewMockManager(mockCtrl)
+		evm.EXPECT().On(ns, gomock.Any()).Return(func() {}, nil).Times(2)
 
-		tl1 := timeline.NewTimeline(ns, gr, evm)
+		tl1, _ := timeline.NewTimeline(ns, gr, evm)
 
 		addr2, _ := address.NewAddressWithKeys()
 		gr2 := graph.NewGraph(da, addr2)
-		tl2 := timeline.NewTimeline(ns, gr2, evm)
+		tl2, _ := timeline.NewTimeline(ns, gr2, evm)
 
 		_ = res.Manage(addr2)
 

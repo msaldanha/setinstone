@@ -293,8 +293,7 @@ func (s pulpitService) getTimeline(ns, addr string) (timeline.Timeline, error) {
 		return nil, er
 	}
 
-	tl = s.createTimeLine(ns, a)
-	return tl, nil
+	return s.createTimeLine(ns, a)
 }
 
 func (s pulpitService) getAddress(addr, pass string) (*address.Address, error) {
@@ -323,15 +322,18 @@ func (s pulpitService) getAddress(addr, pass string) (*address.Address, error) {
 	return &a, nil
 }
 
-func (s *pulpitService) createTimeLine(ns string, a *address.Address) timeline.Timeline {
+func (s *pulpitService) createTimeLine(ns string, a *address.Address) (timeline.Timeline, error) {
 	if a.Keys != nil && a.Keys.PrivateKey != "" {
 		_ = s.resolver.Manage(a)
 	}
 	ld := dag.NewDag(ns, s.ds, s.resolver)
 	gr := graph.NewGraph(ld, a)
-	tl := timeline.NewTimeline(ns, gr, s.evm)
+	tl, err := timeline.NewTimeline(ns, gr, s.evm)
+	if err != nil {
+		return nil, err
+	}
 	s.timelines[ns+a.Address] = tl
-	return tl
+	return tl, nil
 }
 
 func (s pulpitService) toTimelineReference(referenceItem ReferenceItem) timeline.ReferenceItem {
