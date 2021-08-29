@@ -6,6 +6,7 @@ type Cache interface {
 	Add(key string, value interface{}) error
 	AddWithTTL(key string, value interface{}, ttl time.Duration) error
 	Get(key string) (interface{}, bool, error)
+	Delete(key string) error
 }
 
 type cacheRecord struct {

@@ -359,14 +359,18 @@ func (s *server) init() error {
 
 	addrs := []*address.Address{}
 
-	s.evm = event.NewManager(s.ipfs.PubSub(), node.Identity)
-	resCache := cache.NewMemoryCache(time.Second * 10)
-	s.resolver, er = resolver.NewIpfsResolver(node, addrs, s.evm, resCache)
+	evmf, er := event.NewManagerFactory(s.ipfs.PubSub(), node.Identity)
+	if er != nil {
+		panic(fmt.Errorf("failed to setup event manager factory: %s", er))
+	}
+	resolutionCache := cache.NewMemoryCache(time.Second * 10)
+	resourceCache := cache.NewMemoryCache(0)
+	s.resolver, er = resolver.NewIpfsResolver(node, addrs, evmf, resolutionCache, resourceCache)
 	if er != nil {
 		panic(fmt.Errorf("failed to setup resolver: %s", er))
 	}
 
-	s.ps = newPulpitService(s.store, s.ds, s.ipfs, s.resolver, s.evm)
+	s.ps = newPulpitService(s.store, s.ds, s.ipfs, s.resolver, evmf)
 	return nil
 }
 

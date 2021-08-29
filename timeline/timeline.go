@@ -75,6 +75,7 @@ func (t *timeline) AppendPost(ctx context.Context, post PostItem, keyRoot, conne
 	if er != nil {
 		return "", t.translateError(er)
 	}
+	t.sendEvent(EventTypes.EventPostAdded, i.Key)
 	return i.Key, nil
 }
 
@@ -113,6 +114,7 @@ func (t *timeline) AppendReference(ctx context.Context, ref ReferenceItem, keyRo
 	if er != nil {
 		return "", t.translateError(er)
 	}
+	t.sendEvent(EventTypes.EventReferenceAdded, i.Key)
 	return i.Key, nil
 }
 
@@ -258,4 +260,12 @@ func (t *timeline) handler(ev event.Event) {
 	default:
 		log.Errorf("%s unknown event type on subscription %s: %s", t.ns, ev.Name(), v.Type)
 	}
+}
+
+func (t *timeline) sendEvent(eventType, eventValue string) {
+	ev := Event{
+		Type: eventType,
+		Id:   eventValue,
+	}
+	_ = t.evm.Emit(eventType, ev.ToJson())
 }

@@ -22,31 +22,40 @@ import (
 
 const prefix = "IPFS Resolver"
 
-type ipfsResolver struct {
-	resCache     cache.Cache
-	addresses    *sync.Map
-	doneFuncs    *sync.Map
-	pending      *sync.Map
-	ipfs         icore.CoreAPI
-	ipfsNode     *core.IpfsNode
-	Id           peer.ID
-	eventManager event.Manager
+type resource struct {
+	addr                    *address.Address
+	evm                     event.Manager
+	queryNameRequestDoneFn  event.DoneFunc
+	queryNameResponseDoneFn event.DoneFunc
 }
 
-func NewIpfsResolver(node *core.IpfsNode, addresses []*address.Address, eventManager event.Manager, resCache cache.Cache) (Resolver, error) {
+type ipfsResolver struct {
+	resolutionCache cache.Cache
+	resourceCache   cache.Cache
+	// addresses       *sync.Map
+	// doneFuncs       *sync.Map
+	pending    *sync.Map
+	ipfs       icore.CoreAPI
+	ipfsNode   *core.IpfsNode
+	Id         peer.ID
+	evmFactory event.ManagerFactory
+	//eventManager    event.Manager
+}
+
+func NewIpfsResolver(node *core.IpfsNode, addresses []*address.Address, evmFactory event.ManagerFactory,
+	resCache cache.Cache, resourceCache cache.Cache) (Resolver, error) {
 	ipfs, er := coreapi.NewCoreAPI(node)
 	if er != nil {
 		return nil, er
 	}
 	r := &ipfsResolver{
-		ipfs:         ipfs,
-		ipfsNode:     node,
-		resCache:     resCache,
-		addresses:    &sync.Map{},
-		doneFuncs:    &sync.Map{},
-		pending:      &sync.Map{},
-		Id:           node.Identity,
-		eventManager: eventManager,
+		ipfs:            ipfs,
+		ipfsNode:        node,
+		resolutionCache: resCache,
+		resourceCache:   resourceCache,
+		pending:         &sync.Map{},
+		Id:              node.Identity,
+		evmFactory:      evmFactory,
 	}
 	for _, addr := range addresses {
 		er := r.Manage(addr)
@@ -150,44 +159,24 @@ func (r *ipfsResolver) Resolve(ctx context.Context, name string) (string, error)
 }
 
 func (r *ipfsResolver) Manage(addr *address.Address) error {
-	if _, exists := r.doneFuncs.Load(addr.Address); exists {
-		return nil
-	}
 	if addr.Keys.PrivateKey == "" {
 		return ErrNoPrivateKey
 	}
-
-	doneFunc, er := r.eventManager.On(addr.Address, r.handleEvent)
-	if er != nil {
-		return er
-	}
-	r.addresses.Store(addr.Address, *addr)
-	r.doneFuncs.Store(addr.Address, doneFunc)
-	return nil
+	_, er := r.handle(addr)
+	return er
 }
 
-func (r *ipfsResolver) Handle(addr string) error {
-	if _, exists := r.doneFuncs.Load(addr); exists {
-		return nil
-	}
-
-	doneFunc, er := r.eventManager.On(addr, r.handleEvent)
-	if er != nil {
-		return er
-	}
-	r.doneFuncs.Store(addr, doneFunc)
-	return nil
+func (r *ipfsResolver) Handle(addr string) (resource, error) {
+	return r.handle(&address.Address{Address: addr})
 }
 
 func (r *ipfsResolver) Remove(addr string) {
-	doneFunc, exists := r.doneFuncs.Load(addr)
-	if !exists {
-		return
+	if rs, exists, _ := r.resourceCache.Get(addr); exists {
+		res := rs.(resource)
+		res.queryNameRequestDoneFn()
+		res.queryNameResponseDoneFn()
+		_ = r.resourceCache.Delete(addr)
 	}
-
-	doneFunc.(event.DoneFunc)()
-
-	r.doneFuncs.Delete(addr)
 }
 
 func (r *ipfsResolver) query(ctx context.Context, rec message.Message) (message.Message, error) {
@@ -198,12 +187,12 @@ func (r *ipfsResolver) query(ctx context.Context, rec message.Message) (message.
 	}
 	log.Infof("%s Subscribing to event %s", prefix, rec.Address)
 
-	er = r.Handle(rec.Address)
+	res, er := r.Handle(rec.Address)
 	if er != nil {
 		return message.Message{}, er
 	}
 
-	er = r.eventManager.Emit(rec.Address, []byte(data))
+	er = res.evm.Emit(QueryTypes.QueryNameRequest, []byte(data))
 	if er != nil {
 		log.Errorf("%s Failed to publish query %s: %s", prefix, rec.Type, er)
 		return message.Message{}, nil
@@ -240,7 +229,7 @@ func (r *ipfsResolver) get(ctx context.Context, name string) (string, error) {
 }
 
 func (r *ipfsResolver) getFromCache(ctx context.Context, name string) (message.Message, error) {
-	v, ok, er := r.resCache.Get(name)
+	v, ok, er := r.resolutionCache.Get(name)
 	if !ok {
 		return message.Message{}, ErrNotFound
 	}
@@ -249,7 +238,7 @@ func (r *ipfsResolver) getFromCache(ctx context.Context, name string) (message.M
 }
 
 func (r *ipfsResolver) putInCache(ctx context.Context, rec message.Message) error {
-	_ = r.resCache.Add(ExtractQuery(rec).Reference, rec)
+	_ = r.resolutionCache.Add(ExtractQuery(rec).Reference, rec)
 	return nil
 }
 
@@ -281,8 +270,12 @@ func (r *ipfsResolver) resolveManaged(ctx context.Context, rc message.Message) (
 	if er != nil {
 		return rec, er
 	}
-	addr, found := r.addresses.Load(rc.Address)
-	if !found {
+	resource, er := r.Handle(rc.Address)
+	if er != nil {
+		return rec, er
+	}
+
+	if !resource.addr.HasKeys() {
 		log.Errorf("%s Cannot resolve %s: %s", prefix, rc.Type, ErrUnmanagedAddress)
 		return rec, ErrUnmanagedAddress
 	}
@@ -299,7 +292,7 @@ func (r *ipfsResolver) resolveManaged(ctx context.Context, rc message.Message) (
 		Payload:   res,
 	}
 
-	er = rec.SignWithKey(addr.(address.Address).Keys.ToEcdsaPrivateKey())
+	er = rec.SignWithKey(resource.addr.Keys.ToEcdsaPrivateKey())
 	if er != nil {
 		log.Errorf("%s failed to sign resolution for %s -> %s: %s", prefix, rec.Type, res.Data, er)
 		return message.Message{}, er
@@ -317,8 +310,10 @@ func (r *ipfsResolver) resolveUnManaged(ctx context.Context, rc message.Message)
 }
 
 func (r *ipfsResolver) isManaged(rec message.Message) bool {
-	_, found := r.addresses.Load(rec.Address)
-	return found
+	if res, exists, _ := r.resourceCache.Get(rec.Address); exists {
+		return res.(resource).addr.HasKeys()
+	}
+	return false
 }
 
 func (r *ipfsResolver) dispatch(rec message.Message) {
@@ -351,7 +346,7 @@ func (r *ipfsResolver) handleResolution(msg message.Message) {
 		return
 	}
 	var cached message.Message
-	v, found, _ := r.resCache.Get(res.Reference)
+	v, found, _ := r.resolutionCache.Get(res.Reference)
 	if found {
 		cached = v.(message.Message)
 	}
@@ -376,7 +371,12 @@ func (r *ipfsResolver) sendResolution(msg message.Message) {
 			return
 		}
 		log.Infof("%s Sending resolution %s -> %s", prefix, msg.Type, ExtractQuery(msg).Data)
-		er = r.eventManager.Emit(msg.Address, []byte(data))
+		res, er := r.Handle(msg.Address)
+		if er != nil {
+			log.Errorf("%s Error getting resource %s", prefix, er)
+			return
+		}
+		er = res.evm.Emit(QueryTypes.QueryNameResponse, []byte(data))
 		if er != nil {
 			log.Errorf("%s Error sending resolution %s", prefix, er)
 			return
@@ -402,4 +402,32 @@ func (r *ipfsResolver) addPendingQuery(msg message.Message) {
 
 func (r *ipfsResolver) removePendingQuery(msg message.Message) {
 	r.pending.Delete(ExtractQuery(msg).Reference)
+}
+
+func (r *ipfsResolver) handle(addr *address.Address) (resource, error) {
+	if res, exists, _ := r.resourceCache.Get(addr.Address); exists {
+		return res.(resource), nil
+	}
+
+	evm, er := r.evmFactory.Build(addr.Address)
+	if er != nil {
+		return resource{}, er
+	}
+	res := resource{
+		addr: addr,
+		evm:  evm,
+	}
+
+	res.queryNameResponseDoneFn, er = evm.On(QueryTypes.QueryNameResponse, r.handleEvent)
+	if er != nil {
+		return resource{}, er
+	}
+
+	res.queryNameRequestDoneFn, er = evm.On(QueryTypes.QueryNameRequest, r.handleEvent)
+	if er != nil {
+		res.queryNameResponseDoneFn()
+		return resource{}, er
+	}
+
+	return res, r.resourceCache.Add(addr.Address, res)
 }

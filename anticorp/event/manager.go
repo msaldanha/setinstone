@@ -2,6 +2,7 @@ package event
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/cenkalti/backoff"
 	"github.com/google/uuid"
 	icore "github.com/ipfs/interface-go-ipfs-core"
@@ -28,24 +29,35 @@ type manager struct {
 	subscriptions map[string]*subscription
 	l             *log.Entry
 	subLock       sync.Mutex
+	nameSpace     string
+	rootSub       icore.PubSubSubscription
 }
 
 type subscription struct {
 	eventName string
-	sub       icore.PubSubSubscription
 	callbacks map[string]CallbackFunc
 	mutex     sync.Mutex
 }
 
-func NewManager(pubSub icore.PubSubAPI, id peer.ID) Manager {
-	return &manager{
+// NewManager creates a new event manager and sets up its event loop
+func NewManager(pubSub icore.PubSubAPI, id peer.ID, nameSpace string) (Manager, error) {
+	rootSub, er := pubSub.Subscribe(context.Background(), nameSpace, options.PubSub.Discover(true))
+	if er != nil {
+		return nil, er
+	}
+	m := &manager{
 		l:             log.WithField("name", "Event Manager"),
 		pubSub:        pubSub,
 		id:            id,
 		subscriptions: make(map[string]*subscription, 0),
+		nameSpace:     nameSpace,
+		rootSub:       rootSub,
 	}
+	m.startEventLoop()
+	return m, nil
 }
 
+// On sets up callback to be called every time eventName happens on the namespace
 func (m *manager) On(eventName string, callback CallbackFunc) (DoneFunc, error) {
 	m.subLock.Lock()
 	defer m.subLock.Unlock()
@@ -59,22 +71,17 @@ func (m *manager) On(eventName string, callback CallbackFunc) (DoneFunc, error) 
 		m.l.Infof("Added subscription for event %s", eventName)
 		return m.createDoneFunc(sub, id.String()), nil
 	}
-	pubSub, er := m.pubSub.Subscribe(context.Background(), eventName, options.PubSub.Discover(true))
-	if er != nil {
-		return nil, er
-	}
 
 	sub = &subscription{
 		eventName: eventName,
-		sub:       pubSub,
 		callbacks: map[string]CallbackFunc{id.String(): callback},
 	}
 	m.subscriptions[eventName] = sub
-	m.handleEvent(sub)
 
 	return m.createDoneFunc(sub, id.String()), nil
 }
 
+// Next returns the next eventName occurrence. It blocks until the event happens or the context is canceled.
 func (m *manager) Next(ctx context.Context, eventName string) (Event, error) {
 	doneChan := make(chan Event)
 
@@ -94,44 +101,60 @@ func (m *manager) Next(ctx context.Context, eventName string) (Event, error) {
 	}
 }
 
+// Emit emits eventName with data on the namespace.
 func (m *manager) Emit(eventName string, data []byte) error {
 	m.l.Infof("Signaling event %s : %s", eventName, string(data))
-	er := m.pubSub.Publish(context.Background(), eventName, data)
+	ev := event{
+		N: eventName,
+		D: data,
+	}
+	payload, er := json.Marshal(ev)
+	if er != nil {
+		return er
+	}
+	er = m.pubSub.Publish(context.Background(), m.nameSpace, payload)
 	return er
 }
 
-func (m *manager) handleEvent(subs *subscription) {
-	m.l.Infof("Running event loop for %s", subs.eventName)
+func (m *manager) startEventLoop() {
+	m.l.Infof("Running event loop for %s", m.nameSpace)
 	go func() {
-		defer m.l.Infof("Event loop for %s finished", subs.eventName)
+		defer m.l.Infof("Event loop for %s finished", m.nameSpace)
 		b := backoff.NewExponentialBackOff()
 		for {
-			m.l.Infof("Waiting next event for %s", subs.eventName)
+			m.l.Infof("Waiting next event for %s", m.nameSpace)
 			operation := func() error {
-				msg, er := subs.sub.Next(context.Background())
+				msg, er := m.rootSub.Next(context.Background())
 				if er != nil {
-					log.Errorf("Subscription %s failed: %s", subs.eventName, er)
+					log.Errorf("Subscription %s failed: %s", m.nameSpace, er)
 					return er
 				}
-				m.l.Infof("Event arrived for %s : %s", subs.eventName, string(msg.Data()))
+				m.l.Infof("Message arrived for %s : %s", m.nameSpace, string(msg.Data()))
 				if msg.From() == m.id {
-					m.l.Infof("Event arrived was from ourselves for %s : %s", subs.eventName, string(msg.Data()))
+					m.l.Infof("Message arrived was from ourselves for %s : %s", m.nameSpace, string(msg.Data()))
 					return nil
 				}
-				subs.mutex.Lock()
-				ev := event{
-					name: subs.eventName,
-					data: msg.Data(),
+				ev, er := newEventFromPubSubMessage(msg)
+				if er != nil {
+					log.Errorf("Failed to convert msg to event: %s : %s", m.nameSpace, er)
+					return nil
 				}
-				for _, callback := range subs.callbacks {
+				m.l.Infof("Event arrived for %s.%s : %s", m.nameSpace, ev.Name(), string(ev.Data()))
+				m.subLock.Lock()
+				defer m.subLock.Unlock()
+				sub, found := m.subscriptions[ev.Name()]
+				if !found {
+					log.Warnf("No subscription for %s.%s . Ignoring.", m.nameSpace, ev.Name())
+					return nil
+				}
+				for _, callback := range sub.callbacks {
 					callback(ev)
 				}
-				subs.mutex.Unlock()
 				return nil
 			}
 			er := backoff.Retry(operation, b)
 			if er != nil {
-				log.Errorf("Subscription %s failed after MAX retries: %s", subs.eventName, er)
+				log.Errorf("Subscription %s failed after MAX retries: %s", m.nameSpace, er)
 				return
 			}
 		}

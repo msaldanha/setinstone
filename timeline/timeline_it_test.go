@@ -44,6 +44,7 @@ var _ = Describe("Timeline", func() {
 		defer mockCtrl.Finish()
 		evm := event.NewMockManager(mockCtrl)
 		evm.EXPECT().On(ns, gomock.Any()).Return(func() {}, nil)
+		evm.EXPECT().Emit("TIMELINE.EVENT.POST.ADDED", gomock.Any()).Return(nil)
 
 		p, _ := timeline.NewTimeline(ns, gr, evm)
 
@@ -58,6 +59,7 @@ var _ = Describe("Timeline", func() {
 		defer mockCtrl.Finish()
 		evm := event.NewMockManager(mockCtrl)
 		evm.EXPECT().On(ns, gomock.Any()).Return(func() {}, nil)
+		evm.EXPECT().Emit("TIMELINE.EVENT.POST.ADDED", gomock.Any()).Return(nil)
 
 		p, _ := timeline.NewTimeline(ns, gr, evm)
 
@@ -78,6 +80,8 @@ var _ = Describe("Timeline", func() {
 		defer mockCtrl.Finish()
 		evm := event.NewMockManager(mockCtrl)
 		evm.EXPECT().On(ns, gomock.Any()).Return(func() {}, nil).Times(2)
+		evm.EXPECT().Emit("TIMELINE.EVENT.POST.ADDED", gomock.Any()).Return(nil)
+		evm.EXPECT().Emit("TIMELINE.EVENT.REFERENCE.ADDED", gomock.Any()).Return(nil)
 
 		tl1, _ := timeline.NewTimeline(ns, gr, evm)
 		addr2, _ := address.NewAddressWithKeys()
@@ -116,6 +120,7 @@ var _ = Describe("Timeline", func() {
 		defer mockCtrl.Finish()
 		evm := event.NewMockManager(mockCtrl)
 		evm.EXPECT().On(ns, gomock.Any()).Return(func() {}, nil)
+		evm.EXPECT().Emit("TIMELINE.EVENT.POST.ADDED", gomock.Any()).Return(nil)
 
 		p, _ := timeline.NewTimeline(ns, gr, evm)
 
@@ -136,6 +141,8 @@ var _ = Describe("Timeline", func() {
 		defer mockCtrl.Finish()
 		evm := event.NewMockManager(mockCtrl)
 		evm.EXPECT().On(ns, gomock.Any()).Return(func() {}, nil).Times(2)
+		evm.EXPECT().Emit("TIMELINE.EVENT.POST.ADDED", gomock.Any()).Return(nil)
+		evm.EXPECT().Emit("TIMELINE.EVENT.REFERENCE.ADDED", gomock.Any()).Return(nil)
 
 		tl1, _ := timeline.NewTimeline(ns, gr, evm)
 		addr2, _ := address.NewAddressWithKeys()
@@ -166,6 +173,8 @@ var _ = Describe("Timeline", func() {
 		defer mockCtrl.Finish()
 		evm := event.NewMockManager(mockCtrl)
 		evm.EXPECT().On(ns, gomock.Any()).Return(func() {}, nil).Times(2)
+		evm.EXPECT().Emit("TIMELINE.EVENT.POST.ADDED", gomock.Any()).Return(nil).Times(20)
+		evm.EXPECT().Emit("TIMELINE.EVENT.REFERENCE.ADDED", gomock.Any()).Return(nil).Times(10)
 
 		tl1, _ := timeline.NewTimeline(ns, gr, evm)
 

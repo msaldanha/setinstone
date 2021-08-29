@@ -45,3 +45,8 @@ func (m memoryCache) Get(key string) (interface{}, bool, error) {
 	}
 	return rec.value, true, nil
 }
+
+func (m memoryCache) Delete(key string) error {
+	m.data.Delete(key)
+	return nil
+}

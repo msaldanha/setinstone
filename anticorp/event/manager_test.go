@@ -13,6 +13,9 @@ import (
 
 //go:generate mockgen -package event_test  -destination pubsub_mock_test.go github.com/ipfs/interface-go-ipfs-core PubSubAPI,PubSubSubscription,PubSubMessage
 
+var testNameSpace = "testNameSpace"
+var testEventString = `{"name":"test_event","data":"data"}`
+
 var _ = Describe("Event Manager", func() {
 	It("Should subscribe to an event calling the callback", func() {
 		ctrl := gomock.NewController(GinkgoT())
@@ -21,17 +24,18 @@ var _ = Describe("Event Manager", func() {
 		pubSubMock := NewMockPubSubAPI(ctrl)
 		subs := NewMockPubSubSubscription(ctrl)
 		msg := NewMockPubSubMessage(ctrl)
-		id := peer.ID("")
 
-		man := event.NewManager(pubSubMock, id)
-
-		pubSubMock.EXPECT().Subscribe(gomock.Any(), "test_event", gomock.Any()).Return(subs, nil)
-		msg.EXPECT().Data().Return([]byte("data")).AnyTimes()
+		pubSubMock.EXPECT().Subscribe(gomock.Any(), testNameSpace, gomock.Any()).Return(subs, nil)
+		msg.EXPECT().Data().Return([]byte(testEventString)).AnyTimes()
 		msg.EXPECT().From().Return(peer.ID("some id")).AnyTimes()
 		subs.EXPECT().Next(gomock.Any()).DoAndReturn(func(ctx context.Context) (iface.PubSubMessage, error) {
 			time.Sleep(time.Millisecond * 500)
 			return msg, nil
 		}).AnyTimes()
+
+		id := peer.ID("")
+
+		man, _ := event.NewManager(pubSubMock, id, testNameSpace)
 
 		_, err := man.On("test_event", func(ev event.Event) {
 
@@ -47,17 +51,17 @@ var _ = Describe("Event Manager", func() {
 		pubSubMock := NewMockPubSubAPI(ctrl)
 		subs := NewMockPubSubSubscription(ctrl)
 		msg := NewMockPubSubMessage(ctrl)
-		id := peer.ID("")
-
-		man := event.NewManager(pubSubMock, id)
-
-		pubSubMock.EXPECT().Subscribe(gomock.Any(), "test_event", gomock.Any()).Return(subs, nil)
-		msg.EXPECT().Data().Return([]byte("data")).AnyTimes()
+		pubSubMock.EXPECT().Subscribe(gomock.Any(), testNameSpace, gomock.Any()).Return(subs, nil)
+		msg.EXPECT().Data().Return([]byte(testEventString)).AnyTimes()
 		msg.EXPECT().From().Return(peer.ID("some id")).AnyTimes()
 		subs.EXPECT().Next(gomock.Any()).DoAndReturn(func(ctx context.Context) (iface.PubSubMessage, error) {
 			time.Sleep(time.Millisecond * 500)
 			return msg, nil
 		}).AnyTimes()
+
+		id := peer.ID("")
+
+		man, _ := event.NewManager(pubSubMock, id, testNameSpace)
 
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
 		ev, err := man.Next(ctx, "test_event")
@@ -71,12 +75,20 @@ var _ = Describe("Event Manager", func() {
 		defer ctrl.Finish()
 
 		pubSubMock := NewMockPubSubAPI(ctrl)
+		subs := NewMockPubSubSubscription(ctrl)
+		pubSubMock.EXPECT().Subscribe(gomock.Any(), testNameSpace, gomock.Any()).Return(subs, nil)
+		msg := NewMockPubSubMessage(ctrl)
+		msg.EXPECT().Data().Return([]byte(testEventString)).AnyTimes()
+		msg.EXPECT().From().Return(peer.ID("some id")).AnyTimes()
+		subs.EXPECT().Next(gomock.Any()).DoAndReturn(func(ctx context.Context) (iface.PubSubMessage, error) {
+			return msg, nil
+		}).AnyTimes()
 		id := peer.ID("")
 
-		man := event.NewManager(pubSubMock, id)
+		man, _ := event.NewManager(pubSubMock, id, testNameSpace)
 
-		data := []byte("some data")
-		pubSubMock.EXPECT().Publish(gomock.Any(), "test_event", data).Return(nil)
+		data := []byte("data")
+		pubSubMock.EXPECT().Publish(gomock.Any(), testNameSpace, []byte(`{"name":"test_event","data":"ZGF0YQ=="}`)).Return(nil)
 		err := man.Emit("test_event", data)
 
 		Expect(err).To(BeNil())

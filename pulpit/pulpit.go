@@ -24,25 +24,25 @@ import (
 )
 
 type pulpitService struct {
-	store     keyvaluestore.KeyValueStore
-	timelines map[string]timeline.Timeline
-	ds        datastore.DataStore
-	ipfs      icore.CoreAPI
-	logins    map[string]string
-	resolver  resolver.Resolver
-	evm       event.Manager
+	store      keyvaluestore.KeyValueStore
+	timelines  map[string]timeline.Timeline
+	ds         datastore.DataStore
+	ipfs       icore.CoreAPI
+	logins     map[string]string
+	resolver   resolver.Resolver
+	evmFactory event.ManagerFactory
 }
 
 func newPulpitService(store keyvaluestore.KeyValueStore, ds datastore.DataStore,
-	ipfs icore.CoreAPI, resolver resolver.Resolver, evm event.Manager) pulpitService {
+	ipfs icore.CoreAPI, resolver resolver.Resolver, evmFactory event.ManagerFactory) pulpitService {
 	return pulpitService{
-		store:     store,
-		ds:        ds,
-		ipfs:      ipfs,
-		resolver:  resolver,
-		timelines: map[string]timeline.Timeline{},
-		logins:    map[string]string{},
-		evm:       evm,
+		store:      store,
+		ds:         ds,
+		ipfs:       ipfs,
+		resolver:   resolver,
+		timelines:  map[string]timeline.Timeline{},
+		logins:     map[string]string{},
+		evmFactory: evmFactory,
 	}
 }
 
@@ -328,9 +328,13 @@ func (s *pulpitService) createTimeLine(ns string, a *address.Address) (timeline.
 	}
 	ld := dag.NewDag(ns, s.ds, s.resolver)
 	gr := graph.NewGraph(ld, a)
-	tl, err := timeline.NewTimeline(ns, gr, s.evm)
-	if err != nil {
-		return nil, err
+	evm, er := s.evmFactory.Build(ns)
+	if er != nil {
+		return nil, er
+	}
+	tl, er := timeline.NewTimeline(ns, gr, evm)
+	if er != nil {
+		return nil, er
 	}
 	s.timelines[ns+a.Address] = tl
 	return tl, nil

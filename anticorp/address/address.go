@@ -124,6 +124,10 @@ func (a *Address) Clone() *Address {
 	}
 }
 
+func (a *Address) HasKeys() bool {
+	return a.Keys != nil && a.Keys.PublicKey != "" && a.Keys.PrivateKey != ""
+}
+
 func hashPubKey(pubKey []byte) ([]byte, error) {
 	sha256Hash := sha256.Sum256(pubKey)
 

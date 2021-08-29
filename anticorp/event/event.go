@@ -1,21 +1,36 @@
 package event
 
+import (
+	"encoding/json"
+	iface "github.com/ipfs/interface-go-ipfs-core"
+)
+
 type Event interface {
 	Name() string
 	Data() []byte
 }
 
 type event struct {
-	name string
-	data []byte
+	N string `json:"name,omitempty"`
+	D []byte `json:"data,omitempty"`
+}
+
+func newEventFromPubSubMessage(msg iface.PubSubMessage) (Event, error) {
+	ev := event{}
+	data := msg.Data()
+	err := json.Unmarshal(data, &ev)
+	if err != nil {
+		return nil, err
+	}
+	return ev, nil
 }
 
 func (e event) Data() []byte {
-	data := make([]byte, len(e.data))
-	copy(data, e.data)
+	data := make([]byte, len(e.D))
+	copy(data, e.D)
 	return data
 }
 
 func (e event) Name() string {
-	return e.name
+	return e.N
 }
