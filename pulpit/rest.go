@@ -3,6 +3,10 @@ package pulpit
 import (
 	"context"
 	"fmt"
+	"io"
+	"os"
+	"time"
+
 	"github.com/ipfs/go-ipfs/core/coreapi"
 	icore "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/iris-contrib/middleware/cors"
@@ -10,6 +14,7 @@ import (
 	"github.com/kataras/iris/v12"
 	"github.com/kataras/iris/v12/middleware/logger"
 	"github.com/kataras/iris/v12/middleware/recover"
+
 	"github.com/msaldanha/setinstone/anticorp/address"
 	"github.com/msaldanha/setinstone/anticorp/cache"
 	"github.com/msaldanha/setinstone/anticorp/dag"
@@ -19,9 +24,6 @@ import (
 	"github.com/msaldanha/setinstone/anticorp/keyvaluestore"
 	"github.com/msaldanha/setinstone/anticorp/resolver"
 	"github.com/msaldanha/setinstone/timeline"
-	"io"
-	"os"
-	"time"
 )
 
 const (
@@ -357,15 +359,19 @@ func (s *server) init() error {
 		panic(fmt.Errorf("failed to setup ipfs data store: %s", er))
 	}
 
-	addrs := []*address.Address{}
-
 	evmf, er := event.NewManagerFactory(s.ipfs.PubSub(), node.Identity)
 	if er != nil {
 		panic(fmt.Errorf("failed to setup event manager factory: %s", er))
 	}
 	resolutionCache := cache.NewMemoryCache(time.Second * 10)
 	resourceCache := cache.NewMemoryCache(0)
-	s.resolver, er = resolver.NewIpfsResolver(node, addrs, evmf, resolutionCache, resourceCache)
+
+	signerAddr, er := address.NewAddressWithKeys()
+	if er != nil {
+		panic(fmt.Errorf("failed to setup event manager factory: %s", er))
+	}
+
+	s.resolver, er = resolver.NewIpfsResolver(node, signerAddr, evmf, resolutionCache, resourceCache)
 	if er != nil {
 		panic(fmt.Errorf("failed to setup resolver: %s", er))
 	}

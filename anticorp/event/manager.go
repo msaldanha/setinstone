@@ -2,17 +2,26 @@ package event
 
 import (
 	"context"
-	"encoding/json"
+	"sync"
+	"time"
+
 	"github.com/cenkalti/backoff"
 	"github.com/google/uuid"
 	icore "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipfs/interface-go-ipfs-core/options"
 	"github.com/libp2p/go-libp2p-core/peer"
 	log "github.com/sirupsen/logrus"
-	"sync"
+
+	"github.com/msaldanha/setinstone/anticorp/address"
+	"github.com/msaldanha/setinstone/anticorp/err"
+	"github.com/msaldanha/setinstone/anticorp/message"
 )
 
 //go:generate mockgen -source=manager.go -destination=manager_mock.go -package=event
+
+const (
+	ErrAddressNoKeys = err.Error("address does not have keys")
+)
 
 type DoneFunc func()
 type CallbackFunc func(ev Event)
@@ -31,6 +40,7 @@ type manager struct {
 	subLock       sync.Mutex
 	nameSpace     string
 	rootSub       icore.PubSubSubscription
+	addr          *address.Address
 }
 
 type subscription struct {
@@ -40,7 +50,7 @@ type subscription struct {
 }
 
 // NewManager creates a new event manager and sets up its event loop
-func NewManager(pubSub icore.PubSubAPI, id peer.ID, nameSpace string) (Manager, error) {
+func NewManager(pubSub icore.PubSubAPI, id peer.ID, nameSpace string, addr *address.Address) (Manager, error) {
 	rootSub, er := pubSub.Subscribe(context.Background(), nameSpace, options.PubSub.Discover(true))
 	if er != nil {
 		return nil, er
@@ -52,6 +62,7 @@ func NewManager(pubSub icore.PubSubAPI, id peer.ID, nameSpace string) (Manager, 
 		subscriptions: make(map[string]*subscription, 0),
 		nameSpace:     nameSpace,
 		rootSub:       rootSub,
+		addr:          addr,
 	}
 	m.startEventLoop()
 	return m, nil
@@ -104,16 +115,31 @@ func (m *manager) Next(ctx context.Context, eventName string) (Event, error) {
 // Emit emits eventName with data on the namespace.
 func (m *manager) Emit(eventName string, data []byte) error {
 	m.l.Infof("Signaling event %s : %s", eventName, string(data))
+	if !m.addr.HasKeys() {
+		return ErrAddressNoKeys
+	}
 	ev := event{
 		N: eventName,
 		D: data,
 	}
-	payload, er := json.Marshal(ev)
+	msg := message.Message{
+		Timestamp: time.Now().Format(time.RFC3339),
+		Address:   m.addr.Address,
+		Type:      eventName,
+		Payload:   ev,
+	}
+
+	er := msg.SignWithKey(m.addr.Keys.ToEcdsaPrivateKey())
 	if er != nil {
 		return er
 	}
-	er = m.pubSub.Publish(context.Background(), m.nameSpace, payload)
-	return er
+
+	payload, er := msg.ToJson()
+	if er != nil {
+		return er
+	}
+
+	return m.pubSub.Publish(context.Background(), m.nameSpace, []byte(payload))
 }
 
 func (m *manager) startEventLoop() {

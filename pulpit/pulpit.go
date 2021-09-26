@@ -4,9 +4,15 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
+
 	files "github.com/ipfs/go-ipfs-files"
 	icore "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipfs/interface-go-ipfs-core/path"
+
 	"github.com/msaldanha/setinstone/anticorp/address"
 	"github.com/msaldanha/setinstone/anticorp/dag"
 	"github.com/msaldanha/setinstone/anticorp/datastore"
@@ -17,10 +23,6 @@ import (
 	"github.com/msaldanha/setinstone/anticorp/resolver"
 	"github.com/msaldanha/setinstone/anticorp/util"
 	"github.com/msaldanha/setinstone/timeline"
-	"io"
-	"net/http"
-	"os"
-	"path/filepath"
 )
 
 type pulpitService struct {
@@ -328,7 +330,7 @@ func (s *pulpitService) createTimeLine(ns string, a *address.Address) (timeline.
 	}
 	ld := dag.NewDag(ns, s.ds, s.resolver)
 	gr := graph.NewGraph(ld, a)
-	evm, er := s.evmFactory.Build(ns)
+	evm, er := s.evmFactory.Build(ns, a)
 	if er != nil {
 		return nil, er
 	}

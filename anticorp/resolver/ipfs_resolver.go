@@ -3,21 +3,23 @@ package resolver
 import (
 	"context"
 	"fmt"
+	"math/rand"
+	gopath "path"
+	"sync"
+	"time"
+
 	"github.com/ipfs/go-ipfs/core"
 	"github.com/ipfs/go-ipfs/core/coreapi"
 	"github.com/ipfs/go-mfs"
 	icore "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipfs/interface-go-ipfs-core/path"
 	"github.com/libp2p/go-libp2p-core/peer"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/msaldanha/setinstone/anticorp/address"
 	"github.com/msaldanha/setinstone/anticorp/cache"
 	"github.com/msaldanha/setinstone/anticorp/event"
 	"github.com/msaldanha/setinstone/anticorp/message"
-	log "github.com/sirupsen/logrus"
-	"math/rand"
-	gopath "path"
-	"sync"
-	"time"
 )
 
 const prefix = "IPFS Resolver"
@@ -32,18 +34,19 @@ type resource struct {
 type ipfsResolver struct {
 	resolutionCache cache.Cache
 	resourceCache   cache.Cache
-	// addresses       *sync.Map
-	// doneFuncs       *sync.Map
-	pending    *sync.Map
-	ipfs       icore.CoreAPI
-	ipfsNode   *core.IpfsNode
-	Id         peer.ID
-	evmFactory event.ManagerFactory
-	//eventManager    event.Manager
+	pending         *sync.Map
+	ipfs            icore.CoreAPI
+	ipfsNode        *core.IpfsNode
+	Id              peer.ID
+	evmFactory      event.ManagerFactory
+	signerAddr      *address.Address
 }
 
-func NewIpfsResolver(node *core.IpfsNode, addresses []*address.Address, evmFactory event.ManagerFactory,
+func NewIpfsResolver(node *core.IpfsNode, signerAddr *address.Address, evmFactory event.ManagerFactory,
 	resCache cache.Cache, resourceCache cache.Cache) (Resolver, error) {
+	if !signerAddr.HasKeys() {
+		return nil, ErrNoPrivateKey
+	}
 	ipfs, er := coreapi.NewCoreAPI(node)
 	if er != nil {
 		return nil, er
@@ -56,12 +59,7 @@ func NewIpfsResolver(node *core.IpfsNode, addresses []*address.Address, evmFacto
 		pending:         &sync.Map{},
 		Id:              node.Identity,
 		evmFactory:      evmFactory,
-	}
-	for _, addr := range addresses {
-		er := r.Manage(addr)
-		if er != nil {
-			return nil, er
-		}
+		signerAddr:      signerAddr,
 	}
 
 	return r, nil
@@ -409,7 +407,7 @@ func (r *ipfsResolver) handle(addr *address.Address) (resource, error) {
 		return res.(resource), nil
 	}
 
-	evm, er := r.evmFactory.Build(addr.Address)
+	evm, er := r.evmFactory.Build(addr.Address, r.signerAddr)
 	if er != nil {
 		return resource{}, er
 	}

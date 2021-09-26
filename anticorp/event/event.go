@@ -1,8 +1,9 @@
 package event
 
 import (
-	"encoding/json"
 	iface "github.com/ipfs/interface-go-ipfs-core"
+
+	"github.com/msaldanha/setinstone/anticorp/message"
 )
 
 type Event interface {
@@ -16,13 +17,19 @@ type event struct {
 }
 
 func newEventFromPubSubMessage(msg iface.PubSubMessage) (Event, error) {
-	ev := event{}
+	m := &message.Message{}
 	data := msg.Data()
-	err := json.Unmarshal(data, &ev)
-	if err != nil {
-		return nil, err
+	er := m.FromJson(data, event{})
+	if er != nil {
+		return nil, er
 	}
-	return ev, nil
+
+	er = m.VerifySignature()
+	if er != nil {
+		return nil, er
+	}
+
+	return m.Payload.(event), nil
 }
 
 func (e event) Data() []byte {
@@ -33,4 +40,8 @@ func (e event) Data() []byte {
 
 func (e event) Name() string {
 	return e.N
+}
+
+func (e event) Bytes() []byte {
+	return e.Data()
 }
