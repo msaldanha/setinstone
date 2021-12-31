@@ -4,11 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+
+	log "github.com/sirupsen/logrus"
+
+	"github.com/msaldanha/setinstone/anticorp/address"
+	"github.com/msaldanha/setinstone/anticorp/cache"
 	"github.com/msaldanha/setinstone/anticorp/err"
 	"github.com/msaldanha/setinstone/anticorp/event"
 	"github.com/msaldanha/setinstone/anticorp/graph"
 	"github.com/msaldanha/setinstone/anticorp/message"
-	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -27,44 +31,58 @@ const (
 type Timeline interface {
 	AppendPost(ctx context.Context, post PostItem, keyRoot, connector string) (string, error)
 	AppendReference(ctx context.Context, ref ReferenceItem, keyRoot, connector string) (string, error)
-	AddReceivedReference(ctx context.Context, refKey, connector string) (string, error)
+	AddReceivedReference(ctx context.Context, refKey string) (string, error)
 	Get(ctx context.Context, key string) (Item, bool, error)
 	GetFrom(ctx context.Context, keyRoot, connector, keyFrom, keyTo string, count int) ([]Item, error)
 }
 
 type timeline struct {
-	gr  graph.Graph
-	evm event.Manager
-	ns  string
+	gr        graph.Graph
+	evm       event.Manager
+	evmf      event.ManagerFactory
+	ns        string
+	addr      *address.Address
+	evmsCache cache.Cache
 }
 
-func NewTimeline(ns string, gr graph.Graph, evm event.Manager) (Timeline, error) {
+func NewTimeline(ns string, addr *address.Address, gr graph.Graph, evmf event.ManagerFactory) (Timeline, error) {
+	if addr == nil || !addr.HasKeys() {
+		return nil, ErrInvalidParameterAddress
+	}
+
 	if gr == nil {
 		return nil, ErrInvalidParameterGraph
 	}
 
-	if evm == nil {
+	if evmf == nil {
 		return nil, ErrInvalidParameterEventManager
 	}
 
-	tl := timeline{
-		gr:  gr,
-		evm: evm,
-		ns:  ns,
-	}
-
-	_, er := evm.On(ns, tl.handler)
+	evm, er := evmf.Build(ns, addr, addr)
 	if er != nil {
 		return nil, er
 	}
 
-	return &timeline{
-		gr:  gr,
-		evm: evm,
-		ns:  ns,
-	}, nil
+	evmsCache := cache.NewMemoryCache(0)
+
+	tl := &timeline{
+		gr:        gr,
+		evm:       evm,
+		evmf:      evmf,
+		ns:        ns,
+		addr:      addr,
+		evmsCache: evmsCache,
+	}
+
+	_, er = evm.On(EventTypes.EventReferenced, tl.refAddedHandler)
+	if er != nil {
+		return nil, er
+	}
+
+	return tl, nil
 }
 
+// AppendPost adds a post to the timeline and broadcasts post add event to any subscriber
 func (t *timeline) AppendPost(ctx context.Context, post PostItem, keyRoot, connector string) (string, error) {
 	post.Type = TypePost
 	js, er := json.Marshal(post)
@@ -75,10 +93,12 @@ func (t *timeline) AppendPost(ctx context.Context, post PostItem, keyRoot, conne
 	if er != nil {
 		return "", t.translateError(er)
 	}
-	t.sendEvent(EventTypes.EventPostAdded, i.Key)
+	t.broadcast(EventTypes.EventPostAdded, i.Key)
 	return i.Key, nil
 }
 
+// AppendReference adds a reference to a post (from other timeline) to the timeline and broadcasts reference
+// added event to any subscriber. It also sends referenced event to the target timeline.
 func (t *timeline) AppendReference(ctx context.Context, ref ReferenceItem, keyRoot, connector string) (string, error) {
 	ref.Type = TypeReference
 	v, _, er := t.Get(ctx, ref.Target)
@@ -114,11 +134,13 @@ func (t *timeline) AppendReference(ctx context.Context, ref ReferenceItem, keyRo
 	if er != nil {
 		return "", t.translateError(er)
 	}
-	t.sendEvent(EventTypes.EventReferenceAdded, i.Key)
+	t.broadcast(EventTypes.EventReferenceAdded, i.Key)
+	t.sendEventToTimeline(v.Address, EventTypes.EventReferenced, i.Key)
 	return i.Key, nil
 }
 
-func (t *timeline) AddReceivedReference(ctx context.Context, refKey, connector string) (string, error) {
+// AddReceivedReference adds a reference to a post/item from this timeline
+func (t *timeline) AddReceivedReference(ctx context.Context, refKey string) (string, error) {
 	item, found, er := t.Get(ctx, refKey)
 	if er != nil {
 		return "", er
@@ -126,13 +148,12 @@ func (t *timeline) AddReceivedReference(ctx context.Context, refKey, connector s
 	if !found {
 		return "", ErrNotFound
 	}
+
 	receivedRef, ok := item.Data.(ReferenceItem)
 	if !ok {
 		return "", ErrNotAReference
 	}
-	if receivedRef.Reference.Connector != connector {
-		return "", ErrCannotAddReference
-	}
+
 	if item.Address == t.gr.GetAddress(ctx).Address {
 		return "", ErrCannotRefOwnItem
 	}
@@ -153,14 +174,14 @@ func (t *timeline) AddReceivedReference(ctx context.Context, refKey, connector s
 		return "", ErrCannotAddRefToNotOwnedItem
 	}
 
-	if !t.canReceiveReference(item, connector) {
+	if !t.canReceiveReference(item, receivedRef.Connector) {
 		return "", ErrCannotAddReference
 	}
 
 	li := ReferenceItem{
 		Reference: Reference{
 			Target:    refKey,
-			Connector: connector,
+			Connector: receivedRef.Connector,
 		},
 		Base: Base{
 			Type: TypeReference,
@@ -170,13 +191,14 @@ func (t *timeline) AddReceivedReference(ctx context.Context, refKey, connector s
 	if er != nil {
 		return "", t.translateError(er)
 	}
-	i, er := t.gr.Append(ctx, item.Key, graph.NodeData{Branch: connector, Data: js})
+	i, er := t.gr.Append(ctx, item.Key, graph.NodeData{Branch: receivedRef.Connector, Data: js})
 	if er != nil {
 		return "", t.translateError(er)
 	}
 	return i.Key, nil
 }
 
+// Get retrieves one item by key
 func (t timeline) Get(ctx context.Context, key string) (Item, bool, error) {
 	v, found, er := t.gr.Get(ctx, key)
 	if er != nil {
@@ -189,6 +211,7 @@ func (t timeline) Get(ctx context.Context, key string) (Item, bool, error) {
 	return i, found, nil
 }
 
+// GetFrom retrieves count items (at most) from the timeline starting at keyFrom and stopping at keyTo
 func (t *timeline) GetFrom(ctx context.Context, keyRoot, connector, keyFrom, keyTo string, count int) ([]Item, error) {
 	it, er := t.gr.GetIterator(ctx, keyRoot, connector, keyFrom)
 	if er != nil {
@@ -237,35 +260,70 @@ func (t *timeline) translateError(er error) error {
 	return er
 }
 
-func (t *timeline) handler(ev event.Event) {
+func (t *timeline) refAddedHandler(ev event.Event) {
+	v, er := t.extractEvent(ev)
+	if er != nil {
+		return
+	}
+	log.Infof("%s Received reference %s %s", t.ns, v.Type, v.Id)
+	_, _ = t.AddReceivedReference(context.Background(), v.Id)
+}
+
+func (t *timeline) broadcast(eventType, eventValue string) {
+	ev := Event{
+		Type: eventType,
+		Id:   eventValue,
+	}
+	_ = t.evm.Emit(eventType, ev.ToJson())
+}
+
+func (t *timeline) sendEventToTimeline(addr, eventType, eventValue string) {
+	evm, er := t.getEvmForTimeline(addr)
+	if er != nil {
+		log.Errorf("%s Unable to get event manager for %s: %s", t.ns, addr, er)
+		return
+	}
+	ev := Event{
+		Type: eventType,
+		Id:   eventValue,
+	}
+	_ = evm.Emit(eventType, ev.ToJson())
+}
+
+func (t *timeline) getEvmForTimeline(addr string) (event.Manager, error) {
+	v, found, er := t.evmsCache.Get(addr)
+	if er != nil {
+		return nil, er
+	}
+	if found {
+		evm := v.(event.Manager)
+		return evm, nil
+	}
+	evm, er := t.evmf.Build(t.ns, t.addr, &address.Address{Address: addr})
+	if er != nil {
+		return nil, er
+	}
+	_ = t.evmsCache.Add(addr, evm)
+	return evm, nil
+}
+
+func (t *timeline) extractEvent(ev event.Event) (Event, error) {
 	log.Infof("%s Received %s %s", t.ns, ev.Name(), string(ev.Data()))
 
 	msg := message.Message{}
 	er := msg.FromJson(ev.Data(), Event{})
 	if er != nil {
 		log.Errorf("%s Invalid msg received on subscription %s: %s", t.ns, ev.Name(), er)
-		return
+		return Event{}, er
 	}
 
 	er = msg.VerifySignature()
 	if er != nil {
 		log.Errorf("%s Invalid msg signature on subscription %s: %s", t.ns, ev.Name(), er)
-		return
+		return Event{}, er
 	}
 
 	v := msg.Payload.(Event)
-	switch v.Type {
-	case EventTypes.EventPostAdded:
-	case EventTypes.EventReferenceAdded:
-	default:
-		log.Errorf("%s unknown event type on subscription %s: %s", t.ns, ev.Name(), v.Type)
-	}
-}
-
-func (t *timeline) sendEvent(eventType, eventValue string) {
-	ev := Event{
-		Type: eventType,
-		Id:   eventValue,
-	}
-	_ = t.evm.Emit(eventType, ev.ToJson())
+	log.Infof("%s Event received %s: %s", t.ns, v.Type, v.Id)
+	return v, nil
 }

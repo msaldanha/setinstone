@@ -3,11 +3,13 @@ package timeline
 import "encoding/json"
 
 type EventTypesEnum struct {
+	EventReferenced     string
 	EventReferenceAdded string
 	EventPostAdded      string
 }
 
 var EventTypes = EventTypesEnum{
+	EventReferenced:     "TIMELINE.EVENT.REFERENCED",
 	EventReferenceAdded: "TIMELINE.EVENT.REFERENCE.ADDED",
 	EventPostAdded:      "TIMELINE.EVENT.POST.ADDED",
 }

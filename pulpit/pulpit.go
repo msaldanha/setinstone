@@ -330,11 +330,7 @@ func (s *pulpitService) createTimeLine(ns string, a *address.Address) (timeline.
 	}
 	ld := dag.NewDag(ns, s.ds, s.resolver)
 	gr := graph.NewGraph(ld, a)
-	evm, er := s.evmFactory.Build(ns, a)
-	if er != nil {
-		return nil, er
-	}
-	tl, er := timeline.NewTimeline(ns, gr, evm)
+	tl, er := timeline.NewTimeline(ns, a, gr, s.evmFactory)
 	if er != nil {
 		return nil, er
 	}

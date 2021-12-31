@@ -10,7 +10,7 @@ import (
 //go:generate mockgen -source=manager_factory.go -destination=manager_factory_mock.go -package=event
 
 type ManagerFactory interface {
-	Build(nameSpace string, addr *address.Address) (Manager, error)
+	Build(nameSpace string, signerAddr, managedAddr *address.Address) (Manager, error)
 }
 
 type managerFactory struct {
@@ -27,6 +27,6 @@ func NewManagerFactory(pubSub icore.PubSubAPI, id peer.ID) (ManagerFactory, erro
 	return m, nil
 }
 
-func (m *managerFactory) Build(nameSpace string, addr *address.Address) (Manager, error) {
-	return NewManager(m.pubSub, m.id, nameSpace, addr)
+func (m *managerFactory) Build(nameSpace string, signerAddr, managedAddr *address.Address) (Manager, error) {
+	return NewManager(m.pubSub, m.id, nameSpace, signerAddr, managedAddr)
 }

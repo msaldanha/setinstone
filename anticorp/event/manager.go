@@ -2,6 +2,7 @@ package event
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -40,7 +41,8 @@ type manager struct {
 	subLock       sync.Mutex
 	nameSpace     string
 	rootSub       icore.PubSubSubscription
-	addr          *address.Address
+	signerAddr    *address.Address
+	managedAddr   *address.Address
 }
 
 type subscription struct {
@@ -50,20 +52,23 @@ type subscription struct {
 }
 
 // NewManager creates a new event manager and sets up its event loop
-func NewManager(pubSub icore.PubSubAPI, id peer.ID, nameSpace string, addr *address.Address) (Manager, error) {
-	rootSub, er := pubSub.Subscribe(context.Background(), nameSpace, options.PubSub.Discover(true))
-	if er != nil {
-		return nil, er
-	}
+func NewManager(pubSub icore.PubSubAPI, id peer.ID, nameSpace string, signerAddr, managedAddr *address.Address) (Manager, error) {
 	m := &manager{
 		l:             log.WithField("name", "Event Manager"),
 		pubSub:        pubSub,
 		id:            id,
 		subscriptions: make(map[string]*subscription, 0),
 		nameSpace:     nameSpace,
-		rootSub:       rootSub,
-		addr:          addr,
+		signerAddr:    signerAddr,
+		managedAddr:   managedAddr,
 	}
+	topic := m.getTopicName()
+	rootSub, er := pubSub.Subscribe(context.Background(), topic, options.PubSub.Discover(true))
+	if er != nil {
+		return nil, er
+	}
+
+	m.rootSub = rootSub
 	m.startEventLoop()
 	return m, nil
 }
@@ -114,8 +119,8 @@ func (m *manager) Next(ctx context.Context, eventName string) (Event, error) {
 
 // Emit emits eventName with data on the namespace.
 func (m *manager) Emit(eventName string, data []byte) error {
-	m.l.Infof("Signaling event %s : %s", eventName, string(data))
-	if !m.addr.HasKeys() {
+	m.l.Infof("Signaling event on %s %s : %s", m.getTopicName(), eventName, string(data))
+	if !m.signerAddr.HasKeys() {
 		return ErrAddressNoKeys
 	}
 	ev := event{
@@ -124,12 +129,12 @@ func (m *manager) Emit(eventName string, data []byte) error {
 	}
 	msg := message.Message{
 		Timestamp: time.Now().Format(time.RFC3339),
-		Address:   m.addr.Address,
+		Address:   m.signerAddr.Address,
 		Type:      eventName,
 		Payload:   ev,
 	}
 
-	er := msg.SignWithKey(m.addr.Keys.ToEcdsaPrivateKey())
+	er := msg.SignWithKey(m.signerAddr.Keys.ToEcdsaPrivateKey())
 	if er != nil {
 		return er
 	}
@@ -139,38 +144,38 @@ func (m *manager) Emit(eventName string, data []byte) error {
 		return er
 	}
 
-	return m.pubSub.Publish(context.Background(), m.nameSpace, []byte(payload))
+	return m.pubSub.Publish(context.Background(), m.getTopicName(), []byte(payload))
 }
 
 func (m *manager) startEventLoop() {
-	m.l.Infof("Running event loop for %s", m.nameSpace)
+	m.l.Infof("Running event loop for %s", m.getTopicName())
 	go func() {
-		defer m.l.Infof("Event loop for %s finished", m.nameSpace)
+		defer m.l.Infof("Event loop for %s finished", m.getTopicName())
 		b := backoff.NewExponentialBackOff()
 		for {
-			m.l.Infof("Waiting next event for %s", m.nameSpace)
+			m.l.Infof("Waiting next event for %s", m.getTopicName())
 			operation := func() error {
 				msg, er := m.rootSub.Next(context.Background())
 				if er != nil {
-					log.Errorf("Subscription %s failed: %s", m.nameSpace, er)
+					log.Errorf("Subscription %s failed: %s", m.getTopicName(), er)
 					return er
 				}
-				m.l.Infof("Message arrived for %s : %s", m.nameSpace, string(msg.Data()))
+				m.l.Infof("Message arrived for %s : %s", m.getTopicName(), string(msg.Data()))
 				if msg.From() == m.id {
-					m.l.Infof("Message arrived was from ourselves for %s : %s", m.nameSpace, string(msg.Data()))
+					m.l.Infof("Message arrived was from ourselves for %s : %s", m.getTopicName(), string(msg.Data()))
 					return nil
 				}
 				ev, er := newEventFromPubSubMessage(msg)
 				if er != nil {
-					log.Errorf("Failed to convert msg to event: %s : %s", m.nameSpace, er)
+					log.Errorf("Failed to convert msg to event: %s : %s", m.getTopicName(), er)
 					return nil
 				}
-				m.l.Infof("Event arrived for %s.%s : %s", m.nameSpace, ev.Name(), string(ev.Data()))
+				m.l.Infof("Event arrived for %s.%s : %s", m.getTopicName(), ev.Name(), string(ev.Data()))
 				m.subLock.Lock()
 				defer m.subLock.Unlock()
 				sub, found := m.subscriptions[ev.Name()]
 				if !found {
-					log.Warnf("No subscription for %s.%s . Ignoring.", m.nameSpace, ev.Name())
+					log.Warnf("No subscription for %s.%s . Ignoring.", m.getTopicName(), ev.Name())
 					return nil
 				}
 				for _, callback := range sub.callbacks {
@@ -180,7 +185,7 @@ func (m *manager) startEventLoop() {
 			}
 			er := backoff.Retry(operation, b)
 			if er != nil {
-				log.Errorf("Subscription %s failed after MAX retries: %s", m.nameSpace, er)
+				log.Errorf("Subscription %s failed after MAX retries: %s", m.getTopicName(), er)
 				return
 			}
 		}
@@ -193,4 +198,8 @@ func (m *manager) createDoneFunc(sub *subscription, callbackKey string) func() {
 		defer sub.mutex.Unlock()
 		delete(sub.callbacks, callbackKey)
 	}
+}
+
+func (m *manager) getTopicName() string {
+	return fmt.Sprintf("%s-%s", m.nameSpace, m.managedAddr.Address)
 }
