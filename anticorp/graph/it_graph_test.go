@@ -3,14 +3,16 @@ package graph_test
 import (
 	"context"
 	"encoding/json"
+
 	"github.com/golang/mock/gomock"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+
 	"github.com/msaldanha/setinstone/anticorp/address"
 	"github.com/msaldanha/setinstone/anticorp/dag"
 	"github.com/msaldanha/setinstone/anticorp/datastore"
 	"github.com/msaldanha/setinstone/anticorp/graph"
 	"github.com/msaldanha/setinstone/anticorp/resolver"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
 )
 
 type testPayLoad struct {
@@ -63,7 +65,7 @@ var _ = Describe("Graph", func() {
 		dataToAdd := testPayLoad{NumberField: 1000, StringFiled: "some data added"}
 		_, er := gr.Append(ctx, "xxxxxx", graph.NodeData{Branch: "main", Data: toBytes(dataToAdd)})
 
-		Expect(er).To(Equal(graph.ErrPreviousNotFound))
+		Expect(er).To(Equal(graph.NewErrPreviousNotFound()))
 	})
 
 	It("When adding, should return error if addr does not have the keys", func() {
@@ -77,7 +79,7 @@ var _ = Describe("Graph", func() {
 		dataToAdd := testPayLoad{NumberField: 1000, StringFiled: "some data added"}
 		_, er := gr.Append(ctx, "", graph.NodeData{Branch: "main", Data: toBytes(dataToAdd)})
 
-		Expect(er).To(Equal(graph.ErrReadOnly))
+		Expect(er).To(Equal(graph.NewErrReadOnly()))
 	})
 
 	It("Should return iterator", func() {

@@ -3,6 +3,7 @@ package timeline
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	log "github.com/sirupsen/logrus"
@@ -235,10 +236,10 @@ func (t *timeline) canReceiveReference(item Item, con string) bool {
 }
 
 func (t *timeline) translateError(er error) error {
-	switch er {
-	case graph.ErrReadOnly:
+	switch {
+	case errors.Is(er, graph.NewErrReadOnly()):
 		return NewErrReadOnly()
-	case graph.ErrNotFound:
+	case errors.Is(er, graph.NewErrNotFound()):
 		return NewErrNotFound()
 	default:
 		return fmt.Errorf("unable to process the request: %s", er)
