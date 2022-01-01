@@ -3,6 +3,7 @@ package pulpit
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -190,7 +191,7 @@ func (s pulpitService) getItems(ctx context.Context, addr, ns, keyRoot, connecto
 	}
 
 	items, er := tl.GetFrom(ctx, keyRoot, connector, from, to, count)
-	if er != nil && er != timeline.ErrNotFound {
+	if er != nil && !errors.Is(er, timeline.NewErrNotFound()) {
 		return nil, er
 	}
 

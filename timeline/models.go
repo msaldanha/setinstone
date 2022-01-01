@@ -2,6 +2,7 @@ package timeline
 
 import (
 	"encoding/json"
+
 	"github.com/msaldanha/setinstone/anticorp/graph"
 )
 
@@ -76,7 +77,7 @@ func NewItemFromGraphNode(v graph.GraphNode) (Item, error) {
 		er = json.Unmarshal(v.Data, &p)
 		data = p
 	default:
-		er = ErrUnknownType
+		er = NewErrUnknownType()
 	}
 
 	if er != nil {

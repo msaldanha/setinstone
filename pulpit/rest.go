@@ -2,6 +2,7 @@ package pulpit
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -386,22 +387,22 @@ func returnError(ctx iris.Context, er error, statusCode int) {
 }
 
 func getStatusCodeForError(er error) int {
-	switch er {
-	case timeline.ErrReadOnly:
+	switch {
+	case errors.Is(er, timeline.NewErrReadOnly()):
 		fallthrough
-	case timeline.ErrCannotRefOwnItem:
+	case errors.Is(er, timeline.NewErrCannotRefOwnItem()):
 		fallthrough
-	case timeline.ErrCannotRefARef:
+	case errors.Is(er, timeline.NewErrCannotRefARef()):
 		fallthrough
-	case timeline.ErrCannotAddReference:
+	case errors.Is(er, timeline.NewErrCannotAddReference()):
 		fallthrough
-	case timeline.ErrNotAReference:
+	case errors.Is(er, timeline.NewErrNotAReference()):
 		fallthrough
-	case timeline.ErrCannotAddRefToNotOwnedItem:
+	case errors.Is(er, timeline.NewErrCannotAddRefToNotOwnedItem()):
 		return 400
-	case ErrAuthentication:
+	case er == ErrAuthentication:
 		return 401
-	case timeline.ErrNotFound:
+	case errors.Is(er, timeline.NewErrNotFound()):
 		return 404
 	default:
 		return 500

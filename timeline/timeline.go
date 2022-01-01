@@ -9,23 +9,9 @@ import (
 
 	"github.com/msaldanha/setinstone/anticorp/address"
 	"github.com/msaldanha/setinstone/anticorp/cache"
-	"github.com/msaldanha/setinstone/anticorp/err"
 	"github.com/msaldanha/setinstone/anticorp/event"
 	"github.com/msaldanha/setinstone/anticorp/graph"
 	"github.com/msaldanha/setinstone/anticorp/message"
-)
-
-const (
-	ErrReadOnly       = err.Error("read only")
-	ErrInvalidMessage = err.Error("invalid message")
-	ErrUnknownType    = err.Error("unknown type")
-	ErrNotFound       = err.Error("not found")
-
-	ErrCannotRefOwnItem           = err.Error("cannot reference own item")
-	ErrCannotRefARef              = err.Error("cannot reference a reference")
-	ErrCannotAddReference         = err.Error("cannot add reference in this item")
-	ErrNotAReference              = err.Error("this item is not a reference")
-	ErrCannotAddRefToNotOwnedItem = err.Error("cannot add reference to not owned item")
 )
 
 type Timeline interface {
@@ -47,15 +33,15 @@ type timeline struct {
 
 func NewTimeline(ns string, addr *address.Address, gr graph.Graph, evmf event.ManagerFactory) (Timeline, error) {
 	if addr == nil || !addr.HasKeys() {
-		return nil, ErrInvalidParameterAddress
+		return nil, NewErrInvalidParameterAddress()
 	}
 
 	if gr == nil {
-		return nil, ErrInvalidParameterGraph
+		return nil, NewErrInvalidParameterGraph()
 	}
 
 	if evmf == nil {
-		return nil, ErrInvalidParameterEventManager
+		return nil, NewErrInvalidParameterEventManager()
 	}
 
 	evm, er := evmf.Build(ns, addr, addr)
@@ -106,15 +92,15 @@ func (t *timeline) AppendReference(ctx context.Context, ref ReferenceItem, keyRo
 		return "", er
 	}
 	if _, ok := v.Data.(ReferenceItem); ok {
-		return "", ErrCannotRefARef
+		return "", NewErrCannotRefARef()
 	}
 
 	if v.Address == t.gr.GetAddress(ctx).Address {
-		return "", ErrCannotRefOwnItem
+		return "", NewErrCannotRefOwnItem()
 	}
 
 	if !t.canReceiveReference(v, ref.Connector) {
-		return "", ErrCannotAddReference
+		return "", NewErrCannotAddReference()
 	}
 
 	mi := ReferenceItem{
@@ -146,16 +132,16 @@ func (t *timeline) AddReceivedReference(ctx context.Context, refKey string) (str
 		return "", er
 	}
 	if !found {
-		return "", ErrNotFound
+		return "", NewErrNotFound()
 	}
 
 	receivedRef, ok := item.Data.(ReferenceItem)
 	if !ok {
-		return "", ErrNotAReference
+		return "", NewErrNotAReference()
 	}
 
 	if item.Address == t.gr.GetAddress(ctx).Address {
-		return "", ErrCannotRefOwnItem
+		return "", NewErrCannotRefOwnItem()
 	}
 
 	item, found, er = t.Get(ctx, receivedRef.Target)
@@ -163,19 +149,19 @@ func (t *timeline) AddReceivedReference(ctx context.Context, refKey string) (str
 		return "", er
 	}
 	if !found {
-		return "", ErrNotFound
+		return "", NewErrNotFound()
 	}
 	_, ok = item.Data.(PostItem)
 	if !ok {
-		return "", ErrCannotAddReference
+		return "", NewErrCannotAddReference()
 	}
 
 	if item.Address != t.gr.GetAddress(ctx).Address {
-		return "", ErrCannotAddRefToNotOwnedItem
+		return "", NewErrCannotAddRefToNotOwnedItem()
 	}
 
 	if !t.canReceiveReference(item, receivedRef.Connector) {
-		return "", ErrCannotAddReference
+		return "", NewErrCannotAddReference()
 	}
 
 	li := ReferenceItem{
@@ -251,9 +237,9 @@ func (t *timeline) canReceiveReference(item Item, con string) bool {
 func (t *timeline) translateError(er error) error {
 	switch er {
 	case graph.ErrReadOnly:
-		return ErrReadOnly
+		return NewErrReadOnly()
 	case graph.ErrNotFound:
-		return ErrNotFound
+		return NewErrNotFound()
 	default:
 		return fmt.Errorf("unable to process the request: %s", er)
 	}

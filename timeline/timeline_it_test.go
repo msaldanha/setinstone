@@ -144,7 +144,7 @@ var _ = Describe("Timeline", func() {
 
 		expectedLike := timeline.ReferenceItem{Reference: timeline.Reference{Target: key, Connector: "connector"}}
 		key, er = p.AppendReference(ctx, expectedLike, "", "main")
-		Expect(er).To(Equal(timeline.ErrCannotRefOwnItem))
+		Expect(er).To(Equal(timeline.NewErrCannotRefOwnItem()))
 		Expect(key).To(Equal(""))
 
 	})
@@ -183,7 +183,7 @@ var _ = Describe("Timeline", func() {
 
 		expectedLike = timeline.ReferenceItem{Reference: timeline.Reference{Target: key, Connector: likeRef}}
 		key, er = tl1.AppendReference(ctx, expectedLike, "", "main")
-		Expect(er).To(Equal(timeline.ErrCannotRefARef))
+		Expect(er).To(Equal(timeline.NewErrCannotRefARef()))
 		Expect(key).To(Equal(""))
 
 	})
