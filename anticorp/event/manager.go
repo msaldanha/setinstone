@@ -14,15 +14,10 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/msaldanha/setinstone/anticorp/address"
-	"github.com/msaldanha/setinstone/anticorp/err"
 	"github.com/msaldanha/setinstone/anticorp/message"
 )
 
 //go:generate mockgen -source=manager.go -destination=manager_mock.go -package=event
-
-const (
-	ErrAddressNoKeys = err.Error("address does not have keys")
-)
 
 type DoneFunc func()
 type CallbackFunc func(ev Event)
@@ -121,7 +116,7 @@ func (m *manager) Next(ctx context.Context, eventName string) (Event, error) {
 func (m *manager) Emit(eventName string, data []byte) error {
 	m.l.Infof("Signaling event on %s %s : %s", m.getTopicName(), eventName, string(data))
 	if !m.signerAddr.HasKeys() {
-		return ErrAddressNoKeys
+		return NewErrAddressNoKeys()
 	}
 	ev := event{
 		N: eventName,
