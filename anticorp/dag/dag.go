@@ -2,34 +2,17 @@ package dag
 
 import (
 	"context"
-	"github.com/msaldanha/setinstone/anticorp/address"
-	"github.com/msaldanha/setinstone/anticorp/datastore"
-	"github.com/msaldanha/setinstone/anticorp/err"
-	"github.com/msaldanha/setinstone/anticorp/resolver"
+	"errors"
 	"io"
 	"strings"
 	"time"
+
+	"github.com/msaldanha/setinstone/anticorp/address"
+	"github.com/msaldanha/setinstone/anticorp/datastore"
+	"github.com/msaldanha/setinstone/anticorp/resolver"
 )
 
 const (
-	ErrDagAlreadyInitialized       = err.Error("dag already initialized")
-	ErrInvalidNodeHash             = err.Error("invalid node hash")
-	ErrInvalidNodeTimestamp        = err.Error("invalid node timestamp")
-	ErrNodeAlreadyInDag            = err.Error("node already in dag")
-	ErrNodeNotFound                = err.Error("node not found")
-	ErrPreviousNodeNotFound        = err.Error("previous node not found")
-	ErrHeadNodeNotFound            = err.Error("head node not found")
-	ErrPreviousNodeIsNotHead       = err.Error("previous node is not the chain head")
-	ErrAddressDoesNotMatchPubKey   = err.Error("address does not match public key")
-	ErrInvalidBranchSeq            = err.Error("invalid node sequence")
-	ErrInvalidBranch               = err.Error("invalid branch")
-	ErrBranchRootNotFound          = err.Error("branch root not found")
-	ErrDefaultBranchNotSpecified   = err.Error("default branch not specified")
-	ErrUnableToDecodeNodeSignature = err.Error("unable to decode node signature")
-	ErrUnableToDecodeNodePubKey    = err.Error("unable to decode node pubkey")
-	ErrUnableToDecodeNodeHash      = err.Error("unable to decode node hash")
-	ErrNodeSignatureDoesNotMatch   = err.Error("node signature does not match")
-
 	hashSize = 32
 )
 
@@ -54,17 +37,17 @@ func NewDag(nameSpace string, dt datastore.DataStore, resolver resolver.Resolver
 
 func (da *dag) SetRoot(ctx context.Context, rootNode *Node) (string, error) {
 	if rootNode.Branch == "" {
-		return "", ErrInvalidBranch
+		return "", NewErrInvalidBranch()
 	}
 	if !da.hasBranch(rootNode, rootNode.Branch) {
-		return "", ErrDefaultBranchNotSpecified
+		return "", NewErrDefaultBranchNotSpecified()
 	}
 	root, _, er := da.GetRoot(ctx, rootNode.Address)
-	if er == ErrNodeNotFound || root == nil {
+	if errors.Is(er, NewErrNodeNotFound()) || root == nil {
 		return da.saveRootNode(ctx, rootNode)
 	}
 	if er == nil {
-		return "", ErrDagAlreadyInitialized
+		return "", NewErrDagAlreadyInitialized()
 	}
 	return "", da.translateError(er)
 }
@@ -78,7 +61,7 @@ func (da *dag) Append(ctx context.Context, node *Node, branchRootNodeKey string)
 
 func (da *dag) GetLast(ctx context.Context, branchRootNodeKey, branch string) (*Node, string, error) {
 	if branch == "" {
-		return nil, "", ErrInvalidBranch
+		return nil, "", NewErrInvalidBranch()
 	}
 	branchRootNode, er := da.getNodeByKey(ctx, branchRootNodeKey)
 	if er != nil {
@@ -89,7 +72,7 @@ func (da *dag) GetLast(ctx context.Context, branchRootNodeKey, branch string) (*
 		return nil, "", da.translateError(er)
 	}
 	fromTipTx, er := da.getNodeByKey(ctx, key)
-	if er == ErrNodeNotFound {
+	if errors.Is(er, NewErrNodeNotFound()) {
 		return branchRootNode, branchRootNodeKey, nil
 	}
 	if er != nil {
@@ -119,30 +102,30 @@ func (da *dag) VerifyNode(ctx context.Context, node *Node, branchRootNodeKey str
 		return da.translateError(er)
 	}
 	if !da.verifyTimeStamp(node) {
-		return ErrInvalidNodeTimestamp
+		return NewErrInvalidNodeTimestamp()
 	}
 	if node.Seq == 0 {
-		return ErrInvalidBranchSeq
+		return NewErrInvalidBranchSeq()
 	}
 	if !da.verifyPow(node) {
-		return ErrInvalidNodeHash
+		return NewErrInvalidNodeHash()
 	}
 	if er := node.VerifySignature(); er != nil {
 		return da.translateError(er)
 	}
 	if node.Branch == "" {
-		return ErrInvalidBranch
+		return NewErrInvalidBranch()
 	}
 
 	previous, er := da.getNodeByKey(ctx, node.Previous)
-	if er == ErrNodeNotFound {
-		return ErrPreviousNodeNotFound
+	if errors.Is(er, NewErrNodeNotFound()) {
+		return NewErrPreviousNodeNotFound()
 	}
 	if er != nil {
 		return da.translateError(er)
 	}
 	if previous == nil {
-		return ErrPreviousNodeNotFound
+		return NewErrPreviousNodeNotFound()
 	}
 	if mustBeNew {
 		branchRoot, er := da.getNodeByKey(ctx, branchRootNodeKey)
@@ -150,26 +133,26 @@ func (da *dag) VerifyNode(ctx context.Context, node *Node, branchRootNodeKey str
 			return da.translateError(er)
 		}
 		if branchRoot == nil {
-			return ErrBranchRootNotFound
+			return NewErrBranchRootNotFound()
 		}
 		if !da.hasBranch(branchRoot, node.Branch) {
-			return ErrInvalidBranch
+			return NewErrInvalidBranch()
 		}
 		branchHead, branchHeadKey, er := da.GetLast(ctx, branchRootNodeKey, node.Branch)
 		if er != nil {
 			return da.translateError(er)
 		}
 		if branchHead == nil {
-			return ErrHeadNodeNotFound
+			return NewErrHeadNodeNotFound()
 		}
 		if branchHeadKey != node.Previous {
-			return ErrPreviousNodeIsNotHead
+			return NewErrPreviousNodeIsNotHead()
 		}
 		if branchHeadKey == branchRootNodeKey && node.Branch != branchHead.Branch && node.Seq != 1 {
-			return ErrInvalidBranchSeq
+			return NewErrInvalidBranchSeq()
 		}
 		if node.Branch == previous.Branch && node.Seq != previous.Seq+1 {
-			return ErrInvalidBranchSeq
+			return NewErrInvalidBranchSeq()
 		}
 	}
 
@@ -198,7 +181,7 @@ func (da *dag) verifyAddress(node *Node) (bool, error) {
 		return ok, da.translateError(er)
 	}
 	if !address.MatchesPubKey(node.Address, node.PubKey) {
-		return false, ErrAddressDoesNotMatchPubKey
+		return false, NewErrAddressDoesNotMatchPubKey()
 	}
 	return true, nil
 }
@@ -213,7 +196,7 @@ func (da *dag) getPreviousNode(ctx context.Context, node *Node) (*Node, error) {
 		return nil, da.translateError(er)
 	}
 	if previous == nil {
-		return nil, ErrPreviousNodeNotFound
+		return nil, NewErrPreviousNodeNotFound()
 	}
 	return previous, nil
 }
@@ -224,7 +207,7 @@ func (da *dag) saveNode(ctx context.Context, node *Node, branchRootNodeKey strin
 		return "", da.translateError(er)
 	}
 	if branchRoot == nil {
-		return "", ErrBranchRootNotFound
+		return "", NewErrBranchRootNotFound()
 	}
 
 	fullPath, er := da.getFullPath(ctx, branchRootNodeKey, node.Branch)
@@ -375,7 +358,7 @@ func (da *dag) getName(addr string, parts ...string) string {
 func (da *dag) translateError(er error) error {
 	switch er {
 	case datastore.ErrNotFound:
-		return ErrNodeNotFound
+		return NewErrNodeNotFound()
 	}
 	return er
 }

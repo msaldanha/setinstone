@@ -2,15 +2,17 @@ package dag_test
 
 import (
 	"context"
+	"time"
+
 	"github.com/golang/mock/gomock"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+
 	"github.com/msaldanha/setinstone/anticorp/address"
 	"github.com/msaldanha/setinstone/anticorp/dag"
 	"github.com/msaldanha/setinstone/anticorp/datastore"
 	"github.com/msaldanha/setinstone/anticorp/resolver"
 	"github.com/msaldanha/setinstone/anticorp/util"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-	"time"
 )
 
 const defaultBranch = "main"
@@ -59,7 +61,7 @@ var _ = Describe("Dag", func() {
 
 		_, err = da.SetRoot(ctx, genesisNode)
 		Expect(err).NotTo(BeNil())
-		Expect(err).To(Equal(dag.ErrDagAlreadyInitialized))
+		Expect(err).To(Equal(dag.NewErrDagAlreadyInitialized()))
 	})
 
 	It("Should return the genesis node for an address", func() {
@@ -235,7 +237,7 @@ var _ = Describe("Dag", func() {
 		t := &dag.Node{}
 		t = BuildNode(t, testGenesisAddr)
 		_, err = da.Append(ctx, t, genesisKey)
-		Expect(err).To(Equal(dag.ErrInvalidNodeTimestamp))
+		Expect(err).To(Equal(dag.NewErrInvalidNodeTimestamp()))
 	})
 
 	It("Should NOT register tampered node (hash)", func() {
@@ -251,7 +253,7 @@ var _ = Describe("Dag", func() {
 		t := *node
 		t.Pow = node2.Pow
 		_, err = da.Append(ctx, &t, genesisKey)
-		Expect(err).To(Equal(dag.ErrNodeSignatureDoesNotMatch))
+		Expect(err).To(Equal(dag.NewErrNodeSignatureDoesNotMatch()))
 	})
 
 	It("Should NOT register tampered node (signature)", func() {
@@ -266,7 +268,7 @@ var _ = Describe("Dag", func() {
 		t := *node
 		t.Signature = t.Signature + "3e"
 		_, err = da.Append(ctx, &t, genesisKey)
-		Expect(err).To(Equal(dag.ErrNodeSignatureDoesNotMatch))
+		Expect(err).To(Equal(dag.NewErrNodeSignatureDoesNotMatch()))
 	})
 
 	It("Should NOT register node twice", func() {
@@ -281,7 +283,7 @@ var _ = Describe("Dag", func() {
 		_, err = da.Append(ctx, node, genesisKey)
 		Expect(err).To(BeNil())
 		_, err = da.Append(ctx, node, genesisKey)
-		Expect(err).To(Equal(dag.ErrPreviousNodeIsNotHead))
+		Expect(err).To(Equal(dag.NewErrPreviousNodeIsNotHead()))
 	})
 
 	It("Should NOT register node if previous node does not exists", func() {
@@ -294,7 +296,7 @@ var _ = Describe("Dag", func() {
 		node := CreateNode(testGenesisAddr, genesisKey, "somekey", defaultBranch, genesisNode.Seq+1)
 
 		_, err = da.Append(ctx, node, genesisKey)
-		Expect(err).To(Equal(dag.ErrPreviousNodeNotFound))
+		Expect(err).To(Equal(dag.NewErrPreviousNodeNotFound()))
 	})
 
 	It("Should NOT register node if previous node is not head", func() {
@@ -314,7 +316,7 @@ var _ = Describe("Dag", func() {
 
 		node := CreateNode(genesisAddr, genesisKey, node1Key, defaultBranch, 4)
 		_, err = da.Append(ctx, node, genesisKey)
-		Expect(err).To(Equal(dag.ErrPreviousNodeIsNotHead))
+		Expect(err).To(Equal(dag.NewErrPreviousNodeIsNotHead()))
 	})
 })
 

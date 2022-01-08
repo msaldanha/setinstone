@@ -4,11 +4,12 @@ import (
 	"crypto/ecdsa"
 	"encoding/hex"
 	"encoding/json"
-	"github.com/msaldanha/setinstone/anticorp/multihash"
-	"github.com/msaldanha/setinstone/anticorp/util"
 	"math"
 	"math/big"
 	"strconv"
+
+	"github.com/msaldanha/setinstone/anticorp/multihash"
+	"github.com/msaldanha/setinstone/anticorp/util"
 )
 
 const (
@@ -143,17 +144,17 @@ func (m *Node) Sign(privateKey *ecdsa.PrivateKey) error {
 func (m *Node) VerifySignature() error {
 	sign, er := hex.DecodeString(m.Signature)
 	if er != nil {
-		return ErrUnableToDecodeNodeSignature
+		return NewErrUnableToDecodeNodeSignature()
 	}
 
 	pubKey, er := hex.DecodeString(m.PubKey)
 	if er != nil {
-		return ErrUnableToDecodeNodePubKey
+		return NewErrUnableToDecodeNodePubKey()
 	}
 
 	data, _ := m.GetBytesForSigning()
 	if !VerifySignature(sign, pubKey, data) {
-		return ErrNodeSignatureDoesNotMatch
+		return NewErrNodeSignatureDoesNotMatch()
 	}
 
 	return nil

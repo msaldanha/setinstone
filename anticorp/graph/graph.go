@@ -70,7 +70,7 @@ func (d graph) GetAddress(ctx context.Context) *address.Address {
 func (d graph) Get(ctx context.Context, key string) (GraphNode, bool, error) {
 	node, er := d.get(ctx, key)
 	if er != nil {
-		if er == dag.ErrNodeNotFound {
+		if errors.Is(er, dag.NewErrNodeNotFound()) {
 			return GraphNode{}, false, nil
 		}
 		return GraphNode{}, false, d.translateError(er)
@@ -85,7 +85,7 @@ func (d graph) Append(ctx context.Context, keyRoot string, node NodeData) (Graph
 
 	if keyRoot == "" {
 		gn, gnKey, er := d.da.GetRoot(ctx, d.addr.Address)
-		if er == dag.ErrNodeNotFound || gn == nil {
+		if errors.Is(er, dag.NewErrNodeNotFound()) || gn == nil {
 			return d.createFirstNode(ctx, node)
 		}
 		if er != nil {
@@ -94,7 +94,7 @@ func (d graph) Append(ctx context.Context, keyRoot string, node NodeData) (Graph
 		keyRoot = gnKey
 	}
 	last, lastKey, er := d.da.GetLast(ctx, keyRoot, node.Branch)
-	if er == dag.ErrNodeNotFound {
+	if errors.Is(er, dag.NewErrNodeNotFound()) {
 		return GraphNode{}, NewErrPreviousNotFound()
 	}
 	if er != nil {
@@ -127,7 +127,7 @@ func (d graph) GetIterator(ctx context.Context, keyRoot, branch string, from str
 	if from == "" {
 		if keyRoot == "" {
 			gn, gnKey, er := d.da.GetRoot(ctx, d.addr.Address)
-			if er == dag.ErrNodeNotFound || gn == nil {
+			if errors.Is(er, dag.NewErrNodeNotFound()) || gn == nil {
 				return nil, NewErrNotFound()
 			}
 			if er != nil {
@@ -218,10 +218,10 @@ func (d graph) createFirstNode(ctx context.Context, node NodeData) (GraphNode, e
 }
 
 func (d graph) translateError(er error) error {
-	switch er {
-	case dag.ErrDagAlreadyInitialized:
+	switch er.(type) {
+	case *dag.ErrDagAlreadyInitialized:
 		return NewErrAlreadyInitialized()
-	case dag.ErrNodeNotFound:
+	case *dag.ErrNodeNotFound:
 		return NewErrNotFound()
 	}
 	return er
