@@ -224,7 +224,7 @@ var _ = Describe("Dag", func() {
 		t := *node
 		t.Address = "xxxxxxxxxx"
 		_, err = da.Append(ctx, &t, genesisKey)
-		Expect(err).To(Equal(address.ErrInvalidChecksum))
+		Expect(err).To(Equal(address.NewErrInvalidChecksum()))
 	})
 
 	It("Should NOT register node with invalid timestamp", func() {

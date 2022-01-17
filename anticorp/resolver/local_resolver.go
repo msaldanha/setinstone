@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"context"
+
 	"github.com/msaldanha/setinstone/anticorp/address"
 )
 
@@ -24,7 +25,7 @@ func (r *localResolver) Add(ctx context.Context, name, value string) error {
 	}
 	_, found := r.addresses[rec.Address]
 	if !found {
-		return ErrUnmanagedAddress
+		return NewErrUnmanagedAddress()
 	}
 	r.names[name] = value
 	return nil
@@ -37,14 +38,14 @@ func (r *localResolver) Resolve(ctx context.Context, name string) (string, error
 	}
 	res, found := r.names[name]
 	if !found {
-		return "", ErrNotFound
+		return "", NewErrNotFound()
 	}
 	return res, nil
 }
 
 func (r *localResolver) Manage(addr *address.Address) error {
 	if addr.Keys.PrivateKey == "" {
-		return ErrNoPrivateKey
+		return NewErrNoPrivateKey()
 	}
 	r.addresses[addr.Address] = addr
 	return nil

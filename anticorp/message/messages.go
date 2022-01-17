@@ -7,17 +7,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"github.com/msaldanha/setinstone/anticorp/err"
-	"github.com/msaldanha/setinstone/anticorp/util"
 	"math/big"
 	"reflect"
 	"time"
-)
 
-const (
-	ErrUnableToDecodeSignature = err.Error("unable to decode signature")
-	ErrUnableToDecodePubKey    = err.Error("unable to decode pubkey")
-	ErrSignatureDoesNotMatch   = err.Error("signature does not match")
+	"github.com/msaldanha/setinstone/anticorp/util"
 )
 
 type Message struct {
@@ -80,7 +74,7 @@ func (m *Message) VerifySignature() error {
 		return nil
 	}
 
-	return ErrSignatureDoesNotMatch
+	return NewErrSignatureDoesNotMatch()
 }
 
 func (m *Message) ToJson() (string, error) {

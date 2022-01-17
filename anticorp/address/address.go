@@ -5,18 +5,15 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+
 	"github.com/davecgh/go-xdr/xdr2"
-	"github.com/msaldanha/setinstone/anticorp/err"
-	"github.com/msaldanha/setinstone/anticorp/keypair"
 	"golang.org/x/crypto/ripemd160"
+
+	"github.com/msaldanha/setinstone/anticorp/keypair"
 )
 
 const version = byte(0x00)
 const addressChecksumLen = 4
-
-const (
-	ErrInvalidChecksum = err.Error("invalid checksum")
-)
 
 type Address struct {
 	Keys    *keypair.KeyPair
@@ -70,14 +67,14 @@ func MatchesPubKey(addr string, pubKey string) bool {
 
 func IsValid(addr string) (bool, error) {
 	if len(addr) == 0 {
-		return false, ErrInvalidChecksum
+		return false, NewErrInvalidChecksum()
 	}
 	pubKeyHash := Base58Decode([]byte(addr))
 	var chksum [4]byte
 	copy(chksum[:], pubKeyHash[len(pubKeyHash)-addressChecksumLen:])
 	chkCalc := checksum(pubKeyHash[:len(pubKeyHash)-addressChecksumLen])
 	if bytes.Compare(chkCalc, chksum[:]) != 0 {
-		return false, ErrInvalidChecksum
+		return false, NewErrInvalidChecksum()
 	}
 	return true, nil
 }

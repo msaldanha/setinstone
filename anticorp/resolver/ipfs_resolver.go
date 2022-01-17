@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	gopath "path"
@@ -45,7 +46,7 @@ type ipfsResolver struct {
 func NewIpfsResolver(node *core.IpfsNode, signerAddr *address.Address, evmFactory event.ManagerFactory,
 	resCache cache.Cache, resourceCache cache.Cache) (Resolver, error) {
 	if !signerAddr.HasKeys() {
-		return nil, ErrNoPrivateKey
+		return nil, NewErrNoPrivateKey()
 	}
 	ipfs, er := coreapi.NewCoreAPI(node)
 	if er != nil {
@@ -72,8 +73,8 @@ func (r *ipfsResolver) Add(ctx context.Context, name, value string) error {
 		return er
 	}
 	if !r.isManaged(rec) {
-		log.Errorf("%s Cannot add resolution %s -> %s: %s", prefix, name, value, ErrUnmanagedAddress)
-		return ErrUnmanagedAddress
+		log.Errorf("%s Cannot add resolution %s -> %s: %s", prefix, name, value, NewErrUnmanagedAddress())
+		return NewErrUnmanagedAddress()
 	}
 
 	ipldNode, er := r.ipfs.ResolveNode(ctx, path.New(value))
@@ -145,7 +146,7 @@ func (r *ipfsResolver) Resolve(ctx context.Context, name string) (string, error)
 	}
 	log.Infof("%s is NOT managed: %s", prefix, name)
 	rc, er := r.getFromCache(ctx, rec.GetID())
-	if er == ErrNotFound {
+	if errors.Is(er, NewErrNotFound()) {
 		log.Infof("%s NOT found in cache: %s", prefix, name)
 		rc, er = r.query(ctx, rec)
 	}
@@ -158,7 +159,7 @@ func (r *ipfsResolver) Resolve(ctx context.Context, name string) (string, error)
 
 func (r *ipfsResolver) Manage(addr *address.Address) error {
 	if addr.Keys.PrivateKey == "" {
-		return ErrNoPrivateKey
+		return NewErrNoPrivateKey()
 	}
 	_, er := r.handle(addr)
 	return er
@@ -229,7 +230,7 @@ func (r *ipfsResolver) get(ctx context.Context, name string) (string, error) {
 func (r *ipfsResolver) getFromCache(ctx context.Context, name string) (message.Message, error) {
 	v, ok, er := r.resolutionCache.Get(name)
 	if !ok {
-		return message.Message{}, ErrNotFound
+		return message.Message{}, NewErrNotFound()
 	}
 	rec := v.(message.Message)
 	return rec, er
@@ -261,8 +262,8 @@ func (r *ipfsResolver) resolve(ctx context.Context, rc message.Message) (message
 func (r *ipfsResolver) resolveManaged(ctx context.Context, rc message.Message) (message.Message, error) {
 	rec := message.Message{}
 	if !r.isManaged(rc) {
-		log.Errorf("%s Cannot resolve %s: %s", prefix, rc.Type, ErrUnmanagedAddress)
-		return rec, ErrUnmanagedAddress
+		log.Errorf("%s Cannot resolve %s: %s", prefix, rc.Type, NewErrUnmanagedAddress())
+		return rec, NewErrUnmanagedAddress()
 	}
 	resolution, er := r.get(ctx, ExtractQuery(rc).Data)
 	if er != nil {
@@ -274,8 +275,8 @@ func (r *ipfsResolver) resolveManaged(ctx context.Context, rc message.Message) (
 	}
 
 	if !resource.addr.HasKeys() {
-		log.Errorf("%s Cannot resolve %s: %s", prefix, rc.Type, ErrUnmanagedAddress)
-		return rec, ErrUnmanagedAddress
+		log.Errorf("%s Cannot resolve %s: %s", prefix, rc.Type, NewErrUnmanagedAddress())
+		return rec, NewErrUnmanagedAddress()
 	}
 
 	res := Query{

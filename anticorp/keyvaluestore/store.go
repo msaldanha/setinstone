@@ -1,14 +1,9 @@
 package keyvaluestore
 
 import (
-	"github.com/msaldanha/setinstone/anticorp/err"
-	bolt "go.etcd.io/bbolt"
 	"time"
-)
 
-const (
-	ErrExpectedBoltKeyValueStoreOptions = err.Error("expected BoltKeyValueStoreOptions type")
-	ErrInvalidBucketName                = err.Error("invalid bucket name")
+	bolt "go.etcd.io/bbolt"
 )
 
 type KeyValueStore interface {
@@ -34,12 +29,12 @@ func NewBoltKeyValueStore() KeyValueStore {
 }
 func (st *BoltKeyValueStore) Init(options interface{}) error {
 	if _, ok := options.(BoltKeyValueStoreOptions); !ok {
-		return ErrExpectedBoltKeyValueStoreOptions
+		return NewErrExpectedBoltKeyValueStoreOptions()
 	}
 
 	opt := options.(BoltKeyValueStoreOptions)
 	if opt.BucketName == "" {
-		return ErrInvalidBucketName
+		return NewErrInvalidBucketName()
 	}
 
 	db, er := bolt.Open(opt.DbFile, 0600, &bolt.Options{Timeout: 1 * time.Second})

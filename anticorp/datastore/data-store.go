@@ -2,15 +2,10 @@ package datastore
 
 import (
 	"context"
-	"github.com/msaldanha/setinstone/anticorp/err"
 	"io"
 )
 
 //go:generate mockgen -source=data-store.go -destination=../mock/mock-data-store.go -package=mock -imports="x=github.com/msaldanha/anticorp/datastore"
-
-const (
-	ErrNotFound = err.Error("not found")
-)
 
 type PathFunc func(string) string
 

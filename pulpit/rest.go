@@ -20,7 +20,6 @@ import (
 	"github.com/msaldanha/setinstone/anticorp/cache"
 	"github.com/msaldanha/setinstone/anticorp/dag"
 	"github.com/msaldanha/setinstone/anticorp/datastore"
-	"github.com/msaldanha/setinstone/anticorp/err"
 	"github.com/msaldanha/setinstone/anticorp/event"
 	"github.com/msaldanha/setinstone/anticorp/keyvaluestore"
 	"github.com/msaldanha/setinstone/anticorp/resolver"
@@ -28,10 +27,8 @@ import (
 )
 
 const (
-	defaultCount      = 20
-	addressClaim      = "address"
-	ErrNotInitialized = err.Error("Not initialized")
-	ErrAuthentication = err.Error("authentication failed")
+	defaultCount = 20
+	addressClaim = "address"
 )
 
 type Server interface {
@@ -133,7 +130,7 @@ func NewServer(opts ServerOptions) (Server, error) {
 
 func (s server) Run() error {
 	if !s.initialized {
-		return ErrNotInitialized
+		return NewErrNotInitialized()
 	}
 	return s.app.Run(iris.Addr(s.opts.Url))
 }
@@ -400,7 +397,7 @@ func getStatusCodeForError(er error) int {
 		fallthrough
 	case errors.Is(er, timeline.NewErrCannotAddRefToNotOwnedItem()):
 		return 400
-	case er == ErrAuthentication:
+	case errors.Is(er, NewErrAuthentication()):
 		return 401
 	case errors.Is(er, timeline.NewErrNotFound()):
 		return 404

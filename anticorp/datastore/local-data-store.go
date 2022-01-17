@@ -41,7 +41,7 @@ func (d localDataStore) Remove(ctx context.Context, key string, pathFunc PathFun
 func (d localDataStore) Get(ctx context.Context, key string) (io.Reader, error) {
 	b, ok := d.pairs[key]
 	if !ok {
-		return nil, ErrNotFound
+		return nil, NewErrNotFound()
 	}
 	return bytes.NewReader(b), nil
 }

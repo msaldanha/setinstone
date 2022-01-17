@@ -17,7 +17,6 @@ import (
 	"github.com/msaldanha/setinstone/anticorp/address"
 	"github.com/msaldanha/setinstone/anticorp/dag"
 	"github.com/msaldanha/setinstone/anticorp/datastore"
-	"github.com/msaldanha/setinstone/anticorp/err"
 	"github.com/msaldanha/setinstone/anticorp/event"
 	"github.com/msaldanha/setinstone/anticorp/graph"
 	"github.com/msaldanha/setinstone/anticorp/keyvaluestore"
@@ -87,7 +86,7 @@ func (s pulpitService) deleteAddress(ctx context.Context, addr string) error {
 		return er
 	}
 	if !found {
-		return err.Error("addr not found in local storage")
+		return errors.New("addr not found in local storage")
 	}
 	er = s.store.Delete(addr)
 	if er != nil {
@@ -107,7 +106,7 @@ func (s pulpitService) login(ctx context.Context, addr, password string) error {
 
 	a, er := s.getAddress(addr, password)
 	if er != nil {
-		return err.Error("invalid addr or password")
+		return errors.New("invalid addr or password")
 	}
 
 	er = s.resolver.Manage(a)

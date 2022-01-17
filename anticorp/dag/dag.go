@@ -356,8 +356,8 @@ func (da *dag) getName(addr string, parts ...string) string {
 }
 
 func (da *dag) translateError(er error) error {
-	switch er {
-	case datastore.ErrNotFound:
+	switch {
+	case errors.Is(er, datastore.NewErrNotFound()):
 		return NewErrNodeNotFound()
 	}
 	return er
