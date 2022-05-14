@@ -1,31 +1,21 @@
 package main
 
 import (
+	"flag"
+
 	"github.com/msaldanha/setinstone/pulpit"
-	"os"
 )
 
 func main() {
-	opts := pulpit.ServerOptions{
-		Url:             ":8080",
-		DataStore:       "8080.dat",
-		IpfsPort:        "4001",
-		IpfsApiPort:     "5002",
-		IpfsGatewayPort: "8088",
-	}
-	if len(os.Args) >= 2 {
-		opts.Url = ":" + os.Args[1]
-		opts.DataStore = os.Args[1] + ".dat"
-	}
-	if len(os.Args) >= 3 {
-		opts.IpfsPort = os.Args[2]
-	}
-	if len(os.Args) >= 4 {
-		opts.IpfsApiPort = os.Args[3]
-	}
-	if len(os.Args) >= 5 {
-		opts.IpfsGatewayPort = os.Args[4]
-	}
+	opts := pulpit.ServerOptions{}
+
+	flag.StringVar(&opts.Url, "url", ":8080", "Listening address. Should have the form of [host]:port, i.e localhost:8080 or :8080")
+	flag.StringVar(&opts.DataStore, "data", "8080.dat", "Data Store file")
+	flag.StringVar(&opts.IpfsPort, "ipfsport", "4001", "IPFS port number")
+	flag.StringVar(&opts.IpfsApiPort, "ipfsapiport", "5002", "IPFS API port number")
+	flag.StringVar(&opts.IpfsGatewayPort, "ipfsgatewayport", "8088", "IPFS Gateway port number")
+
+	flag.Parse()
 
 	p, _ := pulpit.NewServer(opts)
 	_ = p.Run()
