@@ -3,6 +3,8 @@
 
 ## What is it?
 
+First, it is my pet project and isn't finished.
+
 A P2P Social Network which uses a distributed DB to store posts.
 
 It is called SetInStone because changes in the posts are not allowed and, once stored, can't be changed.
