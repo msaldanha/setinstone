@@ -115,7 +115,8 @@ var _ = Describe("Dag", func() {
 		defer mockCtrl.Finish()
 
 		g, gAddr := CreateGenesisNode()
-		res.Manage(gAddr)
+		err := res.Manage(gAddr)
+		Expect(err).To(BeNil())
 
 		genesisKey, err := da.SetRoot(ctx, g)
 		Expect(err).To(BeNil())
@@ -251,7 +252,7 @@ var _ = Describe("Dag", func() {
 		node2 := CreateNode(testGenesisAddr, genesisKey, genesisKey, defaultBranch, genesisNode.Seq+1)
 
 		t := *node
-		t.Pow = node2.Pow
+		t.Data = node2.Data
 		_, err = da.Append(ctx, &t, genesisKey)
 		Expect(err).To(Equal(dag.NewErrNodeSignatureDoesNotMatch()))
 	})
@@ -328,8 +329,6 @@ func CreateGenesisNode() (*dag.Node, *address.Address) {
 	genesisNode.Branches = []string{defaultBranch}
 	genesisNode.PubKey = addr.Keys.PublicKey
 
-	_ = genesisNode.SetPow()
-
 	_ = genesisNode.Sign(addr.Keys.ToEcdsaPrivateKey())
 
 	return genesisNode, addr
@@ -350,8 +349,6 @@ func CreateNode(addr *address.Address, keyRoot, prev string, branch string, seq 
 	node.Data = []byte(util.RandString(256))
 	node.Branch = branch
 	node.BranchRoot = keyRoot
-
-	_ = node.SetPow()
 
 	_ = node.Sign(addr.Keys.ToEcdsaPrivateKey())
 
@@ -375,8 +372,6 @@ func CreateNodeWithBranches(addr *address.Address, keyRoot, prev string, branche
 	node.Branch = branch
 	node.BranchRoot = keyRoot
 
-	_ = node.SetPow()
-
 	_ = node.Sign(addr.Keys.ToEcdsaPrivateKey())
 
 	return node
@@ -385,8 +380,6 @@ func CreateNodeWithBranches(addr *address.Address, keyRoot, prev string, branche
 func BuildNode(node *dag.Node, addr *address.Address) *dag.Node {
 	node.Address = addr.Address
 	node.PubKey = addr.Keys.PublicKey
-
-	_ = node.SetPow()
 
 	_ = node.Sign(addr.Keys.ToEcdsaPrivateKey())
 

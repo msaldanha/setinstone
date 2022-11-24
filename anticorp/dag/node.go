@@ -2,18 +2,12 @@ package dag
 
 import (
 	"crypto/ecdsa"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"math"
-	"math/big"
 	"strconv"
 
-	"github.com/msaldanha/setinstone/anticorp/multihash"
 	"github.com/msaldanha/setinstone/anticorp/util"
-)
-
-const (
-	defaultPowTarget = int16(10)
 )
 
 type Node struct {
@@ -26,19 +20,15 @@ type Node struct {
 	Properties map[string]string `json:"properties,omitempty"`
 	Branches   []string          `json:"branches,omitempty"`
 	Data       []byte            `json:"data,omitempty"`
-	PowTarget  int16             `json:"powTarget,omitempty"`
-
-	PowNonce  int64  `json:"powNonce,omitempty"`
-	Pow       string `json:"pow,omitempty"`
-	PubKey    string `json:"pubKey,omitempty"`
-	Signature string `json:"signature,omitempty"`
+	PubKey     string            `json:"pubKey,omitempty"`
+	Signature  string            `json:"signature,omitempty"`
 }
 
 func NewNode() *Node {
-	return &Node{PowTarget: 16}
+	return &Node{}
 }
 
-func (m *Node) GetBytesForPow() []byte {
+func (m *Node) GetBytesForSigning() ([]byte, error) {
 	var result []byte
 	result = append(result, []byte(strconv.Itoa(int(m.Seq)))...)
 	result = append(result, []byte(m.Timestamp)...)
@@ -48,91 +38,13 @@ func (m *Node) GetBytesForPow() []byte {
 	result = append(result, getMapBytes(m.Properties)...)
 	result = append(result, getSliceBytes(m.Branches)...)
 	result = append(result, m.Data...)
-	result = append(result, []byte(strconv.Itoa(int(m.PowTarget)))...)
-	return result
-}
-
-func (m *Node) GetBytesForSigning() ([]byte, error) {
-	var result []byte
-	result = append(result, []byte(m.Pow)...)
 	return result, nil
-}
-
-func (m *Node) CalculatePow() (int64, string, error) {
-	var hashInt big.Int
-	var nonce int64 = 0
-
-	if m.PowTarget == 0 {
-		m.PowTarget = defaultPowTarget
-	}
-
-	target := getTarget(m.PowTarget)
-
-	data := m.GetBytesForPow()
-
-	id := multihash.NewId()
-
-	for nonce < math.MaxInt64 {
-		dataWithNonce := append(data, int64ToBytes(nonce)...)
-		er := id.SetData(dataWithNonce)
-		if er != nil {
-			return 0, "", er
-		}
-
-		hash, er := id.Digest()
-		if er != nil {
-			return 0, "", er
-		}
-
-		hashInt.SetBytes(hash[:])
-
-		if hashInt.Cmp(target) == -1 {
-			break
-		} else {
-			nonce++
-		}
-	}
-
-	return nonce, id.String(), nil
-}
-
-func (m *Node) SetPow() error {
-	nonce, hash, er := m.CalculatePow()
-	if er != nil {
-		return er
-	}
-	m.PowNonce = nonce
-	m.Pow = hash
-	return nil
-}
-
-func (m *Node) VerifyPow() (bool, error) {
-	var hashInt big.Int
-
-	target := getTarget(m.PowTarget)
-
-	data := m.GetBytesForPow()
-	dataWithNonce := append(data, int64ToBytes(m.PowNonce)...)
-
-	id := multihash.NewId()
-	er := id.SetData(dataWithNonce)
-	if er != nil {
-		return false, er
-	}
-
-	hash, er := id.Digest()
-	if er != nil {
-		return false, er
-	}
-
-	hashInt.SetBytes(hash[:])
-
-	return hashInt.Cmp(target) == -1, nil
 }
 
 func (m *Node) Sign(privateKey *ecdsa.PrivateKey) error {
 	data, _ := m.GetBytesForSigning()
-	s, er := util.Sign(data, privateKey)
+	hash := sha256.Sum256(data)
+	s, er := util.Sign(hash[:], privateKey)
 	if er != nil {
 		return er
 	}
@@ -153,7 +65,8 @@ func (m *Node) VerifySignature() error {
 	}
 
 	data, _ := m.GetBytesForSigning()
-	if !VerifySignature(sign, pubKey, data) {
+	hash := sha256.Sum256(data)
+	if !VerifySignature(sign, pubKey, hash[:]) {
 		return NewErrNodeSignatureDoesNotMatch()
 	}
 

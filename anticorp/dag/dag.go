@@ -12,10 +12,6 @@ import (
 	"github.com/msaldanha/setinstone/anticorp/resolver"
 )
 
-const (
-	hashSize = 32
-)
-
 type Dag interface {
 	SetRoot(ctx context.Context, rootNode *Node) (string, error)
 	GetLast(ctx context.Context, branchRootNodeKey, branch string) (*Node, string, error)
@@ -107,9 +103,6 @@ func (da *dag) VerifyNode(ctx context.Context, node *Node, branchRootNodeKey str
 	if node.Seq == 0 {
 		return NewErrInvalidBranchSeq()
 	}
-	if !da.verifyPow(node) {
-		return NewErrInvalidNodeHash()
-	}
 	if er := node.VerifySignature(); er != nil {
 		return da.translateError(er)
 	}
@@ -159,11 +152,6 @@ func (da *dag) VerifyNode(ctx context.Context, node *Node, branchRootNodeKey str
 	return nil
 }
 
-func (da *dag) verifyPow(node *Node) bool {
-	ok, _ := node.VerifyPow()
-	return ok
-}
-
 func (da *dag) verifyTimeStamp(node *Node) bool {
 	_, er := time.Parse(time.RFC3339, node.Timestamp)
 	if er != nil {
@@ -183,10 +171,6 @@ func (da *dag) verifyAddress(node *Node) (bool, error) {
 	if !address.MatchesPubKey(node.Address, node.PubKey) {
 		return false, NewErrAddressDoesNotMatchPubKey()
 	}
-	return true, nil
-}
-
-func (da *dag) verifyEdges(node *Node) (bool, error) {
 	return true, nil
 }
 
@@ -210,7 +194,7 @@ func (da *dag) saveNode(ctx context.Context, node *Node, branchRootNodeKey strin
 		return "", NewErrBranchRootNotFound()
 	}
 
-	fullPath, er := da.getFullPath(ctx, branchRootNodeKey, node.Branch)
+	fullPath, er := da.getFullPath(ctx, branchRootNodeKey)
 
 	data, er := node.ToJson()
 	if er != nil {
@@ -363,7 +347,7 @@ func (da *dag) translateError(er error) error {
 	return er
 }
 
-func (da *dag) getFullPath(ctx context.Context, key, branch string) (string, error) {
+func (da *dag) getFullPath(ctx context.Context, key string) (string, error) {
 	path := ""
 	if key == "" {
 		return path, nil
@@ -379,7 +363,7 @@ func (da *dag) getFullPath(ctx context.Context, key, branch string) (string, err
 		return da.getName(node.Address, path), nil
 	}
 
-	s, er := da.getFullPath(ctx, node.BranchRoot, node.Branch)
+	s, er := da.getFullPath(ctx, node.BranchRoot)
 	if er != nil {
 		return path, er
 	}
