@@ -2,6 +2,7 @@ package multihash
 
 import (
 	cid "github.com/ipfs/go-cid"
+	mc "github.com/multiformats/go-multicodec"
 	mh "github.com/multiformats/go-multihash"
 )
 
@@ -20,7 +21,7 @@ type id struct {
 func NewId() Id {
 	var pref cid.Prefix
 	pref.Version = 0
-	pref.Codec = cid.Codecs["v0"]
+	pref.Codec = uint64(mc.Cidv2)
 	pref.MhType = mh.SHA2_256
 	pref.MhLength = 32
 	return &id{

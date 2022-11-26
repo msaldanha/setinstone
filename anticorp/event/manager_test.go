@@ -6,7 +6,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	iface "github.com/ipfs/interface-go-ipfs-core"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/peer"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 

@@ -8,8 +8,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/ipfs/go-ipfs/core/coreapi"
 	icore "github.com/ipfs/interface-go-ipfs-core"
+	"github.com/ipfs/kubo/core/coreapi"
 	"github.com/iris-contrib/middleware/cors"
 	"github.com/iris-contrib/middleware/jwt"
 	"github.com/kataras/iris/v12"

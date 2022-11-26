@@ -6,11 +6,12 @@ package event_test
 
 import (
 	context "context"
+	reflect "reflect"
+
 	gomock "github.com/golang/mock/gomock"
 	iface "github.com/ipfs/interface-go-ipfs-core"
 	options "github.com/ipfs/interface-go-ipfs-core/options"
 	peer "github.com/libp2p/go-libp2p-core/peer"
-	reflect "reflect"
 )
 
 // MockPubSubAPI is a mock of PubSubAPI interface

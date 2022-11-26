@@ -2,7 +2,7 @@ package event
 
 import (
 	icore "github.com/ipfs/interface-go-ipfs-core"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/msaldanha/setinstone/anticorp/address"
 )

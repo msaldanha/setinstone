@@ -3,18 +3,18 @@ package datastore
 import (
 	"context"
 	"fmt"
-	files "github.com/ipfs/go-ipfs-files"
-	"github.com/ipfs/go-mfs"
-	"github.com/ipfs/interface-go-ipfs-core/path"
+	"io"
 	gopath "path"
 	"time"
 
+	files "github.com/ipfs/go-ipfs-files"
+	"github.com/ipfs/go-mfs"
+	"github.com/ipfs/interface-go-ipfs-core/path"
+
 	icore "github.com/ipfs/interface-go-ipfs-core"
 
-	"github.com/ipfs/go-ipfs/core"
-	"github.com/ipfs/go-ipfs/core/coreapi"
-
-	"io"
+	"github.com/ipfs/kubo/core"
+	"github.com/ipfs/kubo/core/coreapi"
 )
 
 type ipfsDataStore struct {

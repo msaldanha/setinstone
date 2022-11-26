@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 	icore "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipfs/interface-go-ipfs-core/options"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/peer"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/msaldanha/setinstone/anticorp/address"
