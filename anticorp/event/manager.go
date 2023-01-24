@@ -11,7 +11,7 @@ import (
 	icore "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipfs/interface-go-ipfs-core/options"
 	"github.com/libp2p/go-libp2p/core/peer"
-	log "github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 
 	"github.com/msaldanha/setinstone/anticorp/address"
 	"github.com/msaldanha/setinstone/anticorp/message"
@@ -32,12 +32,12 @@ type manager struct {
 	pubSub        icore.PubSubAPI
 	id            peer.ID
 	subscriptions map[string]*subscription
-	l             *log.Entry
 	subLock       sync.Mutex
 	nameSpace     string
 	rootSub       icore.PubSubSubscription
 	signerAddr    *address.Address
 	managedAddr   *address.Address
+	logger        *zap.Logger
 }
 
 type subscription struct {
@@ -47,15 +47,15 @@ type subscription struct {
 }
 
 // NewManager creates a new event manager and sets up its event loop
-func NewManager(pubSub icore.PubSubAPI, id peer.ID, nameSpace string, signerAddr, managedAddr *address.Address) (Manager, error) {
+func NewManager(pubSub icore.PubSubAPI, id peer.ID, nameSpace string, signerAddr, managedAddr *address.Address, logger *zap.Logger) (Manager, error) {
 	m := &manager{
-		l:             log.WithField("name", "Event Manager"),
 		pubSub:        pubSub,
 		id:            id,
 		subscriptions: make(map[string]*subscription, 0),
 		nameSpace:     nameSpace,
 		signerAddr:    signerAddr,
 		managedAddr:   managedAddr,
+		logger:        logger.Named("Event Manager"),
 	}
 	topic := m.getTopicName()
 	rootSub, er := pubSub.Subscribe(context.Background(), topic, options.PubSub.Discover(true))
@@ -79,7 +79,7 @@ func (m *manager) On(eventName string, callback CallbackFunc) (DoneFunc, error) 
 		defer sub.mutex.Unlock()
 
 		sub.callbacks[id.String()] = callback
-		m.l.Infof("Added subscription for event %s", eventName)
+		m.logger.Info("Added subscription for event", zap.String("eventName", eventName))
 		return m.createDoneFunc(sub, id.String()), nil
 	}
 
@@ -114,7 +114,8 @@ func (m *manager) Next(ctx context.Context, eventName string) (Event, error) {
 
 // Emit emits eventName with data on the namespace.
 func (m *manager) Emit(eventName string, data []byte) error {
-	m.l.Infof("Signaling event on %s %s : %s", m.getTopicName(), eventName, string(data))
+	m.logger.Info("Signaling event", zap.String("eventName", eventName),
+		zap.String("topic", m.getTopicName()), zap.String("data", string(data)))
 	if !m.signerAddr.HasKeys() {
 		return NewErrAddressNoKeys()
 	}
@@ -143,34 +144,36 @@ func (m *manager) Emit(eventName string, data []byte) error {
 }
 
 func (m *manager) startEventLoop() {
-	m.l.Infof("Running event loop for %s", m.getTopicName())
+	logger := m.logger.With(zap.String("topic", m.getTopicName()))
+	logger.Info("Running event loop")
 	go func() {
-		defer m.l.Infof("Event loop for %s finished", m.getTopicName())
+		logger.Info("Event loop finished")
 		b := backoff.NewExponentialBackOff()
 		for {
-			m.l.Infof("Waiting next event for %s", m.getTopicName())
+			logger.Info("Waiting next event")
 			operation := func() error {
 				msg, er := m.rootSub.Next(context.Background())
 				if er != nil {
-					log.Errorf("Subscription %s failed: %s", m.getTopicName(), er)
+					logger.Error("Waiting for next event failed", zap.Error(er))
 					return er
 				}
-				m.l.Infof("Message arrived for %s : %s", m.getTopicName(), string(msg.Data()))
+				logger.Info("Message arrived", zap.String("data", string(msg.Data())))
 				if msg.From() == m.id {
-					m.l.Infof("Message arrived was from ourselves for %s : %s", m.getTopicName(), string(msg.Data()))
+					logger.Info("Message arrived was from ourselves")
 					return nil
 				}
 				ev, er := newEventFromPubSubMessage(msg)
 				if er != nil {
-					log.Errorf("Failed to convert msg to event: %s : %s", m.getTopicName(), er)
+					logger.Error("Failed to convert msg to event", zap.Error(er))
 					return nil
 				}
-				m.l.Infof("Event arrived for %s.%s : %s", m.getTopicName(), ev.Name(), string(ev.Data()))
+				logger.Info("Even extracted from message", zap.String("eventName", ev.Name()),
+					zap.String("data", string(ev.Data())))
 				m.subLock.Lock()
 				defer m.subLock.Unlock()
 				sub, found := m.subscriptions[ev.Name()]
 				if !found {
-					log.Warnf("No subscription for %s.%s . Ignoring.", m.getTopicName(), ev.Name())
+					logger.Warn("No subscription for event. Ignoring.", zap.String("eventName", ev.Name()))
 					return nil
 				}
 				for _, callback := range sub.callbacks {
@@ -180,7 +183,7 @@ func (m *manager) startEventLoop() {
 			}
 			er := backoff.Retry(operation, b)
 			if er != nil {
-				log.Errorf("Subscription %s failed after MAX retries: %s", m.getTopicName(), er)
+				logger.Error("Subscription failed after MAX retries", zap.Error(er))
 				return
 			}
 		}

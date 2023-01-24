@@ -9,6 +9,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"go.uber.org/zap"
 
 	"github.com/msaldanha/setinstone/anticorp/address"
 	"github.com/msaldanha/setinstone/anticorp/event"
@@ -43,6 +44,7 @@ var _ = Describe("Event Manager", func() {
 
 	addr, _ := address.NewAddressWithKeys()
 	testEventString = createMessageJsonForEvent("test_event", []byte("data"), addr)
+	logger := zap.NewNop()
 
 	It("Should subscribe to an event calling the callback", func() {
 		ctrl := gomock.NewController(GinkgoT())
@@ -62,7 +64,7 @@ var _ = Describe("Event Manager", func() {
 
 		id := peer.ID("")
 
-		man, _ := event.NewManager(pubSubMock, id, testNameSpace, addr, addr)
+		man, _ := event.NewManager(pubSubMock, id, testNameSpace, addr, addr, logger)
 
 		_, err := man.On("test_event", func(ev event.Event) {
 
@@ -88,7 +90,7 @@ var _ = Describe("Event Manager", func() {
 
 		id := peer.ID("")
 
-		man, _ := event.NewManager(pubSubMock, id, testNameSpace, addr, addr)
+		man, _ := event.NewManager(pubSubMock, id, testNameSpace, addr, addr, logger)
 
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
 		ev, err := man.Next(ctx, "test_event")
@@ -112,7 +114,7 @@ var _ = Describe("Event Manager", func() {
 		}).AnyTimes()
 		id := peer.ID("")
 
-		man, _ := event.NewManager(pubSubMock, id, testNameSpace, addr, addr)
+		man, _ := event.NewManager(pubSubMock, id, testNameSpace, addr, addr, logger)
 
 		data := []byte("data")
 		expectedMsg := message.Message{}

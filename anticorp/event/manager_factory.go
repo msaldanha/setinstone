@@ -3,6 +3,7 @@ package event
 import (
 	icore "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"go.uber.org/zap"
 
 	"github.com/msaldanha/setinstone/anticorp/address"
 )
@@ -10,7 +11,7 @@ import (
 //go:generate mockgen -source=manager_factory.go -destination=manager_factory_mock.go -package=event
 
 type ManagerFactory interface {
-	Build(nameSpace string, signerAddr, managedAddr *address.Address) (Manager, error)
+	Build(nameSpace string, signerAddr, managedAddr *address.Address, logger *zap.Logger) (Manager, error)
 }
 
 type managerFactory struct {
@@ -27,6 +28,6 @@ func NewManagerFactory(pubSub icore.PubSubAPI, id peer.ID) (ManagerFactory, erro
 	return m, nil
 }
 
-func (m *managerFactory) Build(nameSpace string, signerAddr, managedAddr *address.Address) (Manager, error) {
-	return NewManager(m.pubSub, m.id, nameSpace, signerAddr, managedAddr)
+func (m *managerFactory) Build(nameSpace string, signerAddr, managedAddr *address.Address, logger *zap.Logger) (Manager, error) {
+	return NewManager(m.pubSub, m.id, nameSpace, signerAddr, managedAddr, logger)
 }

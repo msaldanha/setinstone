@@ -7,6 +7,7 @@ package event
 import (
 	gomock "github.com/golang/mock/gomock"
 	address "github.com/msaldanha/setinstone/anticorp/address"
+	zap "go.uber.org/zap"
 	reflect "reflect"
 )
 
@@ -34,16 +35,16 @@ func (m *MockManagerFactory) EXPECT() *MockManagerFactoryMockRecorder {
 }
 
 // Build mocks base method
-func (m *MockManagerFactory) Build(nameSpace string, signerAddr, managedAddr *address.Address) (Manager, error) {
+func (m *MockManagerFactory) Build(nameSpace string, signerAddr, managedAddr *address.Address, logger *zap.Logger) (Manager, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Build", nameSpace, signerAddr, managedAddr)
+	ret := m.ctrl.Call(m, "Build", nameSpace, signerAddr, managedAddr, logger)
 	ret0, _ := ret[0].(Manager)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Build indicates an expected call of Build
-func (mr *MockManagerFactoryMockRecorder) Build(nameSpace, signerAddr, managedAddr interface{}) *gomock.Call {
+func (mr *MockManagerFactoryMockRecorder) Build(nameSpace, signerAddr, managedAddr, logger interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Build", reflect.TypeOf((*MockManagerFactory)(nil).Build), nameSpace, signerAddr, managedAddr)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Build", reflect.TypeOf((*MockManagerFactory)(nil).Build), nameSpace, signerAddr, managedAddr, logger)
 }

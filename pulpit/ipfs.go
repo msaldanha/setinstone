@@ -4,12 +4,9 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
-	"log"
-	"os"
 	"path/filepath"
 	"sync"
 
-	files "github.com/ipfs/go-ipfs-files"
 	icore "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipfs/kubo/config"
 	"github.com/ipfs/kubo/core"
@@ -19,26 +16,39 @@ import (
 	"github.com/ipfs/kubo/repo/fsrepo"
 	"github.com/libp2p/go-libp2p/core/peer"
 	ma "github.com/multiformats/go-multiaddr"
+	"go.uber.org/zap"
 )
 
+type ipfsServer struct {
+	logger *zap.Logger
+	opts   ServerOptions
+}
+
+func newIpfsServer(logger *zap.Logger, opts ServerOptions) *ipfsServer {
+	return &ipfsServer{
+		logger: logger.Named("IPFS Server"),
+		opts:   opts,
+	}
+}
+
 // Spawns a node to be used just for this run (i.e. creates a tmp repo)
-func spawnEphemeral(ctx context.Context, opts ServerOptions) (*core.IpfsNode, error) {
-	if err := setupPlugins(""); err != nil {
+func (s *ipfsServer) spawnEphemeral(ctx context.Context) (*core.IpfsNode, error) {
+	if err := s.setupPlugins(""); err != nil {
 		return nil, err
 	}
 
 	// Create a Temporary Repo
-	repoPath, err := createTempRepo(ctx, opts)
+	repoPath, err := s.createTempRepo(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp repo: %s", err)
 	}
 
 	// Spawning an ephemeral IPFS node
-	return createNode(ctx, repoPath)
+	return s.createNode(ctx, repoPath)
 }
 
 // Creates an IPFS node and returns its coreAPI
-func createNode(ctx context.Context, repoPath string) (*core.IpfsNode, error) {
+func (s *ipfsServer) createNode(ctx context.Context, repoPath string) (*core.IpfsNode, error) {
 	// Open the repo
 	repo, err := fsrepo.Open(repoPath)
 	if err != nil {
@@ -65,9 +75,8 @@ func createNode(ctx context.Context, repoPath string) (*core.IpfsNode, error) {
 		return nil, err
 	}
 
-	log.Printf("IPFS: repo at %s\n", repoPath)
-	log.Printf("IPFS: online: %t\n", node.IsOnline)
-	log.Printf("IPFS: daemon: %t\n", node.IsOnline)
+	s.logger.Info("IPFS: repo created", zap.String("repo_path", repoPath),
+		zap.Bool("is_online", node.IsOnline), zap.Bool("is_daemon", node.IsDaemon))
 
 	bootstrapNodes := []string{
 		// IPFS Bootstrapper nodes.
@@ -91,29 +100,16 @@ func createNode(ctx context.Context, repoPath string) (*core.IpfsNode, error) {
 	// Attach the Core API to the node
 	ipfs, err := coreapi.NewCoreAPI(node)
 	if err != nil {
+		s.logger.Error("IPFS: failed to get ipfs api", zap.Error(err))
 		panic(fmt.Errorf("IPFS: failed to get ipfs api: %s", err))
 	}
 
-	go connectToPeers(ctx, ipfs, bootstrapNodes)
+	go s.connectToPeers(ctx, ipfs, bootstrapNodes)
 
 	return node, err
 }
 
-func getUnixfsNode(path string) (files.Node, error) {
-	st, err := os.Stat(path)
-	if err != nil {
-		return nil, err
-	}
-
-	f, err := files.NewSerialFile(path, false, st)
-	if err != nil {
-		return nil, err
-	}
-
-	return f, nil
-}
-
-func setupPlugins(externalPluginsPath string) error {
+func (s *ipfsServer) setupPlugins(externalPluginsPath string) error {
 	// Load any external plugins if available on externalPluginsPath
 	plugins, err := loader.NewPluginLoader(filepath.Join(externalPluginsPath, "plugins"))
 	if err != nil {
@@ -132,7 +128,7 @@ func setupPlugins(externalPluginsPath string) error {
 	return nil
 }
 
-func createTempRepo(ctx context.Context, opts ServerOptions) (string, error) {
+func (s *ipfsServer) createTempRepo(ctx context.Context) (string, error) {
 	repoPath, err := ioutil.TempDir("", "ipfs-shell")
 	if err != nil {
 		return "", fmt.Errorf("failed to get temp dir: %s", err)
@@ -143,9 +139,9 @@ func createTempRepo(ctx context.Context, opts ServerOptions) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	cfg.Addresses = addressesConfig(opts)
+	cfg.Addresses = s.addressesConfig()
 
-	log.Printf("IPFS: nodeID: %s", cfg.Identity.PeerID)
+	s.logger.Info("nodeID: %s", zap.String("node_id", cfg.Identity.PeerID))
 
 	// Create the repo with the config
 	err = fsrepo.Init(repoPath, cfg)
@@ -156,21 +152,21 @@ func createTempRepo(ctx context.Context, opts ServerOptions) (string, error) {
 	return repoPath, nil
 }
 
-func addressesConfig(opts ServerOptions) config.Addresses {
+func (s *ipfsServer) addressesConfig() config.Addresses {
 	return config.Addresses{
 		Swarm: []string{
-			"/ip4/0.0.0.0/tcp/" + opts.IpfsPort,
+			"/ip4/0.0.0.0/tcp/" + s.opts.IpfsPort,
 			// "/ip4/0.0.0.0/udp/4002/utp", // disabled for now.
-			"/ip6/::/tcp/" + opts.IpfsPort,
+			"/ip6/::/tcp/" + s.opts.IpfsPort,
 		},
 		Announce:   []string{},
 		NoAnnounce: []string{},
-		API:        config.Strings{"/ip4/127.0.0.1/tcp/" + opts.IpfsApiPort},
-		Gateway:    config.Strings{"/ip4/127.0.0.1/tcp/" + opts.IpfsGatewayPort},
+		API:        config.Strings{"/ip4/127.0.0.1/tcp/" + s.opts.IpfsApiPort},
+		Gateway:    config.Strings{"/ip4/127.0.0.1/tcp/" + s.opts.IpfsGatewayPort},
 	}
 }
 
-func connectToPeers(ctx context.Context, ipfs icore.CoreAPI, peers []string) error {
+func (s *ipfsServer) connectToPeers(ctx context.Context, ipfs icore.CoreAPI, peers []string) error {
 	var wg sync.WaitGroup
 	peerInfos := make(map[peer.ID]*peer.AddrInfo, len(peers))
 	for _, addrStr := range peers {
@@ -192,17 +188,17 @@ func connectToPeers(ctx context.Context, ipfs icore.CoreAPI, peers []string) err
 
 	wg.Add(len(peerInfos))
 	for _, peerInfo := range peerInfos {
-		go func(peerInfo *peer.AddrInfo) {
+		go func(peerInfo peer.AddrInfo) {
 			defer wg.Done()
-			err := ipfs.Swarm().Connect(ctx, *peerInfo)
+			err := ipfs.Swarm().Connect(ctx, peerInfo)
 			if err != nil {
-				log.Printf("IPFS: failed to connect to %s: %s", peerInfo.ID, err)
+				s.logger.Warn("failed to connect", zap.String("peer_id", peerInfo.ID.String()), zap.Error(err))
 			} else {
-				log.Printf("IPFS: connected to %s", peerInfo.ID)
+				s.logger.Warn("connected", zap.String("peer_id", peerInfo.ID.String()))
 			}
-		}(peerInfo)
+		}(*peerInfo)
 	}
 	wg.Wait()
-	log.Printf("IPFS: all peer connections are done.")
+	s.logger.Info("all peer connections are done.")
 	return nil
 }

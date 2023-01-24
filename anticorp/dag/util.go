@@ -1,30 +1,11 @@
 package dag
 
 import (
-	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
-	"encoding/binary"
-	"log"
 	"math/big"
 	"sort"
 )
-
-func getTarget(targetBits int16) *big.Int {
-	target := big.NewInt(1)
-	target.Lsh(target, uint(256-targetBits))
-	return target
-}
-
-func int64ToBytes(num int64) []byte {
-	buff := new(bytes.Buffer)
-	err := binary.Write(buff, binary.BigEndian, num)
-	if err != nil {
-		log.Panic(err)
-	}
-
-	return buff.Bytes()
-}
 
 func VerifySignature(signature []byte, pubKey []byte, data []byte) bool {
 	r := big.Int{}
@@ -43,17 +24,6 @@ func VerifySignature(signature []byte, pubKey []byte, data []byte) bool {
 	rawPubKey := ecdsa.PublicKey{Curve: curve, X: &x, Y: &y}
 
 	return ecdsa.Verify(&rawPubKey, data, &r, &s)
-}
-
-func LeftPadBytes(slice []byte, lenght int) []byte {
-	if lenght <= len(slice) {
-		return slice
-	}
-
-	padded := make([]byte, lenght)
-	copy(padded[lenght-len(slice):], slice)
-
-	return padded
 }
 
 func getMapBytes(dataMap map[string]string) []byte {

@@ -15,6 +15,7 @@ import (
 	"github.com/kataras/iris/v12"
 	"github.com/kataras/iris/v12/middleware/logger"
 	"github.com/kataras/iris/v12/middleware/recover"
+	"go.uber.org/zap"
 
 	"github.com/msaldanha/setinstone/anticorp/address"
 	"github.com/msaldanha/setinstone/anticorp/cache"
@@ -49,6 +50,8 @@ type server struct {
 	evm         event.Manager
 	ps          pulpitService
 	secret      string
+	logger      *zap.Logger
+	ipfsServer  *ipfsServer
 }
 
 type ServerOptions struct {
@@ -84,12 +87,19 @@ func NewServer(opts ServerOptions) (Server, error) {
 	app.Use(crs)
 	app.AllowMethods(iris.MethodOptions)
 
+	logger, er := zap.NewProduction()
+	if er != nil {
+		return nil, er
+	}
+
 	srv := server{
 		initialized: true,
 		app:         app,
 		store:       store,
 		opts:        opts,
 		secret:      os.Getenv("SERVER_SECRET"),
+		logger:      logger.Named("Server"),
+		ipfsServer:  newIpfsServer(logger, opts),
 	}
 
 	j := jwt.New(jwt.Config{
@@ -341,7 +351,7 @@ func (s *server) init() error {
 	ctx := context.Background()
 
 	fmt.Println("Spawning node on a temporary repo")
-	node, er := spawnEphemeral(ctx, s.opts)
+	node, er := s.ipfsServer.spawnEphemeral(ctx)
 	if er != nil {
 		panic(fmt.Errorf("failed to spawn ephemeral node: %s", er))
 	}
@@ -369,12 +379,12 @@ func (s *server) init() error {
 		panic(fmt.Errorf("failed to setup event manager factory: %s", er))
 	}
 
-	s.resolver, er = resolver.NewIpfsResolver(node, signerAddr, evmf, resolutionCache, resourceCache)
+	s.resolver, er = resolver.NewIpfsResolver(node, signerAddr, evmf, resolutionCache, resourceCache, s.logger)
 	if er != nil {
 		panic(fmt.Errorf("failed to setup resolver: %s", er))
 	}
 
-	s.ps = newPulpitService(s.store, s.ds, s.ipfs, s.resolver, evmf)
+	s.ps = newPulpitService(s.store, s.ds, s.ipfs, s.resolver, evmf, s.logger)
 	return nil
 }
 

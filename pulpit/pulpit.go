@@ -14,6 +14,8 @@ import (
 	icore "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipfs/interface-go-ipfs-core/path"
 
+	"go.uber.org/zap"
+
 	"github.com/msaldanha/setinstone/anticorp/address"
 	"github.com/msaldanha/setinstone/anticorp/dag"
 	"github.com/msaldanha/setinstone/anticorp/datastore"
@@ -33,10 +35,11 @@ type pulpitService struct {
 	logins     map[string]string
 	resolver   resolver.Resolver
 	evmFactory event.ManagerFactory
+	logger     *zap.Logger
 }
 
 func newPulpitService(store keyvaluestore.KeyValueStore, ds datastore.DataStore,
-	ipfs icore.CoreAPI, resolver resolver.Resolver, evmFactory event.ManagerFactory) pulpitService {
+	ipfs icore.CoreAPI, resolver resolver.Resolver, evmFactory event.ManagerFactory, logger *zap.Logger) pulpitService {
 	return pulpitService{
 		store:      store,
 		ds:         ds,
@@ -45,6 +48,7 @@ func newPulpitService(store keyvaluestore.KeyValueStore, ds datastore.DataStore,
 		timelines:  map[string]timeline.Timeline{},
 		logins:     map[string]string{},
 		evmFactory: evmFactory,
+		logger:     logger.Named("Pulpit"),
 	}
 }
 
@@ -330,7 +334,7 @@ func (s *pulpitService) createTimeLine(ns string, a *address.Address) (timeline.
 	}
 	ld := dag.NewDag(ns, s.ds, s.resolver)
 	gr := graph.NewGraph(ld, a)
-	tl, er := timeline.NewTimeline(ns, a, gr, s.evmFactory)
+	tl, er := timeline.NewTimeline(ns, a, gr, s.evmFactory, s.logger)
 	if er != nil {
 		return nil, er
 	}
@@ -418,4 +422,18 @@ func getFileContentType(path string) (string, error) {
 	contentType := http.DetectContentType(buffer)
 
 	return contentType, nil
+}
+
+func getUnixfsNode(path string) (files.Node, error) {
+	st, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+
+	f, err := files.NewSerialFile(path, false, st)
+	if err != nil {
+		return nil, err
+	}
+
+	return f, nil
 }

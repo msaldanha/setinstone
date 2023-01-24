@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	log "github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 
 	"github.com/msaldanha/setinstone/anticorp/address"
 	"github.com/msaldanha/setinstone/anticorp/cache"
@@ -30,9 +30,10 @@ type timeline struct {
 	ns        string
 	addr      *address.Address
 	evmsCache cache.Cache
+	logger    *zap.Logger
 }
 
-func NewTimeline(ns string, addr *address.Address, gr graph.Graph, evmf event.ManagerFactory) (Timeline, error) {
+func NewTimeline(ns string, addr *address.Address, gr graph.Graph, evmf event.ManagerFactory, logger *zap.Logger) (Timeline, error) {
 	if addr == nil || !addr.HasKeys() {
 		return nil, NewErrInvalidParameterAddress()
 	}
@@ -45,7 +46,9 @@ func NewTimeline(ns string, addr *address.Address, gr graph.Graph, evmf event.Ma
 		return nil, NewErrInvalidParameterEventManager()
 	}
 
-	evm, er := evmf.Build(ns, addr, addr)
+	logger = logger.Named("Timeline").With(zap.String("namespace", ns), zap.String("addr", addr.Address))
+
+	evm, er := evmf.Build(ns, addr, addr, logger)
 	if er != nil {
 		return nil, er
 	}
@@ -59,6 +62,7 @@ func NewTimeline(ns string, addr *address.Address, gr graph.Graph, evmf event.Ma
 		ns:        ns,
 		addr:      addr,
 		evmsCache: evmsCache,
+		logger:    logger,
 	}
 
 	_, er = evm.On(EventTypes.EventReferenced, tl.refAddedHandler)
@@ -186,7 +190,7 @@ func (t *timeline) AddReceivedReference(ctx context.Context, refKey string) (str
 }
 
 // Get retrieves one item by key
-func (t timeline) Get(ctx context.Context, key string) (Item, bool, error) {
+func (t *timeline) Get(ctx context.Context, key string) (Item, bool, error) {
 	v, found, er := t.gr.Get(ctx, key)
 	if er != nil {
 		return Item{}, false, t.translateError(er)
@@ -252,7 +256,7 @@ func (t *timeline) refAddedHandler(ev event.Event) {
 	if er != nil {
 		return
 	}
-	log.Infof("%s Received reference %s %s", t.ns, v.Type, v.Id)
+	t.logger.Info("Received reference", zap.String("type", v.Type), zap.String("id", v.Id))
 	_, _ = t.AddReceivedReference(context.Background(), v.Id)
 }
 
@@ -267,7 +271,7 @@ func (t *timeline) broadcast(eventType, eventValue string) {
 func (t *timeline) sendEventToTimeline(addr, eventType, eventValue string) {
 	evm, er := t.getEvmForTimeline(addr)
 	if er != nil {
-		log.Errorf("%s Unable to get event manager for %s: %s", t.ns, addr, er)
+		t.logger.Error("Unable to get event manager", zap.String("addr", addr), zap.Error(er))
 		return
 	}
 	ev := Event{
@@ -286,7 +290,7 @@ func (t *timeline) getEvmForTimeline(addr string) (event.Manager, error) {
 		evm := v.(event.Manager)
 		return evm, nil
 	}
-	evm, er := t.evmf.Build(t.ns, t.addr, &address.Address{Address: addr})
+	evm, er := t.evmf.Build(t.ns, t.addr, &address.Address{Address: addr}, t.logger)
 	if er != nil {
 		return nil, er
 	}
@@ -295,22 +299,22 @@ func (t *timeline) getEvmForTimeline(addr string) (event.Manager, error) {
 }
 
 func (t *timeline) extractEvent(ev event.Event) (Event, error) {
-	log.Infof("%s Received %s %s", t.ns, ev.Name(), string(ev.Data()))
+	t.logger.Info("Received event", zap.String("name", ev.Name()), zap.String("data", string(ev.Data())))
 
 	msg := message.Message{}
 	er := msg.FromJson(ev.Data(), Event{})
 	if er != nil {
-		log.Errorf("%s Invalid msg received on subscription %s: %s", t.ns, ev.Name(), er)
+		t.logger.Error("Invalid msg received", zap.String("name", ev.Name()), zap.Error(er))
 		return Event{}, er
 	}
 
 	er = msg.VerifySignature()
 	if er != nil {
-		log.Errorf("%s Invalid msg signature on subscription %s: %s", t.ns, ev.Name(), er)
+		t.logger.Error("Invalid msg signature", zap.String("name", ev.Name()), zap.Error(er))
 		return Event{}, er
 	}
 
 	v := msg.Payload.(Event)
-	log.Infof("%s Event received %s: %s", t.ns, v.Type, v.Id)
+	t.logger.Info("Timeline event received", zap.String("type", v.Type), zap.String("id", v.Id))
 	return v, nil
 }
