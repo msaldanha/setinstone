@@ -13,38 +13,34 @@ import (
 	files "github.com/ipfs/go-ipfs-files"
 	icore "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipfs/interface-go-ipfs-core/path"
+	"github.com/ipfs/kubo/core"
 
 	"go.uber.org/zap"
 
 	"github.com/msaldanha/setinstone/anticorp/address"
-	"github.com/msaldanha/setinstone/anticorp/dag"
-	"github.com/msaldanha/setinstone/anticorp/datastore"
+	"github.com/msaldanha/setinstone/anticorp/crypto"
 	"github.com/msaldanha/setinstone/anticorp/event"
 	"github.com/msaldanha/setinstone/anticorp/graph"
 	"github.com/msaldanha/setinstone/anticorp/keyvaluestore"
-	"github.com/msaldanha/setinstone/anticorp/resolver"
-	"github.com/msaldanha/setinstone/anticorp/util"
 	"github.com/msaldanha/setinstone/timeline"
 )
 
 type pulpitService struct {
 	store      keyvaluestore.KeyValueStore
 	timelines  map[string]timeline.Timeline
-	ds         datastore.DataStore
 	ipfs       icore.CoreAPI
+	node       *core.IpfsNode
 	logins     map[string]string
-	resolver   resolver.Resolver
 	evmFactory event.ManagerFactory
 	logger     *zap.Logger
 }
 
-func newPulpitService(store keyvaluestore.KeyValueStore, ds datastore.DataStore,
-	ipfs icore.CoreAPI, resolver resolver.Resolver, evmFactory event.ManagerFactory, logger *zap.Logger) pulpitService {
+func newPulpitService(store keyvaluestore.KeyValueStore,
+	ipfs icore.CoreAPI, node *core.IpfsNode, evmFactory event.ManagerFactory, logger *zap.Logger) pulpitService {
 	return pulpitService{
 		store:      store,
-		ds:         ds,
 		ipfs:       ipfs,
-		resolver:   resolver,
+		node:       node,
 		timelines:  map[string]timeline.Timeline{},
 		logins:     map[string]string{},
 		evmFactory: evmFactory,
@@ -63,10 +59,10 @@ func (s pulpitService) createAddress(ctx context.Context, pass string) (string, 
 	}
 
 	dbAddress := a.Clone()
-	dbAddress.Keys.PrivateKey = hex.EncodeToString(util.Encrypt([]byte(dbAddress.Keys.PrivateKey), pass))
+	dbAddress.Keys.PrivateKey = hex.EncodeToString(crypto.Encrypt([]byte(dbAddress.Keys.PrivateKey), pass))
 	ar := AddressRecord{
 		Address:  *dbAddress,
-		Bookmark: util.Encrypt([]byte(bookmarkFlag), pass),
+		Bookmark: crypto.Encrypt([]byte(bookmarkFlag), pass),
 	}
 
 	er = s.store.Put(dbAddress.Address, ar.ToBytes())
@@ -75,11 +71,6 @@ func (s pulpitService) createAddress(ctx context.Context, pass string) (string, 
 	}
 
 	s.logins[a.Address] = pass
-
-	er = s.resolver.Manage(a)
-	if er != nil {
-		return "", er
-	}
 
 	return a.Address, nil
 }
@@ -109,16 +100,13 @@ func (s pulpitService) login(ctx context.Context, addr, password string) error {
 	}
 
 	a, er := s.getAddress(addr, password)
-	if er != nil {
+	if er != nil || !a.HasKeys() {
 		return errors.New("invalid addr or password")
 	}
 
-	er = s.resolver.Manage(a)
-	if er == nil {
-		s.logins[addr] = password
-	}
+	s.logins[addr] = password
 
-	return er
+	return nil
 }
 
 func (s pulpitService) getRandomAddress(ctx context.Context) (*address.Address, error) {
@@ -318,7 +306,7 @@ func (s pulpitService) getAddress(addr, pass string) (*address.Address, error) {
 			if er != nil {
 				return nil, er
 			}
-			pk, er := util.Decrypt(privKey, pass)
+			pk, er := crypto.Decrypt(privKey, pass)
 			if er != nil {
 				return nil, er
 			}
@@ -329,11 +317,7 @@ func (s pulpitService) getAddress(addr, pass string) (*address.Address, error) {
 }
 
 func (s *pulpitService) createTimeLine(ns string, a *address.Address) (timeline.Timeline, error) {
-	if a.Keys != nil && a.Keys.PrivateKey != "" {
-		_ = s.resolver.Manage(a)
-	}
-	ld := dag.NewDag(ns, s.ds, s.resolver)
-	gr := graph.NewGraph(ld, a)
+	gr := graph.NewGraph(ns, a, s.node, s.logger)
 	tl, er := timeline.NewTimeline(ns, a, gr, s.evmFactory, s.logger)
 	if er != nil {
 		return nil, er

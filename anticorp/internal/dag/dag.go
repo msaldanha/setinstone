@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/msaldanha/setinstone/anticorp/address"
-	"github.com/msaldanha/setinstone/anticorp/datastore"
-	"github.com/msaldanha/setinstone/anticorp/resolver"
+	"github.com/msaldanha/setinstone/anticorp/internal/datastore"
+	"github.com/msaldanha/setinstone/anticorp/internal/resolver"
 )
 
 type Dag interface {
@@ -19,6 +19,7 @@ type Dag interface {
 	Get(ctx context.Context, key string) (*Node, error)
 	Append(ctx context.Context, node *Node, branchRootNodeKey string) (string, error)
 	VerifyNode(ctx context.Context, node *Node, branchRootNodeKey string, isNew bool) error
+	Manage(addr *address.Address) error
 }
 
 type dag struct {
@@ -150,6 +151,10 @@ func (da *dag) VerifyNode(ctx context.Context, node *Node, branchRootNodeKey str
 	}
 
 	return nil
+}
+
+func (da *dag) Manage(addr *address.Address) error {
+	return da.resolver.Manage(addr)
 }
 
 func (da *dag) verifyTimeStamp(node *Node) bool {

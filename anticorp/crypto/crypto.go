@@ -1,4 +1,4 @@
-package util
+package crypto
 
 import (
 	"crypto/aes"
@@ -10,6 +10,8 @@ import (
 	"encoding/hex"
 	"io"
 	"math/big"
+
+	"github.com/msaldanha/setinstone/anticorp/internal/util"
 )
 
 func createHash(key string) string {
@@ -56,7 +58,7 @@ func Sign(data []byte, privateKey *ecdsa.PrivateKey) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return append(LeftPadBytes(r.Bytes(), 32), LeftPadBytes(s.Bytes(), 32)...), nil
+	return append(util.LeftPadBytes(r.Bytes(), 32), util.LeftPadBytes(s.Bytes(), 32)...), nil
 }
 
 func VerifySignature(signature []byte, pubKey []byte, data []byte) bool {

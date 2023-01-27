@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/msaldanha/setinstone/anticorp/address"
-	"github.com/msaldanha/setinstone/anticorp/dag"
+	"github.com/msaldanha/setinstone/anticorp/internal/dag"
 )
 
 func createNode(node NodeData, keyRoot, prev string,

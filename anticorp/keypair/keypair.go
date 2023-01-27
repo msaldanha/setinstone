@@ -7,8 +7,9 @@ import (
 	"crypto/x509"
 	"encoding/hex"
 	"encoding/pem"
-	"github.com/msaldanha/setinstone/anticorp/util"
 	"math/big"
+
+	"github.com/msaldanha/setinstone/anticorp/internal/util"
 )
 
 type KeyPair struct {

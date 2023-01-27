@@ -2,6 +2,8 @@ package timeline_test
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"strconv"
 
 	"github.com/golang/mock/gomock"
@@ -10,11 +12,8 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/msaldanha/setinstone/anticorp/address"
-	"github.com/msaldanha/setinstone/anticorp/dag"
-	"github.com/msaldanha/setinstone/anticorp/datastore"
 	"github.com/msaldanha/setinstone/anticorp/event"
 	"github.com/msaldanha/setinstone/anticorp/graph"
-	"github.com/msaldanha/setinstone/anticorp/resolver"
 	"github.com/msaldanha/setinstone/timeline"
 )
 
@@ -24,11 +23,7 @@ const (
 
 var _ = Describe("Timeline", func() {
 
-	var da dag.Dag
 	var ctx context.Context
-	var lts datastore.DataStore
-	var gr graph.Graph
-	var res resolver.Resolver
 
 	addr, _ := address.NewAddressWithKeys()
 	ns := "test"
@@ -37,16 +32,14 @@ var _ = Describe("Timeline", func() {
 
 	BeforeEach(func() {
 		ctx = context.Background()
-		lts = datastore.NewLocalFileStore()
-		res = resolver.NewLocalResolver()
-		_ = res.Manage(addr)
-		da = dag.NewDag("test-ledger", lts, res)
-		gr = graph.NewGraph(da, addr)
 	})
 
 	It("Should add a post", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
+
+		gr := graph.NewMockGraph(mockCtrl)
+		gr.EXPECT().Append(gomock.Any(), gomock.Any(), gomock.Any()).Return(graph.GraphNode{Key: "key"}, nil)
 
 		evf, evm := createMockFactoryAndManager(mockCtrl, ns)
 
@@ -65,19 +58,19 @@ var _ = Describe("Timeline", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
+		expectedPost := timeline.PostItem{Base: timeline.Base{Type: timeline.TypePost}, Post: timeline.Post{Part: timeline.Part{MimeType: "plain/text", Data: "some text"}}}
+
+		gr := graph.NewMockGraph(mockCtrl)
+		data, _ := json.Marshal(expectedPost)
+		gr.EXPECT().Get(gomock.Any(), gomock.Any()).Return(graph.GraphNode{Key: "key", Data: data}, true, nil)
+
 		evf, evm := createMockFactoryAndManager(mockCtrl, ns)
 
 		evm.EXPECT().On(timeline.EventTypes.EventReferenced, gomock.Any()).Return(func() {}, nil)
-		evm.EXPECT().Emit("TIMELINE.EVENT.POST.ADDED", gomock.Any()).Return(nil)
 
 		p, _ := timeline.NewTimeline(ns, addr, gr, evf, logger)
 
-		expectedPost := timeline.PostItem{Post: timeline.Post{Part: timeline.Part{MimeType: "plain/text", Data: "some text"}}}
-		key, er := p.AppendPost(ctx, expectedPost, "", "main")
-		Expect(er).To(BeNil())
-		Expect(key).ToNot(Equal(""))
-
-		i, found, er := p.Get(ctx, key)
+		i, found, er := p.Get(ctx, "key")
 		Expect(er).To(BeNil())
 		Expect(found).To(BeTrue())
 		postItem, _ := i.Data.(timeline.PostItem)
@@ -90,63 +83,54 @@ var _ = Describe("Timeline", func() {
 
 		evf, evm := createMockFactoryAndManager(mockCtrl, ns)
 		evm.EXPECT().On(timeline.EventTypes.EventReferenced, gomock.Any()).Return(func() {}, nil)
-		evm.EXPECT().Emit("TIMELINE.EVENT.POST.ADDED", gomock.Any()).Return(nil)
-
-		evf2, evm2 := createMockFactoryAndManager(mockCtrl, ns)
-		evf2.EXPECT().Build(ns, gomock.Any(), gomock.Any(), gomock.Any()).Return(evm2, nil)
-		evm2.EXPECT().On(timeline.EventTypes.EventReferenced, gomock.Any()).Return(func() {}, nil)
-		evm2.EXPECT().Emit("TIMELINE.EVENT.REFERENCE.ADDED", gomock.Any()).Return(nil)
-		evm2.EXPECT().Emit(timeline.EventTypes.EventReferenced, gomock.Any()).Return(nil)
+		gr := graph.NewMockGraph(mockCtrl)
 
 		tl1, _ := timeline.NewTimeline(ns, addr, gr, evf, logger)
-		addr2, _ := address.NewAddressWithKeys()
-		gr2 := graph.NewGraph(da, addr2)
-		tl2, _ := timeline.NewTimeline(ns, addr2, gr2, evf2, logger)
 
-		_ = res.Manage(addr2)
-
+		likeKey := "likeKey"
+		postKey := "postKey"
+		referenceKey := "refKey"
 		expectedPost := timeline.PostItem{
-			Base: timeline.Base{Connectors: []string{likeRef}},
+			Base: timeline.Base{Type: timeline.TypePost, Connectors: []string{likeRef}},
 			Post: timeline.Post{Part: timeline.Part{MimeType: "plain/text", Data: "some text"}},
 		}
-		postKey, er := tl1.AppendPost(ctx, expectedPost, "", "main")
-		Expect(er).To(BeNil())
-		Expect(postKey).ToNot(Equal(""))
-
-		expectedLike := timeline.ReferenceItem{Reference: timeline.Reference{Target: postKey, Connector: likeRef}}
-		likeKey, er := tl2.AppendReference(ctx, expectedLike, "", "main")
-		Expect(er).To(BeNil())
-		Expect(likeKey).ToNot(Equal(""))
+		postjson, _ := json.Marshal(expectedPost)
+		expectedLike := timeline.ReferenceItem{
+			Base:      timeline.Base{Type: timeline.TypeReference, Connectors: []string{likeRef}},
+			Reference: timeline.Reference{Target: postKey, Connector: likeRef}}
+		likejson, _ := json.Marshal(expectedLike)
+		gr.EXPECT().Get(gomock.Any(), likeKey).Return(graph.GraphNode{Key: likeKey, Data: likejson, Branches: []string{likeRef}}, true, nil)
+		gr.EXPECT().GetAddress(gomock.Any()).Return(addr)
+		gr.EXPECT().Get(gomock.Any(), postKey).Return(graph.GraphNode{Key: postKey, Address: addr.Address, Data: postjson, Branches: []string{likeRef}}, true, nil)
+		gr.EXPECT().GetAddress(gomock.Any()).Return(addr)
+		gr.EXPECT().Append(gomock.Any(), gomock.Any(), gomock.Any()).Return(graph.GraphNode{Key: referenceKey}, nil)
 
 		receivedKey, er := tl1.AddReceivedReference(ctx, likeKey)
 		Expect(er).To(BeNil())
-		Expect(likeKey).ToNot(Equal(""))
-
-		i, found, er := tl1.Get(ctx, receivedKey)
-		Expect(er).To(BeNil())
-		Expect(found).To(BeTrue())
-		likeItem, _ := i.Data.(timeline.ReferenceItem)
-		Expect(likeItem.Target).To(Equal(likeKey))
-		Expect(likeItem.Connector).To(Equal(likeRef))
+		Expect(receivedKey).To(Equal(referenceKey))
 	})
 
 	It("Should NOT append reference to own reference", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
+		gr := graph.NewMockGraph(mockCtrl)
+
 		evf, evm := createMockFactoryAndManager(mockCtrl, ns)
 		evm.EXPECT().On(timeline.EventTypes.EventReferenced, gomock.Any()).Return(func() {}, nil)
-		evm.EXPECT().Emit("TIMELINE.EVENT.POST.ADDED", gomock.Any()).Return(nil)
 
 		p, _ := timeline.NewTimeline(ns, addr, gr, evf, logger)
 
-		expectedPost := timeline.PostItem{Post: timeline.Post{Part: timeline.Part{MimeType: "plain/text", Data: "some text "}}}
-		key, er := p.AppendPost(ctx, expectedPost, "", "main")
-		Expect(er).To(BeNil())
-		Expect(key).ToNot(Equal(""))
-
-		expectedLike := timeline.ReferenceItem{Reference: timeline.Reference{Target: key, Connector: "connector"}}
-		key, er = p.AppendReference(ctx, expectedLike, "", "main")
+		postKey := "postKey"
+		expectedPost := timeline.PostItem{
+			Base: timeline.Base{Type: timeline.TypePost, Connectors: []string{likeRef}},
+			Post: timeline.Post{Part: timeline.Part{MimeType: "plain/text", Data: "some text"}},
+		}
+		postjson, _ := json.Marshal(expectedPost)
+		gr.EXPECT().Get(gomock.Any(), postKey).Return(graph.GraphNode{Key: postKey, Address: addr.Address, Data: postjson, Branches: []string{likeRef}}, true, nil)
+		gr.EXPECT().GetAddress(gomock.Any()).Return(addr)
+		expectedLike := timeline.ReferenceItem{Reference: timeline.Reference{Target: postKey, Connector: "connector"}}
+		key, er := p.AppendReference(ctx, expectedLike, "", "main")
 		Expect(er).To(Equal(timeline.NewErrCannotRefOwnItem()))
 		Expect(key).To(Equal(""))
 
@@ -156,36 +140,22 @@ var _ = Describe("Timeline", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
+		gr := graph.NewMockGraph(mockCtrl)
+
 		evf, evm := createMockFactoryAndManager(mockCtrl, ns)
-
 		evm.EXPECT().On(timeline.EventTypes.EventReferenced, gomock.Any()).Return(func() {}, nil)
-		evm.EXPECT().Emit("TIMELINE.EVENT.POST.ADDED", gomock.Any()).Return(nil)
 
-		evf2, evm2 := createMockFactoryAndManager(mockCtrl, ns)
-		evf2.EXPECT().Build(ns, gomock.Any(), gomock.Any(), gomock.Any()).Return(evm2, nil)
-		evm2.EXPECT().On(timeline.EventTypes.EventReferenced, gomock.Any()).Return(func() {}, nil)
-		evm2.EXPECT().Emit("TIMELINE.EVENT.REFERENCE.ADDED", gomock.Any()).Return(nil)
-		evm2.EXPECT().Emit(timeline.EventTypes.EventReferenced, gomock.Any()).Return(nil)
+		p, _ := timeline.NewTimeline(ns, addr, gr, evf, logger)
 
-		tl1, _ := timeline.NewTimeline(ns, addr, gr, evf, logger)
-		addr2, _ := address.NewAddressWithKeys()
-		gr2 := graph.NewGraph(da, addr2)
-		tl2, _ := timeline.NewTimeline(ns, addr2, gr2, evf2, logger)
-
-		_ = res.Manage(addr2)
-
-		expectedPost := timeline.PostItem{Base: timeline.Base{Connectors: []string{likeRef}}, Post: timeline.Post{Part: timeline.Part{MimeType: "plain/text", Data: "some text "}}}
-		key, er := tl1.AppendPost(ctx, expectedPost, "", "main")
-		Expect(er).To(BeNil())
-		Expect(key).ToNot(Equal(""))
-
-		expectedLike := timeline.ReferenceItem{Reference: timeline.Reference{Target: key, Connector: likeRef}}
-		key, er = tl2.AppendReference(ctx, expectedLike, "", "main")
-		Expect(er).To(BeNil())
-		Expect(key).ToNot(Equal(""))
-
-		expectedLike = timeline.ReferenceItem{Reference: timeline.Reference{Target: key, Connector: likeRef}}
-		key, er = tl1.AppendReference(ctx, expectedLike, "", "main")
+		postKey := "postKey"
+		likeKey := "likeKey"
+		expectedLike := timeline.ReferenceItem{
+			Base:      timeline.Base{Type: timeline.TypeReference, Connectors: []string{likeRef}},
+			Reference: timeline.Reference{Target: postKey, Connector: likeRef}}
+		likejson, _ := json.Marshal(expectedLike)
+		gr.EXPECT().Get(gomock.Any(), likeKey).Return(graph.GraphNode{Key: likeKey, Address: addr.Address, Data: likejson, Branches: []string{likeRef}}, true, nil)
+		like := timeline.ReferenceItem{Reference: timeline.Reference{Target: likeKey, Connector: "connector"}}
+		key, er := p.AppendReference(ctx, like, "", "main")
 		Expect(er).To(Equal(timeline.NewErrCannotRefARef()))
 		Expect(key).To(Equal(""))
 
@@ -195,63 +165,53 @@ var _ = Describe("Timeline", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
+		gr := graph.NewMockGraph(mockCtrl)
+
 		evf, evm := createMockFactoryAndManager(mockCtrl, ns)
-		evf.EXPECT().Build(ns, gomock.Any(), gomock.Any(), gomock.Any()).Return(evm, nil)
 		evm.EXPECT().On(timeline.EventTypes.EventReferenced, gomock.Any()).Return(func() {}, nil)
-		evm.EXPECT().Emit("TIMELINE.EVENT.POST.ADDED", gomock.Any()).Return(nil).Times(10)
-		evm.EXPECT().Emit("TIMELINE.EVENT.REFERENCE.ADDED", gomock.Any()).Return(nil).Times(10)
-		evm.EXPECT().Emit(timeline.EventTypes.EventReferenced, gomock.Any()).Return(nil).Times(10)
-
-		evf2, evm2 := createMockFactoryAndManager(mockCtrl, ns)
-
-		evm2.EXPECT().On(timeline.EventTypes.EventReferenced, gomock.Any()).Return(func() {}, nil)
-		evm2.EXPECT().Emit("TIMELINE.EVENT.POST.ADDED", gomock.Any()).Return(nil).Times(10)
 
 		tl1, _ := timeline.NewTimeline(ns, addr, gr, evf, logger)
 
-		addr2, _ := address.NewAddressWithKeys()
-		gr2 := graph.NewGraph(da, addr2)
-		tl2, _ := timeline.NewTimeline(ns, addr2, gr2, evf2, logger)
-
-		_ = res.Manage(addr2)
-
+		nodes := []graph.GraphNode{}
 		posts := []timeline.PostItem{}
-		likes := []timeline.ReferenceItem{}
 		keys := []string{}
 		n := 10
 		for i := 0; i < n; i++ {
-			expectedPost := timeline.PostItem{Base: timeline.Base{Connectors: []string{likeRef}}, Post: timeline.Post{Part: timeline.Part{MimeType: "plain/text", Data: "some text " +
-				strconv.Itoa(i)}}}
-			key, er := tl1.AppendPost(ctx, expectedPost, "", "main")
-			Expect(er).To(BeNil())
-			Expect(key).ToNot(Equal(""))
-
-			key, er = tl2.AppendPost(ctx, timeline.PostItem{Base: timeline.Base{Connectors: []string{likeRef}}, Post: timeline.Post{Part: timeline.Part{MimeType: "plain/text", Data: "some text for tl2 " +
-				strconv.Itoa(i)}}}, "", "main")
-			Expect(er).To(BeNil())
-			Expect(key).ToNot(Equal(""))
-
-			expectedLike := timeline.ReferenceItem{Reference: timeline.Reference{Target: key, Connector: likeRef}}
-			key, er = tl1.AppendReference(ctx, expectedLike, "", "main")
-			Expect(er).To(BeNil())
-			Expect(key).ToNot(Equal(""))
-
+			expectedPost := timeline.PostItem{
+				Base: timeline.Base{Type: timeline.TypePost, Connectors: []string{likeRef}},
+				Post: timeline.Post{Part: timeline.Part{MimeType: "plain/text", Data: "some text " +
+					strconv.Itoa(i)}}}
+			postjson, _ := json.Marshal(expectedPost)
+			postKey := fmt.Sprintf("postKey-%d", i)
+			node := graph.GraphNode{Key: postKey, Address: addr.Address, Data: postjson, Branches: []string{likeRef}}
+			nodes = append(nodes, node)
 			posts = append(posts, expectedPost)
-			likes = append(likes, expectedLike)
-			keys = append(keys, key)
+			keys = append(keys, postKey)
 		}
 
+		it := graph.NewMockIterator(mockCtrl)
+		gr.EXPECT().GetIterator(gomock.Any(), "", "", keys[5]).Return(it, nil)
+
 		count := 3
+		index := count
+		it.EXPECT().HasNext().DoAndReturn(func() bool {
+			index--
+			return index >= 0
+		}).Times(count + 1)
+		it.EXPECT().Next(gomock.Any()).DoAndReturn(func(_ context.Context) (graph.GraphNode, error) {
+			return nodes[index], nil
+		}).Times(count)
+
 		items, er := tl1.GetFrom(ctx, "", "", keys[5], "", count)
 
 		Expect(er).To(BeNil())
 		Expect(len(items)).To(Equal(count))
-		l, _ := items[0].Data.(timeline.ReferenceItem)
-		Expect(l.Target).To(Equal(likes[5].Target))
+		l, _ := items[0].Data.(timeline.PostItem)
+		Expect(l.Part).To(Equal(posts[2].Part))
 		m, _ := items[1].Data.(timeline.PostItem)
-		Expect(m.Part).To(Equal(posts[5].Part))
-		l, _ = items[2].Data.(timeline.ReferenceItem)
-		Expect(l.Target).To(Equal(likes[4].Target))
+		Expect(m.Part).To(Equal(posts[1].Part))
+		l, _ = items[2].Data.(timeline.PostItem)
+		Expect(l.Part).To(Equal(posts[0].Part))
 	})
 })
 

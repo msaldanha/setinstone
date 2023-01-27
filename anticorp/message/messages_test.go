@@ -1,9 +1,10 @@
 package message
 
 import (
-	"github.com/msaldanha/setinstone/anticorp/address"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
+	"github.com/msaldanha/setinstone/anticorp/address"
 )
 
 type payloadForTest struct {

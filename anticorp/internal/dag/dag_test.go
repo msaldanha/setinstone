@@ -9,34 +9,34 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/msaldanha/setinstone/anticorp/address"
-	"github.com/msaldanha/setinstone/anticorp/dag"
-	"github.com/msaldanha/setinstone/anticorp/datastore"
-	"github.com/msaldanha/setinstone/anticorp/resolver"
-	"github.com/msaldanha/setinstone/anticorp/util"
+	dag2 "github.com/msaldanha/setinstone/anticorp/internal/dag"
+	datastore2 "github.com/msaldanha/setinstone/anticorp/internal/datastore"
+	resolver2 "github.com/msaldanha/setinstone/anticorp/internal/resolver"
+	"github.com/msaldanha/setinstone/anticorp/internal/util"
 )
 
 const defaultBranch = "main"
 
 var _ = Describe("Dag", func() {
 
-	var da dag.Dag
-	var genesisNode *dag.Node
+	var da dag2.Dag
+	var genesisNode *dag2.Node
 	var genesisAddr *address.Address
 	var ctx context.Context
-	var lts datastore.DataStore
-	var res resolver.Resolver
+	var lts datastore2.DataStore
+	var res resolver2.Resolver
 
 	testGenesisNode, testGenesisAddr := CreateGenesisNode()
 
 	BeforeEach(func() {
 		ctx = context.Background()
-		lts = datastore.NewLocalFileStore()
-		res = resolver.NewLocalResolver()
+		lts = datastore2.NewLocalFileStore()
+		res = resolver2.NewLocalResolver()
 		_ = res.Manage(testGenesisAddr)
 
 		genesisNode, genesisAddr = testGenesisNode, testGenesisAddr
 
-		da = dag.NewDag("test-ledger", lts, res)
+		da = dag2.NewDag("test-ledger", lts, res)
 	})
 
 	It("Should initialize with the Genesis node", func() {
@@ -61,7 +61,7 @@ var _ = Describe("Dag", func() {
 
 		_, err = da.SetRoot(ctx, genesisNode)
 		Expect(err).NotTo(BeNil())
-		Expect(err).To(Equal(dag.NewErrDagAlreadyInitialized()))
+		Expect(err).To(Equal(dag2.NewErrDagAlreadyInitialized()))
 	})
 
 	It("Should return the genesis node for an address", func() {
@@ -137,7 +137,7 @@ var _ = Describe("Dag", func() {
 
 		// add more nodes to main branch
 		prev = nodeWithBranchesKey
-		var lastMainBranch *dag.Node
+		var lastMainBranch *dag2.Node
 		for x := 1; x <= 5; x++ {
 			n := CreateNode(gAddr, genesisKey, prev, defaultBranch, nodeWithBranches.Seq+int32(x))
 			nodeKey, err := da.Append(ctx, n, genesisKey)
@@ -148,7 +148,7 @@ var _ = Describe("Dag", func() {
 
 		// add nodes to the likes branch of the nodeWithBranches node
 		prev = nodeWithBranchesKey
-		var lastLikes *dag.Node
+		var lastLikes *dag2.Node
 		for x := 1; x <= 5; x++ {
 			n := CreateNode(gAddr, nodeWithBranchesKey, prev, "likes", int32(x))
 			nodeKey, err := da.Append(ctx, n, nodeWithBranchesKey)
@@ -159,7 +159,7 @@ var _ = Describe("Dag", func() {
 
 		// add nodes to the comments branch of the nodeWithBranches node
 		prev = nodeWithBranchesKey
-		var lastComments *dag.Node
+		var lastComments *dag2.Node
 		for x := 1; x <= 5; x++ {
 			n := CreateNode(gAddr, nodeWithBranchesKey, prev, "comments", int32(x))
 			nodeKey, err := da.Append(ctx, n, nodeWithBranchesKey)
@@ -235,10 +235,10 @@ var _ = Describe("Dag", func() {
 		genesisKey, err := da.SetRoot(ctx, genesisNode)
 		Expect(err).To(BeNil())
 
-		t := &dag.Node{}
+		t := &dag2.Node{}
 		t = BuildNode(t, testGenesisAddr)
 		_, err = da.Append(ctx, t, genesisKey)
-		Expect(err).To(Equal(dag.NewErrInvalidNodeTimestamp()))
+		Expect(err).To(Equal(dag2.NewErrInvalidNodeTimestamp()))
 	})
 
 	It("Should NOT register tampered node (hash)", func() {
@@ -254,7 +254,7 @@ var _ = Describe("Dag", func() {
 		t := *node
 		t.Data = node2.Data
 		_, err = da.Append(ctx, &t, genesisKey)
-		Expect(err).To(Equal(dag.NewErrNodeSignatureDoesNotMatch()))
+		Expect(err).To(Equal(dag2.NewErrNodeSignatureDoesNotMatch()))
 	})
 
 	It("Should NOT register tampered node (signature)", func() {
@@ -269,7 +269,7 @@ var _ = Describe("Dag", func() {
 		t := *node
 		t.Signature = t.Signature + "3e"
 		_, err = da.Append(ctx, &t, genesisKey)
-		Expect(err).To(Equal(dag.NewErrNodeSignatureDoesNotMatch()))
+		Expect(err).To(Equal(dag2.NewErrNodeSignatureDoesNotMatch()))
 	})
 
 	It("Should NOT register node twice", func() {
@@ -284,7 +284,7 @@ var _ = Describe("Dag", func() {
 		_, err = da.Append(ctx, node, genesisKey)
 		Expect(err).To(BeNil())
 		_, err = da.Append(ctx, node, genesisKey)
-		Expect(err).To(Equal(dag.NewErrPreviousNodeIsNotHead()))
+		Expect(err).To(Equal(dag2.NewErrPreviousNodeIsNotHead()))
 	})
 
 	It("Should NOT register node if previous node does not exists", func() {
@@ -297,7 +297,7 @@ var _ = Describe("Dag", func() {
 		node := CreateNode(testGenesisAddr, genesisKey, "somekey", defaultBranch, genesisNode.Seq+1)
 
 		_, err = da.Append(ctx, node, genesisKey)
-		Expect(err).To(Equal(dag.NewErrPreviousNodeNotFound()))
+		Expect(err).To(Equal(dag2.NewErrPreviousNodeNotFound()))
 	})
 
 	It("Should NOT register node if previous node is not head", func() {
@@ -317,11 +317,11 @@ var _ = Describe("Dag", func() {
 
 		node := CreateNode(genesisAddr, genesisKey, node1Key, defaultBranch, 4)
 		_, err = da.Append(ctx, node, genesisKey)
-		Expect(err).To(Equal(dag.NewErrPreviousNodeIsNotHead()))
+		Expect(err).To(Equal(dag2.NewErrPreviousNodeIsNotHead()))
 	})
 })
 
-func CreateGenesisNode() (*dag.Node, *address.Address) {
+func CreateGenesisNode() (*dag2.Node, *address.Address) {
 	addr, _ := address.NewAddressWithKeys()
 
 	genesisNode := CreateNode(addr, "", "", defaultBranch, 1)
@@ -334,8 +334,8 @@ func CreateGenesisNode() (*dag.Node, *address.Address) {
 	return genesisNode, addr
 }
 
-func CreateNode(addr *address.Address, keyRoot, prev string, branch string, seq int32) *dag.Node {
-	node := &dag.Node{}
+func CreateNode(addr *address.Address, keyRoot, prev string, branch string, seq int32) *dag2.Node {
+	node := &dag2.Node{}
 
 	if prev != "" {
 		node.Previous = prev
@@ -355,8 +355,8 @@ func CreateNode(addr *address.Address, keyRoot, prev string, branch string, seq 
 	return node
 }
 
-func CreateNodeWithBranches(addr *address.Address, keyRoot, prev string, branches []string, branch string, seq int32) *dag.Node {
-	node := &dag.Node{}
+func CreateNodeWithBranches(addr *address.Address, keyRoot, prev string, branches []string, branch string, seq int32) *dag2.Node {
+	node := &dag2.Node{}
 
 	if prev != "" {
 		node.Previous = prev
@@ -377,7 +377,7 @@ func CreateNodeWithBranches(addr *address.Address, keyRoot, prev string, branche
 	return node
 }
 
-func BuildNode(node *dag.Node, addr *address.Address) *dag.Node {
+func BuildNode(node *dag2.Node, addr *address.Address) *dag2.Node {
 	node.Address = addr.Address
 	node.PubKey = addr.Keys.PublicKey
 

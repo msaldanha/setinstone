@@ -1,6 +1,8 @@
 package resolver
 
-import "github.com/msaldanha/setinstone/anticorp/message"
+import (
+	"github.com/msaldanha/setinstone/anticorp/message"
+)
 
 type QueryTypesEnum struct {
 	QueryNameRequest  string

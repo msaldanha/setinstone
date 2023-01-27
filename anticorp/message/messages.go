@@ -11,7 +11,8 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/msaldanha/setinstone/anticorp/util"
+	"github.com/msaldanha/setinstone/anticorp/crypto"
+	util2 "github.com/msaldanha/setinstone/anticorp/internal/util"
 )
 
 type Message struct {
@@ -25,15 +26,15 @@ type Message struct {
 
 func (m *Message) SignWithKey(privateKey *ecdsa.PrivateKey) error {
 
-	pubKey := append(util.LeftPadBytes(privateKey.PublicKey.X.Bytes(), 32),
-		util.LeftPadBytes(privateKey.PublicKey.Y.Bytes(), 32)...)
+	pubKey := append(util2.LeftPadBytes(privateKey.PublicKey.X.Bytes(), 32),
+		util2.LeftPadBytes(privateKey.PublicKey.Y.Bytes(), 32)...)
 	m.PublicKey = hex.EncodeToString(pubKey)
 
 	data := m.Bytes()
 
 	hash := sha256.Sum256(data)
 
-	s, er := util.Sign(hash[:], privateKey)
+	s, er := crypto.Sign(hash[:], privateKey)
 	if er != nil {
 		return er
 	}

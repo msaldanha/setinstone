@@ -5,10 +5,12 @@
 package event
 
 import (
-	gomock "github.com/golang/mock/gomock"
-	address "github.com/msaldanha/setinstone/anticorp/address"
-	zap "go.uber.org/zap"
 	reflect "reflect"
+
+	gomock "github.com/golang/mock/gomock"
+	zap "go.uber.org/zap"
+
+	address "github.com/msaldanha/setinstone/anticorp/address"
 )
 
 // MockManagerFactory is a mock of ManagerFactory interface

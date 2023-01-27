@@ -3,10 +3,22 @@ package graph
 import (
 	"context"
 	"errors"
+	"fmt"
+	"time"
+
+	"github.com/ipfs/kubo/core"
+	"github.com/ipfs/kubo/core/coreapi"
+	"go.uber.org/zap"
 
 	"github.com/msaldanha/setinstone/anticorp/address"
-	"github.com/msaldanha/setinstone/anticorp/dag"
+	"github.com/msaldanha/setinstone/anticorp/cache"
+	"github.com/msaldanha/setinstone/anticorp/event"
+	"github.com/msaldanha/setinstone/anticorp/internal/dag"
+	"github.com/msaldanha/setinstone/anticorp/internal/datastore"
+	"github.com/msaldanha/setinstone/anticorp/internal/resolver"
 )
+
+//go:generate mockgen -source=graph.go -destination=graph_mock.go -package=graph
 
 type Iterator interface {
 	Next(ctx context.Context) (GraphNode, error)
@@ -20,6 +32,7 @@ type Graph interface {
 	Append(ctx context.Context, keyRoot string, node NodeData) (GraphNode, error)
 	GetIterator(ctx context.Context, keyRoot, branch string, from string) (Iterator, error)
 	GetAddress(ctx context.Context) *address.Address
+	Manage(addr *address.Address) error
 }
 
 type graph struct {
@@ -35,8 +48,18 @@ type iterator struct {
 }
 
 type GraphNode struct {
-	Key string `json:"key,omitempty"`
-	dag.Node
+	Key        string            `json:"key,omitempty"`
+	Seq        int32             `json:"seq,omitempty"`
+	Timestamp  string            `json:"timestamp,omitempty"`
+	Address    string            `json:"address,omitempty"`
+	Previous   string            `json:"previous,omitempty"`
+	Branch     string            `json:"branch,omitempty"`
+	BranchRoot string            `json:"branchRoot,omitempty"`
+	Properties map[string]string `json:"properties,omitempty"`
+	Branches   []string          `json:"branches,omitempty"`
+	Data       []byte            `json:"data,omitempty"`
+	PubKey     string            `json:"pubKey,omitempty"`
+	Signature  string            `json:"signature,omitempty"`
 }
 
 type NodeData struct {
@@ -47,7 +70,42 @@ type NodeData struct {
 	Properties map[string]string
 }
 
-func NewGraph(da dag.Dag, addr *address.Address) Graph {
+func NewGraph(ns string, addr *address.Address, node *core.IpfsNode, logger *zap.Logger) Graph {
+	// Attach the Core API to the node
+	ipfs, er := coreapi.NewCoreAPI(node)
+	if er != nil {
+		panic(fmt.Errorf("failed to get ipfs api: %s", er))
+	}
+
+	ds, er := datastore.NewIPFSDataStore(node) // .NewLocalFileStore()
+	if er != nil {
+		panic(fmt.Errorf("failed to setup ipfs data store: %s", er))
+	}
+
+	evmf, er := event.NewManagerFactory(ipfs.PubSub(), node.Identity)
+	if er != nil {
+		panic(fmt.Errorf("failed to setup event manager factory: %s", er))
+	}
+
+	resolutionCache := cache.NewMemoryCache(time.Second * 10)
+	resourceCache := cache.NewMemoryCache(0)
+
+	signerAddr, er := address.NewAddressWithKeys()
+	if er != nil {
+		panic(fmt.Errorf("failed to setup event manager factory: %s", er))
+	}
+
+	ipfsResolver, er := resolver.NewIpfsResolver(node, signerAddr, evmf, resolutionCache, resourceCache, logger)
+	if er != nil {
+		panic(fmt.Errorf("failed to setup resolver: %s", er))
+	}
+
+	da := dag.NewDag(ns, ds, ipfsResolver)
+
+	if addr.Keys != nil && addr.Keys.PrivateKey != "" {
+		_ = da.Manage(addr)
+	}
+
 	return graph{
 		da:   da,
 		addr: addr,
@@ -175,6 +233,10 @@ func (d graph) GetIterator(ctx context.Context, keyRoot, branch string, from str
 	}, nil
 }
 
+func (d graph) Manage(addr *address.Address) error {
+	return d.da.Manage(addr)
+}
+
 func (i iterator) HasNext() bool {
 	return i.hasNext()
 }
@@ -229,7 +291,17 @@ func (d graph) translateError(er error) error {
 
 func (d graph) toGraphNode(key string, node *dag.Node) GraphNode {
 	return GraphNode{
-		Key:  key,
-		Node: *node,
+		Key:        key,
+		Seq:        node.Seq,
+		Timestamp:  node.Timestamp,
+		Address:    node.Address,
+		Previous:   node.Previous,
+		Branch:     node.Branch,
+		BranchRoot: node.BranchRoot,
+		Properties: node.Properties,
+		Branches:   node.Branches,
+		Data:       node.Data,
+		PubKey:     node.PubKey,
+		Signature:  node.Signature,
 	}
 }

@@ -17,13 +17,8 @@ import (
 	"github.com/kataras/iris/v12/middleware/recover"
 	"go.uber.org/zap"
 
-	"github.com/msaldanha/setinstone/anticorp/address"
-	"github.com/msaldanha/setinstone/anticorp/cache"
-	"github.com/msaldanha/setinstone/anticorp/dag"
-	"github.com/msaldanha/setinstone/anticorp/datastore"
 	"github.com/msaldanha/setinstone/anticorp/event"
 	"github.com/msaldanha/setinstone/anticorp/keyvaluestore"
-	"github.com/msaldanha/setinstone/anticorp/resolver"
 	"github.com/msaldanha/setinstone/timeline"
 )
 
@@ -42,11 +37,8 @@ type server struct {
 	opts        ServerOptions
 	store       keyvaluestore.KeyValueStore
 	timelines   map[string]timeline.Timeline
-	ds          datastore.DataStore
-	ld          dag.Dag
 	ipfs        icore.CoreAPI
 	logins      map[string]string
-	resolver    resolver.Resolver
 	evm         event.Manager
 	ps          pulpitService
 	secret      string
@@ -362,29 +354,12 @@ func (s *server) init() error {
 		panic(fmt.Errorf("failed to get ipfs api: %s", er))
 	}
 
-	s.ds, er = datastore.NewIPFSDataStore(node) // .NewLocalFileStore()
-	if er != nil {
-		panic(fmt.Errorf("failed to setup ipfs data store: %s", er))
-	}
-
 	evmf, er := event.NewManagerFactory(s.ipfs.PubSub(), node.Identity)
 	if er != nil {
 		panic(fmt.Errorf("failed to setup event manager factory: %s", er))
 	}
-	resolutionCache := cache.NewMemoryCache(time.Second * 10)
-	resourceCache := cache.NewMemoryCache(0)
 
-	signerAddr, er := address.NewAddressWithKeys()
-	if er != nil {
-		panic(fmt.Errorf("failed to setup event manager factory: %s", er))
-	}
-
-	s.resolver, er = resolver.NewIpfsResolver(node, signerAddr, evmf, resolutionCache, resourceCache, s.logger)
-	if er != nil {
-		panic(fmt.Errorf("failed to setup resolver: %s", er))
-	}
-
-	s.ps = newPulpitService(s.store, s.ds, s.ipfs, s.resolver, evmf, s.logger)
+	s.ps = newPulpitService(s.store, s.ipfs, node, evmf, s.logger)
 	return nil
 }
 

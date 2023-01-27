@@ -1,4 +1,4 @@
-package graph_test
+package graph
 
 import (
 	"context"
@@ -9,10 +9,10 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/msaldanha/setinstone/anticorp/address"
-	"github.com/msaldanha/setinstone/anticorp/dag"
-	"github.com/msaldanha/setinstone/anticorp/datastore"
-	"github.com/msaldanha/setinstone/anticorp/graph"
-	"github.com/msaldanha/setinstone/anticorp/resolver"
+
+	"github.com/msaldanha/setinstone/anticorp/internal/dag"
+	"github.com/msaldanha/setinstone/anticorp/internal/datastore"
+	"github.com/msaldanha/setinstone/anticorp/internal/resolver"
 )
 
 type testPayLoad struct {
@@ -41,10 +41,10 @@ var _ = Describe("Graph", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		gr := graph.NewGraph(ld, addr)
+		gr := newGraph(ld, addr)
 
 		dataToAdd := testPayLoad{NumberField: 1000, StringFiled: "some data added"}
-		i, er := gr.Append(ctx, "", graph.NodeData{Branch: "main", Data: toBytes(dataToAdd)})
+		i, er := gr.Append(ctx, "", NodeData{Branch: "main", Data: toBytes(dataToAdd)})
 		Expect(er).To(BeNil())
 
 		var data testPayLoad
@@ -60,12 +60,12 @@ var _ = Describe("Graph", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		gr := graph.NewGraph(ld, addr)
+		gr := newGraph(ld, addr)
 
 		dataToAdd := testPayLoad{NumberField: 1000, StringFiled: "some data added"}
-		_, er := gr.Append(ctx, "xxxxxx", graph.NodeData{Branch: "main", Data: toBytes(dataToAdd)})
+		_, er := gr.Append(ctx, "xxxxxx", NodeData{Branch: "main", Data: toBytes(dataToAdd)})
 
-		Expect(er).To(Equal(graph.NewErrPreviousNotFound()))
+		Expect(er).To(Equal(NewErrPreviousNotFound()))
 	})
 
 	It("When adding, should return error if addr does not have the keys", func() {
@@ -74,19 +74,19 @@ var _ = Describe("Graph", func() {
 
 		a, _ := address.NewAddressWithKeys()
 		a.Keys = nil
-		gr := graph.NewGraph(ld, a)
+		gr := newGraph(ld, a)
 
 		dataToAdd := testPayLoad{NumberField: 1000, StringFiled: "some data added"}
-		_, er := gr.Append(ctx, "", graph.NodeData{Branch: "main", Data: toBytes(dataToAdd)})
+		_, er := gr.Append(ctx, "", NodeData{Branch: "main", Data: toBytes(dataToAdd)})
 
-		Expect(er).To(Equal(graph.NewErrReadOnly()))
+		Expect(er).To(Equal(NewErrReadOnly()))
 	})
 
 	It("Should return iterator", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		gr := graph.NewGraph(ld, addr)
+		gr := newGraph(ld, addr)
 
 		dataAdded := []testPayLoad{}
 		n := 10
@@ -95,7 +95,7 @@ var _ = Describe("Graph", func() {
 		for i := 0; i < n; i++ {
 			dataToAdd := testPayLoad{NumberField: i, StringFiled: "some data added"}
 			dataAdded = append(dataAdded, dataToAdd)
-			nd, er := gr.Append(ctx, "", graph.NodeData{Branch: "main", Data: toBytes(dataToAdd)})
+			nd, er := gr.Append(ctx, "", NodeData{Branch: "main", Data: toBytes(dataToAdd)})
 			Expect(er).To(BeNil())
 			keys = append(keys, nd.Key)
 		}
@@ -120,7 +120,7 @@ var _ = Describe("Graph", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		gr := graph.NewGraph(ld, addr)
+		gr := newGraph(ld, addr)
 
 		dataAdded := []testPayLoad{}
 
@@ -130,7 +130,7 @@ var _ = Describe("Graph", func() {
 		for i := 0; i < n; i++ {
 			dataToAdd := testPayLoad{NumberField: i, StringFiled: "some data added"}
 			dataAdded = append(dataAdded, dataToAdd)
-			v, er := gr.Append(ctx, "", graph.NodeData{Branch: "main", Data: toBytes(dataToAdd)})
+			v, er := gr.Append(ctx, "", NodeData{Branch: "main", Data: toBytes(dataToAdd)})
 			Expect(er).To(BeNil())
 			keys = append(keys, v.Key)
 		}
@@ -156,4 +156,11 @@ var _ = Describe("Graph", func() {
 func toBytes(data interface{}) []byte {
 	js, _ := json.Marshal(data)
 	return js
+}
+
+func newGraph(da dag.Dag, addr *address.Address) Graph {
+	return graph{
+		da:   da,
+		addr: addr,
+	}
 }

@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"strconv"
 
-	"github.com/msaldanha/setinstone/anticorp/util"
+	"github.com/msaldanha/setinstone/anticorp/crypto"
 )
 
 type Node struct {
@@ -44,7 +44,7 @@ func (m *Node) GetBytesForSigning() ([]byte, error) {
 func (m *Node) Sign(privateKey *ecdsa.PrivateKey) error {
 	data, _ := m.GetBytesForSigning()
 	hash := sha256.Sum256(data)
-	s, er := util.Sign(hash[:], privateKey)
+	s, er := crypto.Sign(hash[:], privateKey)
 	if er != nil {
 		return er
 	}
