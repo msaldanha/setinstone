@@ -147,47 +147,49 @@ func (m *manager) startEventLoop() {
 	logger := m.logger.With(zap.String("topic", m.getTopicName()))
 	logger.Info("Running event loop")
 	go func() {
-		logger.Info("Event loop finished")
+		defer logger.Info("Event loop finished")
 		b := backoff.NewExponentialBackOff()
 		for {
-			logger.Info("Waiting next event")
-			operation := func() error {
-				msg, er := m.rootSub.Next(context.Background())
-				if er != nil {
-					logger.Error("Waiting for next event failed", zap.Error(er))
-					return er
-				}
-				logger.Info("Message arrived", zap.String("data", string(msg.Data())))
-				if msg.From() == m.id {
-					logger.Info("Message arrived was from ourselves")
-					return nil
-				}
-				ev, er := newEventFromPubSubMessage(msg)
-				if er != nil {
-					logger.Error("Failed to convert msg to event", zap.Error(er))
-					return nil
-				}
-				logger.Info("Even extracted from message", zap.String("eventName", ev.Name()),
-					zap.String("data", string(ev.Data())))
-				m.subLock.Lock()
-				defer m.subLock.Unlock()
-				sub, found := m.subscriptions[ev.Name()]
-				if !found {
-					logger.Warn("No subscription for event. Ignoring.", zap.String("eventName", ev.Name()))
-					return nil
-				}
-				for _, callback := range sub.callbacks {
-					callback(ev)
-				}
-				return nil
-			}
-			er := backoff.Retry(operation, b)
+			er := backoff.Retry(m.loopOperation, b)
 			if er != nil {
 				logger.Error("Subscription failed after MAX retries", zap.Error(er))
 				return
 			}
 		}
 	}()
+}
+
+func (m *manager) loopOperation() error {
+	logger := m.logger.With(zap.String("topic", m.getTopicName()))
+	logger.Info("Waiting next event")
+	msg, er := m.rootSub.Next(context.Background())
+	if er != nil {
+		logger.Error("Waiting for next event failed", zap.Error(er))
+		return er
+	}
+	logger.Info("Message arrived", zap.String("data", string(msg.Data())))
+	if msg.From() == m.id {
+		logger.Info("Message arrived was from ourselves")
+		return nil
+	}
+	ev, er := newEventFromPubSubMessage(msg)
+	if er != nil {
+		logger.Error("Failed to convert msg to event", zap.Error(er))
+		return nil
+	}
+	logger.Info("Even extracted from message", zap.String("eventName", ev.Name()),
+		zap.String("data", string(ev.Data())))
+	m.subLock.Lock()
+	defer m.subLock.Unlock()
+	sub, found := m.subscriptions[ev.Name()]
+	if !found {
+		logger.Warn("No subscription for event. Ignoring.", zap.String("eventName", ev.Name()))
+		return nil
+	}
+	for _, callback := range sub.callbacks {
+		callback(ev)
+	}
+	return nil
 }
 
 func (m *manager) createDoneFunc(sub *subscription, callbackKey string) func() {
