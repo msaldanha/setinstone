@@ -8,15 +8,13 @@ import (
 
 	"github.com/davecgh/go-xdr/xdr2"
 	"golang.org/x/crypto/ripemd160"
-
-	"github.com/msaldanha/setinstone/anticorp/keypair"
 )
 
 const version = byte(0x00)
 const addressChecksumLen = 4
 
 type Address struct {
-	Keys    *keypair.KeyPair
+	Keys    *KeyPair
 	Address string
 }
 
@@ -25,7 +23,7 @@ func New() *Address {
 }
 
 func NewAddressWithKeys() (*Address, error) {
-	keys, err := keypair.New()
+	keys, err := NewKeyPair()
 	if err != nil {
 		return nil, err
 	}
@@ -33,7 +31,7 @@ func NewAddressWithKeys() (*Address, error) {
 	return NewAddressForKeys(keys)
 }
 
-func NewAddressForKeys(keys *keypair.KeyPair) (*Address, error) {
+func NewAddressForKeys(keys *KeyPair) (*Address, error) {
 	addr := &Address{Keys: keys}
 	publicKeysBytes, _ := hex.DecodeString(addr.Keys.PublicKey)
 	hash, err := generateAddressHash(publicKeysBytes)

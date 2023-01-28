@@ -18,7 +18,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/msaldanha/setinstone/anticorp/event"
-	"github.com/msaldanha/setinstone/anticorp/keyvaluestore"
 	"github.com/msaldanha/setinstone/timeline"
 )
 
@@ -35,7 +34,7 @@ type server struct {
 	initialized bool
 	app         *iris.Application
 	opts        ServerOptions
-	store       keyvaluestore.KeyValueStore
+	store       KeyValueStore
 	timelines   map[string]timeline.Timeline
 	ipfs        icore.CoreAPI
 	logins      map[string]string
@@ -60,8 +59,8 @@ type Response struct {
 }
 
 func NewServer(opts ServerOptions) (Server, error) {
-	store := keyvaluestore.NewBoltKeyValueStore()
-	er := store.Init(keyvaluestore.BoltKeyValueStoreOptions{BucketName: "addresses", DbFile: opts.DataStore})
+	store := NewBoltKeyValueStore()
+	er := store.Init(BoltKeyValueStoreOptions{BucketName: "addresses", DbFile: opts.DataStore})
 	if er != nil {
 		return nil, er
 	}

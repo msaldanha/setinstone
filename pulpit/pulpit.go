@@ -21,12 +21,11 @@ import (
 	"github.com/msaldanha/setinstone/anticorp/crypto"
 	"github.com/msaldanha/setinstone/anticorp/event"
 	"github.com/msaldanha/setinstone/anticorp/graph"
-	"github.com/msaldanha/setinstone/anticorp/keyvaluestore"
 	"github.com/msaldanha/setinstone/timeline"
 )
 
 type pulpitService struct {
-	store      keyvaluestore.KeyValueStore
+	store      KeyValueStore
 	timelines  map[string]timeline.Timeline
 	ipfs       icore.CoreAPI
 	node       *core.IpfsNode
@@ -35,7 +34,7 @@ type pulpitService struct {
 	logger     *zap.Logger
 }
 
-func newPulpitService(store keyvaluestore.KeyValueStore,
+func newPulpitService(store KeyValueStore,
 	ipfs icore.CoreAPI, node *core.IpfsNode, evmFactory event.ManagerFactory, logger *zap.Logger) pulpitService {
 	return pulpitService{
 		store:      store,

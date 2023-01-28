@@ -1,4 +1,4 @@
-package keypair
+package address
 
 import (
 	. "github.com/onsi/ginkgo"
@@ -9,5 +9,4 @@ import (
 
 func TestKeypair(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Keypair Suite")
 }

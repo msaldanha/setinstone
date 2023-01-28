@@ -1,4 +1,4 @@
-package keyvaluestore
+package pulpit
 
 import (
 	"time"

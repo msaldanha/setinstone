@@ -1,15 +1,16 @@
-package keypair
+package address
 
 import (
-	. "github.com/onsi/ginkgo"
 	"reflect"
+
+	. "github.com/onsi/ginkgo"
 
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Keypair", func() {
 	It("Should export/import to/from PEM", func() {
-		kp, er := New()
+		kp, er := NewKeyPair()
 		Expect(er).To(BeNil())
 
 		pem, er := kp.ToPem("password")
@@ -21,7 +22,7 @@ var _ = Describe("Keypair", func() {
 		Expect(reflect.DeepEqual(kp, kp2)).To(BeTrue())
 	})
 	It("Should export to ecdsa private key ", func() {
-		kp, er := New()
+		kp, er := NewKeyPair()
 		Expect(er).To(BeNil())
 
 		pem, er := kp.ToPem("password")

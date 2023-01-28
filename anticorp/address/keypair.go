@@ -1,4 +1,4 @@
-package keypair
+package address
 
 import (
 	"crypto/ecdsa"
@@ -17,7 +17,7 @@ type KeyPair struct {
 	PublicKey  string
 }
 
-func New() (*KeyPair, error) {
+func NewKeyPair() (*KeyPair, error) {
 	curve := elliptic.P256()
 	private, err := ecdsa.GenerateKey(curve, rand.Reader)
 	if err != nil {
