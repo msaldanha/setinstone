@@ -20,7 +20,7 @@ import (
 	"github.com/msaldanha/setinstone/anticorp/address"
 	"github.com/msaldanha/setinstone/anticorp/cache"
 	"github.com/msaldanha/setinstone/anticorp/event"
-	"github.com/msaldanha/setinstone/anticorp/message"
+	"github.com/msaldanha/setinstone/anticorp/internal/message"
 )
 
 const prefix = "IPFS Resolver"

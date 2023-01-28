@@ -3,7 +3,7 @@ package event
 import (
 	iface "github.com/ipfs/interface-go-ipfs-core"
 
-	"github.com/msaldanha/setinstone/anticorp/message"
+	"github.com/msaldanha/setinstone/anticorp/internal/message"
 )
 
 type Event interface {

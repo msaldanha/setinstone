@@ -14,7 +14,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/msaldanha/setinstone/anticorp/address"
-	"github.com/msaldanha/setinstone/anticorp/message"
+	"github.com/msaldanha/setinstone/anticorp/internal/message"
 )
 
 //go:generate mockgen -source=manager.go -destination=manager_mock.go -package=event

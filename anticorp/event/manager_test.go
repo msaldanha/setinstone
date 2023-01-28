@@ -13,7 +13,7 @@ import (
 
 	"github.com/msaldanha/setinstone/anticorp/address"
 	"github.com/msaldanha/setinstone/anticorp/event"
-	"github.com/msaldanha/setinstone/anticorp/message"
+	"github.com/msaldanha/setinstone/anticorp/internal/message"
 )
 
 //go:generate mockgen -package event_test  -destination pubsub_mock_test.go github.com/ipfs/interface-go-ipfs-core PubSubAPI,PubSubSubscription,PubSubMessage
