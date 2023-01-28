@@ -12,7 +12,6 @@ import (
 	"github.com/msaldanha/setinstone/anticorp/cache"
 	"github.com/msaldanha/setinstone/anticorp/event"
 	"github.com/msaldanha/setinstone/anticorp/graph"
-	"github.com/msaldanha/setinstone/anticorp/message"
 )
 
 type Timeline interface {
@@ -299,22 +298,15 @@ func (t *timeline) getEvmForTimeline(addr string) (event.Manager, error) {
 }
 
 func (t *timeline) extractEvent(ev event.Event) (Event, error) {
-	t.logger.Info("Received event", zap.String("name", ev.Name()), zap.String("data", string(ev.Data())))
+	logger := t.logger.With(zap.String("name", ev.Name()), zap.String("data", string(ev.Data())))
+	logger.Info("Received event")
 
-	msg := message.Message{}
-	er := msg.FromJson(ev.Data(), Event{})
+	v := Event{}
+	er := json.Unmarshal(ev.Data(), &v)
 	if er != nil {
-		t.logger.Error("Invalid msg received", zap.String("name", ev.Name()), zap.Error(er))
+		logger.Error("Invalid event received", zap.Error(er))
 		return Event{}, er
 	}
-
-	er = msg.VerifySignature()
-	if er != nil {
-		t.logger.Error("Invalid msg signature", zap.String("name", ev.Name()), zap.Error(er))
-		return Event{}, er
-	}
-
-	v := msg.Payload.(Event)
-	t.logger.Info("Timeline event received", zap.String("type", v.Type), zap.String("id", v.Id))
+	logger.Info("Timeline event received", zap.String("type", v.Type), zap.String("id", v.Id))
 	return v, nil
 }
