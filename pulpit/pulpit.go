@@ -181,7 +181,7 @@ func (s pulpitService) getItems(ctx context.Context, addr, ns, keyRoot, connecto
 	}
 
 	items, er := tl.GetFrom(ctx, keyRoot, connector, from, to, count)
-	if er != nil && !errors.Is(er, timeline.NewErrNotFound()) {
+	if er != nil && !errors.Is(er, timeline.ErrNotFound) {
 		return nil, er
 	}
 

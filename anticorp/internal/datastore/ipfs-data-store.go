@@ -2,6 +2,7 @@ package datastore
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	gopath "path"
@@ -92,6 +93,10 @@ func (d ipfsDataStore) Get(ctx context.Context, key string) (io.Reader, error) {
 
 	node, er := d.ipfs.Unixfs().Get(ctx, path.New(key))
 	if er != nil {
+		if errors.Is(er, context.DeadlineExceeded) {
+			// consider not found
+			return nil, ErrNotFound
+		}
 		return nil, fmt.Errorf(IpfsErrPrefix+"could not Unixfs.Get data with CID: %s %s", key, er)
 	}
 

@@ -65,7 +65,7 @@ var _ = Describe("Graph", func() {
 		dataToAdd := testPayLoad{NumberField: 1000, StringFiled: "some data added"}
 		_, er := gr.Append(ctx, "xxxxxx", NodeData{Branch: "main", Data: toBytes(dataToAdd)})
 
-		Expect(er).To(Equal(NewErrPreviousNotFound()))
+		Expect(er).To(Equal(ErrPreviousNotFound))
 	})
 
 	It("When adding, should return error if addr does not have the keys", func() {
@@ -79,7 +79,7 @@ var _ = Describe("Graph", func() {
 		dataToAdd := testPayLoad{NumberField: 1000, StringFiled: "some data added"}
 		_, er := gr.Append(ctx, "", NodeData{Branch: "main", Data: toBytes(dataToAdd)})
 
-		Expect(er).To(Equal(NewErrReadOnly()))
+		Expect(er).To(Equal(ErrReadOnly))
 	})
 
 	It("Should return iterator", func() {

@@ -34,15 +34,15 @@ type timeline struct {
 
 func NewTimeline(ns string, addr *address.Address, gr graph.Graph, evmf event.ManagerFactory, logger *zap.Logger) (Timeline, error) {
 	if addr == nil || !addr.HasKeys() {
-		return nil, NewErrInvalidParameterAddress()
+		return nil, ErrInvalidParameterAddress
 	}
 
 	if gr == nil {
-		return nil, NewErrInvalidParameterGraph()
+		return nil, ErrInvalidParameterGraph
 	}
 
 	if evmf == nil {
-		return nil, NewErrInvalidParameterEventManager()
+		return nil, ErrInvalidParameterEventManager
 	}
 
 	logger = logger.Named("Timeline").With(zap.String("namespace", ns), zap.String("addr", addr.Address))
@@ -96,15 +96,15 @@ func (t *timeline) AppendReference(ctx context.Context, ref ReferenceItem, keyRo
 		return "", er
 	}
 	if _, ok := v.Data.(ReferenceItem); ok {
-		return "", NewErrCannotRefARef()
+		return "", ErrCannotRefARef
 	}
 
 	if v.Address == t.gr.GetAddress(ctx).Address {
-		return "", NewErrCannotRefOwnItem()
+		return "", ErrCannotRefOwnItem
 	}
 
 	if !t.canReceiveReference(v, ref.Connector) {
-		return "", NewErrCannotAddReference()
+		return "", ErrCannotAddReference
 	}
 
 	mi := ReferenceItem{
@@ -136,16 +136,16 @@ func (t *timeline) AddReceivedReference(ctx context.Context, refKey string) (str
 		return "", er
 	}
 	if !found {
-		return "", NewErrNotFound()
+		return "", ErrNotFound
 	}
 
 	receivedRef, ok := item.Data.(ReferenceItem)
 	if !ok {
-		return "", NewErrNotAReference()
+		return "", ErrNotAReference
 	}
 
 	if item.Address == t.gr.GetAddress(ctx).Address {
-		return "", NewErrCannotRefOwnItem()
+		return "", ErrCannotRefOwnItem
 	}
 
 	item, found, er = t.Get(ctx, receivedRef.Target)
@@ -153,19 +153,19 @@ func (t *timeline) AddReceivedReference(ctx context.Context, refKey string) (str
 		return "", er
 	}
 	if !found {
-		return "", NewErrNotFound()
+		return "", ErrNotFound
 	}
 	_, ok = item.Data.(PostItem)
 	if !ok {
-		return "", NewErrCannotAddReference()
+		return "", ErrCannotAddReference
 	}
 
 	if item.Address != t.gr.GetAddress(ctx).Address {
-		return "", NewErrCannotAddRefToNotOwnedItem()
+		return "", ErrCannotAddRefToNotOwnedItem
 	}
 
 	if !t.canReceiveReference(item, receivedRef.Connector) {
-		return "", NewErrCannotAddReference()
+		return "", ErrCannotAddReference
 	}
 
 	li := ReferenceItem{
@@ -240,14 +240,13 @@ func (t *timeline) canReceiveReference(item Item, con string) bool {
 
 func (t *timeline) translateError(er error) error {
 	switch {
-	case errors.Is(er, graph.NewErrReadOnly()):
-		return NewErrReadOnly()
-	case errors.Is(er, graph.NewErrNotFound()):
-		return NewErrNotFound()
+	case errors.Is(er, graph.ErrReadOnly):
+		return ErrReadOnly
+	case errors.Is(er, graph.ErrNotFound):
+		return ErrNotFound
 	default:
-		return fmt.Errorf("unable to process the request: %s", er)
+		return fmt.Errorf("unable to process the request: %w", er)
 	}
-	return er
 }
 
 func (t *timeline) refAddedHandler(ev event.Event) {

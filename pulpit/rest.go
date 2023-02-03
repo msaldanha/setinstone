@@ -131,7 +131,7 @@ func NewServer(opts ServerOptions) (Server, error) {
 
 func (s server) Run() error {
 	if !s.initialized {
-		return NewErrNotInitialized()
+		return ErrNotInitialized
 	}
 	return s.app.Run(iris.Addr(s.opts.Url))
 }
@@ -369,21 +369,21 @@ func returnError(ctx iris.Context, er error, statusCode int) {
 
 func getStatusCodeForError(er error) int {
 	switch {
-	case errors.Is(er, timeline.NewErrReadOnly()):
+	case errors.Is(er, timeline.ErrReadOnly):
 		fallthrough
-	case errors.Is(er, timeline.NewErrCannotRefOwnItem()):
+	case errors.Is(er, timeline.ErrCannotRefOwnItem):
 		fallthrough
-	case errors.Is(er, timeline.NewErrCannotRefARef()):
+	case errors.Is(er, timeline.ErrCannotRefARef):
 		fallthrough
-	case errors.Is(er, timeline.NewErrCannotAddReference()):
+	case errors.Is(er, timeline.ErrCannotAddReference):
 		fallthrough
-	case errors.Is(er, timeline.NewErrNotAReference()):
+	case errors.Is(er, timeline.ErrNotAReference):
 		fallthrough
-	case errors.Is(er, timeline.NewErrCannotAddRefToNotOwnedItem()):
+	case errors.Is(er, timeline.ErrCannotAddRefToNotOwnedItem):
 		return 400
-	case errors.Is(er, NewErrAuthentication()):
+	case errors.Is(er, ErrAuthentication):
 		return 401
-	case errors.Is(er, timeline.NewErrNotFound()):
+	case errors.Is(er, timeline.ErrNotFound):
 		return 404
 	default:
 		return 500

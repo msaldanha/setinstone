@@ -1,20 +1,5 @@
 package message
 
-type ErrSignatureDoesNotMatch struct {
-	msg string
-}
+import "errors"
 
-func (e *ErrSignatureDoesNotMatch) Error() string {
-	return e.msg
-}
-
-func (e *ErrSignatureDoesNotMatch) Is(err error) (is bool) {
-	_, is = err.(*ErrSignatureDoesNotMatch)
-	return
-}
-
-func NewErrSignatureDoesNotMatch() *ErrSignatureDoesNotMatch {
-	return &ErrSignatureDoesNotMatch{
-		msg: "signature does not match",
-	}
-}
+var ErrSignatureDoesNotMatch = errors.New("signature does not match")

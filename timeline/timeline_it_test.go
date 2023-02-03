@@ -131,7 +131,7 @@ var _ = Describe("Timeline", func() {
 		gr.EXPECT().GetAddress(gomock.Any()).Return(addr)
 		expectedLike := timeline.ReferenceItem{Reference: timeline.Reference{Target: postKey, Connector: "connector"}}
 		key, er := p.AppendReference(ctx, expectedLike, "", "main")
-		Expect(er).To(Equal(timeline.NewErrCannotRefOwnItem()))
+		Expect(er).To(Equal(timeline.ErrCannotRefOwnItem))
 		Expect(key).To(Equal(""))
 
 	})
@@ -156,7 +156,7 @@ var _ = Describe("Timeline", func() {
 		gr.EXPECT().Get(gomock.Any(), likeKey).Return(graph.GraphNode{Key: likeKey, Address: addr.Address, Data: likejson, Branches: []string{likeRef}}, true, nil)
 		like := timeline.ReferenceItem{Reference: timeline.Reference{Target: likeKey, Connector: "connector"}}
 		key, er := p.AppendReference(ctx, like, "", "main")
-		Expect(er).To(Equal(timeline.NewErrCannotRefARef()))
+		Expect(er).To(Equal(timeline.ErrCannotRefARef))
 		Expect(key).To(Equal(""))
 
 	})

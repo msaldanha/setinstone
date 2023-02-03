@@ -1,20 +1,5 @@
 package event
 
-type ErrAddressNoKeys struct {
-	msg string
-}
+import "errors"
 
-func (e *ErrAddressNoKeys) Error() string {
-	return e.msg
-}
-
-func (e *ErrAddressNoKeys) Is(err error) (is bool) {
-	_, is = err.(*ErrAddressNoKeys)
-	return
-}
-
-func NewErrAddressNoKeys() *ErrAddressNoKeys {
-	return &ErrAddressNoKeys{
-		msg: "address does not have keys",
-	}
-}
+var ErrAddressNoKeys = errors.New("address does not have keys")

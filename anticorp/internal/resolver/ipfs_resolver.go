@@ -47,7 +47,7 @@ type ipfsResolver struct {
 func NewIpfsResolver(node *core.IpfsNode, signerAddr *address.Address, evmFactory event.ManagerFactory,
 	resCache cache.Cache, resourceCache cache.Cache, logger *zap.Logger) (Resolver, error) {
 	if !signerAddr.HasKeys() {
-		return nil, NewErrNoPrivateKey()
+		return nil, ErrNoPrivateKey
 	}
 	ipfs, er := coreapi.NewCoreAPI(node)
 	if er != nil {
@@ -76,7 +76,7 @@ func (r *ipfsResolver) Add(ctx context.Context, name, value string) error {
 		return er
 	}
 	if !r.isManaged(rec) {
-		er = NewErrUnmanagedAddress()
+		er = ErrUnmanagedAddress
 		logger.Error("Cannot add resolution", zap.Error(er))
 		return er
 	}
@@ -152,7 +152,7 @@ func (r *ipfsResolver) Resolve(ctx context.Context, name string) (string, error)
 	}
 	logger.Info("Is NOT managed")
 	rc, er := r.getFromCache(ctx, rec.GetID())
-	if errors.Is(er, NewErrNotFound()) {
+	if errors.Is(er, ErrNotFound) {
 		logger.Info("NOT found in cache")
 		rc, er = r.query(ctx, rec)
 	}
@@ -165,7 +165,7 @@ func (r *ipfsResolver) Resolve(ctx context.Context, name string) (string, error)
 
 func (r *ipfsResolver) Manage(addr *address.Address) error {
 	if addr.Keys.PrivateKey == "" {
-		return NewErrNoPrivateKey()
+		return ErrNoPrivateKey
 	}
 	_, er := r.handle(addr)
 	return er
@@ -237,7 +237,7 @@ func (r *ipfsResolver) get(ctx context.Context, name string) (string, error) {
 func (r *ipfsResolver) getFromCache(ctx context.Context, name string) (message.Message, error) {
 	v, ok, er := r.resolutionCache.Get(name)
 	if !ok {
-		return message.Message{}, NewErrNotFound()
+		return message.Message{}, ErrNotFound
 	}
 	rec := v.(message.Message)
 	return rec, er
@@ -271,7 +271,7 @@ func (r *ipfsResolver) resolveManaged(ctx context.Context, rc message.Message) (
 	logger := r.logger.With(zap.String("type", rc.Type))
 	rec := message.Message{}
 	if !r.isManaged(rc) {
-		er := NewErrUnmanagedAddress()
+		er := ErrUnmanagedAddress
 		logger.Error("Cannot resolve", zap.Error(er))
 		return rec, er
 	}
@@ -285,7 +285,7 @@ func (r *ipfsResolver) resolveManaged(ctx context.Context, rc message.Message) (
 	}
 
 	if !resource.addr.HasKeys() {
-		er = NewErrUnmanagedAddress()
+		er = ErrUnmanagedAddress
 		logger.Error("Cannot resolve", zap.Error(er))
 		return rec, er
 	}

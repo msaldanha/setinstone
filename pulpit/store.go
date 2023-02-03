@@ -27,14 +27,15 @@ type BoltKeyValueStore struct {
 func NewBoltKeyValueStore() KeyValueStore {
 	return &BoltKeyValueStore{}
 }
+
 func (st *BoltKeyValueStore) Init(options interface{}) error {
 	if _, ok := options.(BoltKeyValueStoreOptions); !ok {
-		return NewErrExpectedBoltKeyValueStoreOptions()
+		return ErrExpectedBoltKeyValueStoreOptions
 	}
 
 	opt := options.(BoltKeyValueStoreOptions)
 	if opt.BucketName == "" {
-		return NewErrInvalidBucketName()
+		return ErrInvalidBucketName
 	}
 
 	db, er := bolt.Open(opt.DbFile, 0600, &bolt.Options{Timeout: 1 * time.Second})

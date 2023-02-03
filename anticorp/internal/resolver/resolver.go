@@ -17,12 +17,12 @@ type Resolver interface {
 func getQueryNameRequestFromName(name string) (message.Message, error) {
 	parts := strings.Split(name, "/")
 	if len(parts) < 3 {
-		return message.Message{}, NewErrInvalidName()
+		return message.Message{}, ErrInvalidName
 	}
 	a := address.Address{}
 	a.Address = parts[1]
 	if ok, _ := a.IsValid(); !ok {
-		return message.Message{}, NewErrInvalidAddrComponent()
+		return message.Message{}, ErrInvalidAddrComponent
 	}
 
 	msg := message.Message{

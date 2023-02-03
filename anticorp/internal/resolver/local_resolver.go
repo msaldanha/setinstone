@@ -25,7 +25,7 @@ func (r *localResolver) Add(ctx context.Context, name, value string) error {
 	}
 	_, found := r.addresses[rec.Address]
 	if !found {
-		return NewErrUnmanagedAddress()
+		return ErrUnmanagedAddress
 	}
 	r.names[name] = value
 	return nil
@@ -38,14 +38,14 @@ func (r *localResolver) Resolve(ctx context.Context, name string) (string, error
 	}
 	res, found := r.names[name]
 	if !found {
-		return "", NewErrNotFound()
+		return "", ErrNotFound
 	}
 	return res, nil
 }
 
 func (r *localResolver) Manage(addr *address.Address) error {
 	if addr.Keys.PrivateKey == "" {
-		return NewErrNoPrivateKey()
+		return ErrNoPrivateKey
 	}
 	r.addresses[addr.Address] = addr
 	return nil

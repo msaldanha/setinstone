@@ -128,7 +128,7 @@ func (d graph) GetAddress(ctx context.Context) *address.Address {
 func (d graph) Get(ctx context.Context, key string) (GraphNode, bool, error) {
 	node, er := d.get(ctx, key)
 	if er != nil {
-		if errors.Is(er, dag.NewErrNodeNotFound()) {
+		if errors.Is(er, dag.ErrNodeNotFound) {
 			return GraphNode{}, false, nil
 		}
 		return GraphNode{}, false, d.translateError(er)
@@ -138,12 +138,12 @@ func (d graph) Get(ctx context.Context, key string) (GraphNode, bool, error) {
 
 func (d graph) Append(ctx context.Context, keyRoot string, node NodeData) (GraphNode, error) {
 	if d.addr.Keys == nil || d.addr.Keys.PrivateKey == "" {
-		return GraphNode{}, NewErrReadOnly()
+		return GraphNode{}, ErrReadOnly
 	}
 
 	if keyRoot == "" {
 		gn, gnKey, er := d.da.GetRoot(ctx, d.addr.Address)
-		if errors.Is(er, dag.NewErrNodeNotFound()) || gn == nil {
+		if errors.Is(er, dag.ErrNodeNotFound) || gn == nil {
 			return d.createFirstNode(ctx, node)
 		}
 		if er != nil {
@@ -152,8 +152,8 @@ func (d graph) Append(ctx context.Context, keyRoot string, node NodeData) (Graph
 		keyRoot = gnKey
 	}
 	last, lastKey, er := d.da.GetLast(ctx, keyRoot, node.Branch)
-	if errors.Is(er, dag.NewErrNodeNotFound()) {
-		return GraphNode{}, NewErrPreviousNotFound()
+	if errors.Is(er, dag.ErrNodeNotFound) {
+		return GraphNode{}, ErrPreviousNotFound
 	}
 	if er != nil {
 		return GraphNode{}, er
@@ -185,8 +185,8 @@ func (d graph) GetIterator(ctx context.Context, keyRoot, branch string, from str
 	if from == "" {
 		if keyRoot == "" {
 			gn, gnKey, er := d.da.GetRoot(ctx, d.addr.Address)
-			if errors.Is(er, dag.NewErrNodeNotFound()) || gn == nil {
-				return nil, NewErrNotFound()
+			if errors.Is(er, dag.ErrNodeNotFound) || gn == nil {
+				return nil, ErrNotFound
 			}
 			if er != nil {
 				return nil, er
@@ -198,7 +198,7 @@ func (d graph) GetIterator(ctx context.Context, keyRoot, branch string, from str
 		nextNode, er = d.get(ctx, from)
 		nextNodeKey = from
 	}
-	if er != nil && !errors.Is(er, NewErrNotFound()) {
+	if er != nil && !errors.Is(er, ErrNotFound) {
 		return nil, er
 	}
 	hasNext = nextNode != nil
@@ -208,17 +208,17 @@ func (d graph) GetIterator(ctx context.Context, keyRoot, branch string, from str
 		},
 		next: func(ictx context.Context) (GraphNode, error) {
 			if !hasNext {
-				return GraphNode{}, NewErrInvalidIteratorState()
+				return GraphNode{}, ErrInvalidIteratorState
 			}
 			hasNext = false
-			if errors.Is(er, NewErrNotFound()) {
+			if errors.Is(er, ErrNotFound) {
 				return GraphNode{}, d.translateError(er)
 			}
 			if er != nil {
 				return GraphNode{}, d.translateError(er)
 			}
 			if nextNode == nil {
-				return GraphNode{}, NewErrInvalidIteratorState()
+				return GraphNode{}, ErrInvalidIteratorState
 			}
 			item := d.toGraphNode(nextNodeKey, nextNode)
 			if nextNode.Previous == "" {
@@ -280,11 +280,11 @@ func (d graph) createFirstNode(ctx context.Context, node NodeData) (GraphNode, e
 }
 
 func (d graph) translateError(er error) error {
-	switch er.(type) {
-	case *dag.ErrDagAlreadyInitialized:
-		return NewErrAlreadyInitialized()
-	case *dag.ErrNodeNotFound:
-		return NewErrNotFound()
+	switch {
+	case errors.Is(er, dag.ErrDagAlreadyInitialized):
+		return ErrAlreadyInitialized
+	case errors.Is(er, dag.ErrNodeNotFound):
+		return ErrNotFound
 	}
 	return er
 }

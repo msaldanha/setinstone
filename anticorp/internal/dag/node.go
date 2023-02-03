@@ -56,18 +56,18 @@ func (m *Node) Sign(privateKey *ecdsa.PrivateKey) error {
 func (m *Node) VerifySignature() error {
 	sign, er := hex.DecodeString(m.Signature)
 	if er != nil {
-		return NewErrUnableToDecodeNodeSignature()
+		return ErrUnableToDecodeNodeSignature
 	}
 
 	pubKey, er := hex.DecodeString(m.PubKey)
 	if er != nil {
-		return NewErrUnableToDecodeNodePubKey()
+		return ErrUnableToDecodeNodePubKey
 	}
 
 	data, _ := m.GetBytesForSigning()
 	hash := sha256.Sum256(data)
 	if !VerifySignature(sign, pubKey, hash[:]) {
-		return NewErrNodeSignatureDoesNotMatch()
+		return ErrNodeSignatureDoesNotMatch
 	}
 
 	return nil

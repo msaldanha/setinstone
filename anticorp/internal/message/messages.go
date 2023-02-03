@@ -75,7 +75,7 @@ func (m *Message) VerifySignature() error {
 		return nil
 	}
 
-	return NewErrSignatureDoesNotMatch()
+	return ErrSignatureDoesNotMatch
 }
 
 func (m *Message) ToJson() (string, error) {

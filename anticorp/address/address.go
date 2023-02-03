@@ -65,14 +65,14 @@ func MatchesPubKey(addr string, pubKey string) bool {
 
 func IsValid(addr string) (bool, error) {
 	if len(addr) == 0 {
-		return false, NewErrInvalidChecksum()
+		return false, ErrInvalidChecksum
 	}
 	pubKeyHash := Base58Decode([]byte(addr))
 	var chksum [4]byte
 	copy(chksum[:], pubKeyHash[len(pubKeyHash)-addressChecksumLen:])
 	chkCalc := checksum(pubKeyHash[:len(pubKeyHash)-addressChecksumLen])
 	if bytes.Compare(chkCalc, chksum[:]) != 0 {
-		return false, NewErrInvalidChecksum()
+		return false, ErrInvalidChecksum
 	}
 	return true, nil
 }

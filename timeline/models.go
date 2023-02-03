@@ -77,7 +77,7 @@ func NewItemFromGraphNode(v graph.GraphNode) (Item, error) {
 		er = json.Unmarshal(v.Data, &p)
 		data = p
 	default:
-		er = NewErrUnknownType()
+		er = ErrUnknownType
 	}
 
 	if er != nil {

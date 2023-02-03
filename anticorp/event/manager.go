@@ -117,7 +117,7 @@ func (m *manager) Emit(eventName string, data []byte) error {
 	m.logger.Info("Signaling event", zap.String("eventName", eventName),
 		zap.String("topic", m.getTopicName()), zap.String("data", string(data)))
 	if !m.signerAddr.HasKeys() {
-		return NewErrAddressNoKeys()
+		return ErrAddressNoKeys
 	}
 	ev := event{
 		N: eventName,
