@@ -38,7 +38,7 @@ var _ = Describe("Timeline", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		gr := graph.NewMockGraph(mockCtrl)
+		gr := timeline.NewMockGraph(mockCtrl)
 		gr.EXPECT().Append(gomock.Any(), gomock.Any(), gomock.Any()).Return(graph.GraphNode{Key: "key"}, nil)
 
 		evf, evm := createMockFactoryAndManager(mockCtrl, ns)
@@ -60,7 +60,7 @@ var _ = Describe("Timeline", func() {
 
 		expectedPost := timeline.PostItem{Base: timeline.Base{Type: timeline.TypePost}, Post: timeline.Post{Part: timeline.Part{MimeType: "plain/text", Data: "some text"}}}
 
-		gr := graph.NewMockGraph(mockCtrl)
+		gr := timeline.NewMockGraph(mockCtrl)
 		data, _ := json.Marshal(expectedPost)
 		gr.EXPECT().Get(gomock.Any(), gomock.Any()).Return(graph.GraphNode{Key: "key", Data: data}, true, nil)
 
@@ -83,7 +83,7 @@ var _ = Describe("Timeline", func() {
 
 		evf, evm := createMockFactoryAndManager(mockCtrl, ns)
 		evm.EXPECT().On(timeline.EventTypes.EventReferenced, gomock.Any()).Return(func() {}, nil)
-		gr := graph.NewMockGraph(mockCtrl)
+		gr := timeline.NewMockGraph(mockCtrl)
 
 		tl1, _ := timeline.NewTimeline(ns, addr, gr, evf, logger)
 
@@ -114,7 +114,7 @@ var _ = Describe("Timeline", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		gr := graph.NewMockGraph(mockCtrl)
+		gr := timeline.NewMockGraph(mockCtrl)
 
 		evf, evm := createMockFactoryAndManager(mockCtrl, ns)
 		evm.EXPECT().On(timeline.EventTypes.EventReferenced, gomock.Any()).Return(func() {}, nil)
@@ -140,7 +140,7 @@ var _ = Describe("Timeline", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		gr := graph.NewMockGraph(mockCtrl)
+		gr := timeline.NewMockGraph(mockCtrl)
 
 		evf, evm := createMockFactoryAndManager(mockCtrl, ns)
 		evm.EXPECT().On(timeline.EventTypes.EventReferenced, gomock.Any()).Return(func() {}, nil)
@@ -165,7 +165,7 @@ var _ = Describe("Timeline", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		gr := graph.NewMockGraph(mockCtrl)
+		gr := timeline.NewMockGraph(mockCtrl)
 
 		evf, evm := createMockFactoryAndManager(mockCtrl, ns)
 		evm.EXPECT().On(timeline.EventTypes.EventReferenced, gomock.Any()).Return(func() {}, nil)
@@ -189,8 +189,12 @@ var _ = Describe("Timeline", func() {
 			keys = append(keys, postKey)
 		}
 
-		it := graph.NewMockIterator(mockCtrl)
-		gr.EXPECT().GetIterator(gomock.Any(), "", "", keys[5]).Return(it, nil)
+		it := timeline.NewMockIterator(mockCtrl)
+		i := &graph.Iterator{
+			NextImpl:    it.Next,
+			HasNextImpl: it.HasNext,
+		}
+		gr.EXPECT().GetIterator(gomock.Any(), "", "", keys[5]).Return(i, nil)
 
 		count := 3
 		index := count

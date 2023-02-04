@@ -159,7 +159,7 @@ func toBytes(data interface{}) []byte {
 }
 
 func newGraph(da dag.Dag, addr *address.Address) Graph {
-	return graph{
+	return Graph{
 		da:   da,
 		addr: addr,
 	}

@@ -18,33 +18,11 @@ import (
 	"github.com/msaldanha/setinstone/anticorp/internal/resolver"
 )
 
-//go:generate mockgen -source=graph.go -destination=graph_mock.go -package=graph
-
-type Iterator interface {
-	Next(ctx context.Context) (GraphNode, error)
-	HasNext() bool
-}
-
-type Graph interface {
-	GetName() string
-	GetMetaData() string
-	Get(ctx context.Context, key string) (GraphNode, bool, error)
-	Append(ctx context.Context, keyRoot string, node NodeData) (GraphNode, error)
-	GetIterator(ctx context.Context, keyRoot, branch string, from string) (Iterator, error)
-	GetAddress(ctx context.Context) *address.Address
-	Manage(addr *address.Address) error
-}
-
-type graph struct {
+type Graph struct {
 	name     string
 	metaData string
 	addr     *address.Address
 	da       dag.Dag
-}
-
-type iterator struct {
-	next    func(ictx context.Context) (GraphNode, error)
-	hasNext func() bool
 }
 
 type GraphNode struct {
@@ -70,7 +48,7 @@ type NodeData struct {
 	Properties map[string]string
 }
 
-func NewGraph(ns string, addr *address.Address, node *core.IpfsNode, logger *zap.Logger) Graph {
+func NewGraph(ns string, addr *address.Address, node *core.IpfsNode, logger *zap.Logger) *Graph {
 	// Attach the Core API to the node
 	ipfs, er := coreapi.NewCoreAPI(node)
 	if er != nil {
@@ -106,26 +84,26 @@ func NewGraph(ns string, addr *address.Address, node *core.IpfsNode, logger *zap
 		_ = da.Manage(addr)
 	}
 
-	return graph{
+	return &Graph{
 		da:   da,
 		addr: addr,
 	}
 }
 
-func (d graph) GetName() string {
+func (d *Graph) GetName() string {
 	return d.name
 }
 
-func (d graph) GetMetaData() string {
+func (d *Graph) GetMetaData() string {
 	return d.metaData
 }
 
-func (d graph) GetAddress(ctx context.Context) *address.Address {
+func (d *Graph) GetAddress(ctx context.Context) *address.Address {
 	addr := *d.addr
 	return &addr
 }
 
-func (d graph) Get(ctx context.Context, key string) (GraphNode, bool, error) {
+func (d *Graph) Get(ctx context.Context, key string) (GraphNode, bool, error) {
 	node, er := d.get(ctx, key)
 	if er != nil {
 		if errors.Is(er, dag.ErrNodeNotFound) {
@@ -136,7 +114,7 @@ func (d graph) Get(ctx context.Context, key string) (GraphNode, bool, error) {
 	return d.toGraphNode(key, node), true, nil
 }
 
-func (d graph) Append(ctx context.Context, keyRoot string, node NodeData) (GraphNode, error) {
+func (d *Graph) Append(ctx context.Context, keyRoot string, node NodeData) (GraphNode, error) {
 	if d.addr.Keys == nil || d.addr.Keys.PrivateKey == "" {
 		return GraphNode{}, ErrReadOnly
 	}
@@ -176,7 +154,7 @@ func (d graph) Append(ctx context.Context, keyRoot string, node NodeData) (Graph
 	return d.toGraphNode(key, n), nil
 }
 
-func (d graph) GetIterator(ctx context.Context, keyRoot, branch string, from string) (Iterator, error) {
+func (d *Graph) GetIterator(ctx context.Context, keyRoot, branch string, from string) (*Iterator, error) {
 	hasNext := false
 	var nextNode *dag.Node
 	var nextNodeKey string
@@ -202,11 +180,11 @@ func (d graph) GetIterator(ctx context.Context, keyRoot, branch string, from str
 		return nil, er
 	}
 	hasNext = nextNode != nil
-	return iterator{
-		hasNext: func() bool {
+	return &Iterator{
+		HasNextImpl: func() bool {
 			return hasNext
 		},
-		next: func(ictx context.Context) (GraphNode, error) {
+		NextImpl: func(ictx context.Context) (GraphNode, error) {
 			if !hasNext {
 				return GraphNode{}, ErrInvalidIteratorState
 			}
@@ -233,19 +211,11 @@ func (d graph) GetIterator(ctx context.Context, keyRoot, branch string, from str
 	}, nil
 }
 
-func (d graph) Manage(addr *address.Address) error {
+func (d *Graph) Manage(addr *address.Address) error {
 	return d.da.Manage(addr)
 }
 
-func (i iterator) HasNext() bool {
-	return i.hasNext()
-}
-
-func (i iterator) Next(ctx context.Context) (GraphNode, error) {
-	return i.next(ctx)
-}
-
-func (d graph) get(ctx context.Context, key string) (*dag.Node, error) {
+func (d *Graph) get(ctx context.Context, key string) (*dag.Node, error) {
 	var node *dag.Node
 	var er error
 	node, er = d.da.Get(ctx, key)
@@ -255,7 +225,7 @@ func (d graph) get(ctx context.Context, key string) (*dag.Node, error) {
 	return node, nil
 }
 
-func (d graph) createFirstNode(ctx context.Context, node NodeData) (GraphNode, error) {
+func (d *Graph) createFirstNode(ctx context.Context, node NodeData) (GraphNode, error) {
 	hasDefaultBranch := false
 	for _, b := range node.Branches {
 		if b == node.Branch {
@@ -279,7 +249,7 @@ func (d graph) createFirstNode(ctx context.Context, node NodeData) (GraphNode, e
 	return d.toGraphNode(key, n), nil
 }
 
-func (d graph) translateError(er error) error {
+func (d *Graph) translateError(er error) error {
 	switch {
 	case errors.Is(er, dag.ErrDagAlreadyInitialized):
 		return ErrAlreadyInitialized
@@ -289,7 +259,7 @@ func (d graph) translateError(er error) error {
 	return er
 }
 
-func (d graph) toGraphNode(key string, node *dag.Node) GraphNode {
+func (d *Graph) toGraphNode(key string, node *dag.Node) GraphNode {
 	return GraphNode{
 		Key:        key,
 		Seq:        node.Seq,

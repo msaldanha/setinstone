@@ -14,16 +14,8 @@ import (
 	"github.com/msaldanha/setinstone/anticorp/graph"
 )
 
-type Timeline interface {
-	AppendPost(ctx context.Context, post PostItem, keyRoot, connector string) (string, error)
-	AppendReference(ctx context.Context, ref ReferenceItem, keyRoot, connector string) (string, error)
-	AddReceivedReference(ctx context.Context, refKey string) (string, error)
-	Get(ctx context.Context, key string) (Item, bool, error)
-	GetFrom(ctx context.Context, keyRoot, connector, keyFrom, keyTo string, count int) ([]Item, error)
-}
-
 type timeline struct {
-	gr        graph.Graph
+	gr        Graph
 	evm       event.Manager
 	evmf      event.ManagerFactory
 	ns        string
@@ -32,7 +24,7 @@ type timeline struct {
 	logger    *zap.Logger
 }
 
-func NewTimeline(ns string, addr *address.Address, gr graph.Graph, evmf event.ManagerFactory, logger *zap.Logger) (Timeline, error) {
+func NewTimeline(ns string, addr *address.Address, gr Graph, evmf event.ManagerFactory, logger *zap.Logger) (Timeline, error) {
 	if addr == nil || !addr.HasKeys() {
 		return nil, ErrInvalidParameterAddress
 	}
