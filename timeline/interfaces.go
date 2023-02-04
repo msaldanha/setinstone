@@ -11,15 +11,15 @@ import (
 type Graph interface {
 	GetName() string
 	GetMetaData() string
-	Get(ctx context.Context, key string) (graph.GraphNode, bool, error)
-	Append(ctx context.Context, keyRoot string, node graph.NodeData) (graph.GraphNode, error)
+	Get(ctx context.Context, key string) (graph.Node, bool, error)
+	Append(ctx context.Context, keyRoot string, node graph.NodeData) (graph.Node, error)
 	GetIterator(ctx context.Context, keyRoot, branch string, from string) (*graph.Iterator, error)
 	GetAddress(ctx context.Context) *address.Address
 	Manage(addr *address.Address) error
 }
 
 type Iterator interface {
-	Next(ctx context.Context) (graph.GraphNode, error)
+	Next(ctx context.Context) (graph.Node, error)
 	HasNext() bool
 }
 

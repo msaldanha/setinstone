@@ -51,11 +51,11 @@ type ReferenceItem struct {
 }
 
 type Item struct {
-	graph.GraphNode
+	graph.Node
 	Data interface{} `json:"data,omitempty"`
 }
 
-func NewItemFromGraphNode(v graph.GraphNode) (Item, error) {
+func NewItemFromGraphNode(v graph.Node) (Item, error) {
 	base := Base{}
 	er := json.Unmarshal(v.Data, &base)
 	if er != nil {
@@ -63,7 +63,7 @@ func NewItemFromGraphNode(v graph.GraphNode) (Item, error) {
 	}
 
 	item := Item{
-		GraphNode: v,
+		Node: v,
 	}
 
 	var data interface{}

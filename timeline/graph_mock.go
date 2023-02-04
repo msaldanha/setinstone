@@ -64,10 +64,10 @@ func (mr *MockGraphMockRecorder) GetMetaData() *gomock.Call {
 }
 
 // Get mocks base method
-func (m *MockGraph) Get(ctx context.Context, key string) (graph.GraphNode, bool, error) {
+func (m *MockGraph) Get(ctx context.Context, key string) (graph.Node, bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get", ctx, key)
-	ret0, _ := ret[0].(graph.GraphNode)
+	ret0, _ := ret[0].(graph.Node)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -80,10 +80,10 @@ func (mr *MockGraphMockRecorder) Get(ctx, key interface{}) *gomock.Call {
 }
 
 // Append mocks base method
-func (m *MockGraph) Append(ctx context.Context, keyRoot string, node graph.NodeData) (graph.GraphNode, error) {
+func (m *MockGraph) Append(ctx context.Context, keyRoot string, node graph.NodeData) (graph.Node, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Append", ctx, keyRoot, node)
-	ret0, _ := ret[0].(graph.GraphNode)
+	ret0, _ := ret[0].(graph.Node)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -161,10 +161,10 @@ func (m *MockIterator) EXPECT() *MockIteratorMockRecorder {
 }
 
 // Next mocks base method
-func (m *MockIterator) Next(ctx context.Context) (graph.GraphNode, error) {
+func (m *MockIterator) Next(ctx context.Context) (graph.Node, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Next", ctx)
-	ret0, _ := ret[0].(graph.GraphNode)
+	ret0, _ := ret[0].(graph.Node)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

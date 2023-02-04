@@ -25,7 +25,7 @@ type Graph struct {
 	da       dag.Dag
 }
 
-type GraphNode struct {
+type Node struct {
 	Key        string            `json:"key,omitempty"`
 	Seq        int32             `json:"seq,omitempty"`
 	Timestamp  string            `json:"timestamp,omitempty"`
@@ -103,20 +103,20 @@ func (d *Graph) GetAddress(ctx context.Context) *address.Address {
 	return &addr
 }
 
-func (d *Graph) Get(ctx context.Context, key string) (GraphNode, bool, error) {
+func (d *Graph) Get(ctx context.Context, key string) (Node, bool, error) {
 	node, er := d.get(ctx, key)
 	if er != nil {
 		if errors.Is(er, dag.ErrNodeNotFound) {
-			return GraphNode{}, false, nil
+			return Node{}, false, nil
 		}
-		return GraphNode{}, false, d.translateError(er)
+		return Node{}, false, d.translateError(er)
 	}
 	return d.toGraphNode(key, node), true, nil
 }
 
-func (d *Graph) Append(ctx context.Context, keyRoot string, node NodeData) (GraphNode, error) {
+func (d *Graph) Append(ctx context.Context, keyRoot string, node NodeData) (Node, error) {
 	if d.addr.Keys == nil || d.addr.Keys.PrivateKey == "" {
-		return GraphNode{}, ErrReadOnly
+		return Node{}, ErrReadOnly
 	}
 
 	if keyRoot == "" {
@@ -125,16 +125,16 @@ func (d *Graph) Append(ctx context.Context, keyRoot string, node NodeData) (Grap
 			return d.createFirstNode(ctx, node)
 		}
 		if er != nil {
-			return GraphNode{}, er
+			return Node{}, er
 		}
 		keyRoot = gnKey
 	}
 	last, lastKey, er := d.da.GetLast(ctx, keyRoot, node.Branch)
 	if errors.Is(er, dag.ErrNodeNotFound) {
-		return GraphNode{}, ErrPreviousNotFound
+		return Node{}, ErrPreviousNotFound
 	}
 	if er != nil {
-		return GraphNode{}, er
+		return Node{}, er
 	}
 	seq := int32(0)
 	if lastKey == keyRoot && last.Branch != node.Branch {
@@ -145,11 +145,11 @@ func (d *Graph) Append(ctx context.Context, keyRoot string, node NodeData) (Grap
 
 	n, er := createNode(node, keyRoot, lastKey, d.addr, seq)
 	if er != nil {
-		return GraphNode{}, er
+		return Node{}, er
 	}
 	key, er := d.da.Append(ctx, n, keyRoot)
 	if er != nil {
-		return GraphNode{}, er
+		return Node{}, er
 	}
 	return d.toGraphNode(key, n), nil
 }
@@ -184,19 +184,19 @@ func (d *Graph) GetIterator(ctx context.Context, keyRoot, branch string, from st
 		HasNextImpl: func() bool {
 			return hasNext
 		},
-		NextImpl: func(ictx context.Context) (GraphNode, error) {
+		NextImpl: func(ictx context.Context) (Node, error) {
 			if !hasNext {
-				return GraphNode{}, ErrInvalidIteratorState
+				return Node{}, ErrInvalidIteratorState
 			}
 			hasNext = false
 			if errors.Is(er, ErrNotFound) {
-				return GraphNode{}, d.translateError(er)
+				return Node{}, d.translateError(er)
 			}
 			if er != nil {
-				return GraphNode{}, d.translateError(er)
+				return Node{}, d.translateError(er)
 			}
 			if nextNode == nil {
-				return GraphNode{}, ErrInvalidIteratorState
+				return Node{}, ErrInvalidIteratorState
 			}
 			item := d.toGraphNode(nextNodeKey, nextNode)
 			if nextNode.Previous == "" {
@@ -225,7 +225,7 @@ func (d *Graph) get(ctx context.Context, key string) (*dag.Node, error) {
 	return node, nil
 }
 
-func (d *Graph) createFirstNode(ctx context.Context, node NodeData) (GraphNode, error) {
+func (d *Graph) createFirstNode(ctx context.Context, node NodeData) (Node, error) {
 	hasDefaultBranch := false
 	for _, b := range node.Branches {
 		if b == node.Branch {
@@ -238,12 +238,12 @@ func (d *Graph) createFirstNode(ctx context.Context, node NodeData) (GraphNode, 
 	}
 	n, er := createNode(node, "", "", d.addr, 1)
 	if er != nil {
-		return GraphNode{}, d.translateError(er)
+		return Node{}, d.translateError(er)
 	}
 
 	key, er := d.da.SetRoot(ctx, n)
 	if er != nil {
-		return GraphNode{}, d.translateError(er)
+		return Node{}, d.translateError(er)
 	}
 
 	return d.toGraphNode(key, n), nil
@@ -259,8 +259,8 @@ func (d *Graph) translateError(er error) error {
 	return er
 }
 
-func (d *Graph) toGraphNode(key string, node *dag.Node) GraphNode {
-	return GraphNode{
+func (d *Graph) toGraphNode(key string, node *dag.Node) Node {
+	return Node{
 		Key:        key,
 		Seq:        node.Seq,
 		Timestamp:  node.Timestamp,

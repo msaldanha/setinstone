@@ -6,7 +6,7 @@ import (
 )
 
 type Iterator struct {
-	NextImpl    func(ictx context.Context) (GraphNode, error)
+	NextImpl    func(ictx context.Context) (Node, error)
 	HasNextImpl func() bool
 }
 
@@ -17,9 +17,9 @@ func (i Iterator) HasNext() bool {
 	return i.HasNextImpl()
 }
 
-func (i Iterator) Next(ctx context.Context) (GraphNode, error) {
+func (i Iterator) Next(ctx context.Context) (Node, error) {
 	if i.NextImpl == nil {
-		return GraphNode{}, errors.New("not implemented")
+		return Node{}, errors.New("not implemented")
 	}
 	return i.NextImpl(ctx)
 }
