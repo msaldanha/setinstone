@@ -48,7 +48,7 @@ type NodeData struct {
 	Properties map[string]string
 }
 
-func NewGraph(ns string, addr *address.Address, node *core.IpfsNode, logger *zap.Logger) *Graph {
+func New(ns string, addr *address.Address, node *core.IpfsNode, logger *zap.Logger) *Graph {
 	// Attach the Core API to the node
 	ipfs, er := coreapi.NewCoreAPI(node)
 	if er != nil {

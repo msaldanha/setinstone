@@ -316,7 +316,7 @@ func (s pulpitService) getAddress(addr, pass string) (*address.Address, error) {
 }
 
 func (s *pulpitService) createTimeLine(ns string, a *address.Address) (timeline.Timeline, error) {
-	gr := graph.NewGraph(ns, a, s.node, s.logger)
+	gr := graph.New(ns, a, s.node, s.logger)
 	tl, er := timeline.NewTimeline(ns, a, gr, s.evmFactory, s.logger)
 	if er != nil {
 		return nil, er
