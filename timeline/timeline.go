@@ -25,9 +25,6 @@ type timeline struct {
 }
 
 func NewTimeline(ns string, addr *address.Address, gr Graph, evmf event.ManagerFactory, logger *zap.Logger) (Timeline, error) {
-	if addr == nil || !addr.HasKeys() {
-		return nil, ErrInvalidParameterAddress
-	}
 
 	if gr == nil {
 		return nil, ErrInvalidParameterGraph
@@ -66,6 +63,10 @@ func NewTimeline(ns string, addr *address.Address, gr Graph, evmf event.ManagerF
 
 // AppendPost adds a post to the timeline and broadcasts post add event to any subscriber
 func (t *timeline) AppendPost(ctx context.Context, post PostItem, keyRoot, connector string) (string, error) {
+	er := t.checkCanWrite()
+	if er != nil {
+		return "", er
+	}
 	post.Type = TypePost
 	js, er := json.Marshal(post)
 	if er != nil {
@@ -82,6 +83,10 @@ func (t *timeline) AppendPost(ctx context.Context, post PostItem, keyRoot, conne
 // AppendReference adds a reference to a post (from other timeline) to the timeline and broadcasts reference
 // added event to any subscriber. It also sends referenced event to the target timeline.
 func (t *timeline) AppendReference(ctx context.Context, ref ReferenceItem, keyRoot, connector string) (string, error) {
+	er := t.checkCanWrite()
+	if er != nil {
+		return "", er
+	}
 	ref.Type = TypeReference
 	v, _, er := t.Get(ctx, ref.Target)
 	if er != nil {
@@ -123,6 +128,10 @@ func (t *timeline) AppendReference(ctx context.Context, ref ReferenceItem, keyRo
 
 // AddReceivedReference adds a reference to a post/item from this timeline
 func (t *timeline) AddReceivedReference(ctx context.Context, refKey string) (string, error) {
+	er := t.checkCanWrite()
+	if er != nil {
+		return "", er
+	}
 	item, found, er := t.Get(ctx, refKey)
 	if er != nil {
 		return "", er
@@ -300,4 +309,11 @@ func (t *timeline) extractEvent(ev event.Event) (Event, error) {
 	}
 	logger.Info("Timeline event received", zap.String("type", v.Type), zap.String("id", v.Id))
 	return v, nil
+}
+
+func (t *timeline) checkCanWrite() error {
+	if t.addr == nil || !t.addr.HasKeys() {
+		return ErrReadOnly
+	}
+	return nil
 }
