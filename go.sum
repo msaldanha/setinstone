@@ -311,6 +311,8 @@ github.com/gogo/protobuf v1.3.0/go.mod h1:SlYgWuQ5SjCEi6WLHjHCa1yvBfUnHcTbrrZtXP
 github.com/gogo/protobuf v1.3.1/go.mod h1:SlYgWuQ5SjCEi6WLHjHCa1yvBfUnHcTbrrZtXPKa29o=
 github.com/gogo/protobuf v1.3.2 h1:Ov1cvc58UF3b5XjBnZv7+opcTcQFZebYjWzi34vdm4Q=
 github.com/gogo/protobuf v1.3.2/go.mod h1:P1XiOD3dCwIKUDQYPy72D8LYyHL2YPYrpS2s69NZV8Q=
+github.com/golang-jwt/jwt/v4 v4.5.0 h1:7cYmW1XlMY7h7ii7UhUyChSgS5wUJEnm9uZVTGqOWzg=
+github.com/golang-jwt/jwt/v4 v4.5.0/go.mod h1:m21LjoU+eqJr34lmDMbreY2eSTRJ1cv77w39/MY0Ch0=
 github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b/go.mod h1:SBH7ygxi8pfUlaOkMMuAQtPIUF8ecWP5IEl/CR7VP2Q=
 github.com/golang/glog v1.0.0 h1:nfP3RFugxnNRyKgeWd4oI1nYvXpxrx8ck8ZrcizshdQ=
 github.com/golang/glog v1.0.0/go.mod h1:EWib/APOK0SL3dFbYqvxE3UYd8E6s1ouQ7iEp/0LWV4=
@@ -695,8 +697,12 @@ github.com/iris-contrib/go.uuid v2.0.0+incompatible/go.mod h1:iz2lgM/1UnEf1kP0L/
 github.com/iris-contrib/httpexpect/v2 v2.12.1 h1:3cTZSyBBen/kfjCtgNFoUKi1u0FVXNaAjyRJOo6AVS4=
 github.com/iris-contrib/middleware/cors v0.0.0-20191219204441-78279b78a367 h1:8sqPsO9g8khKdBGu9jJ1O7EgOblntuv1sLra6UVpuNY=
 github.com/iris-contrib/middleware/cors v0.0.0-20191219204441-78279b78a367/go.mod h1:2p74oN7zAlsFSyDjs23eCuG4lzouZycTEg9nHGe0cnM=
+github.com/iris-contrib/middleware/cors v0.0.0-20230311205048-b568fe9b470f h1:5rzREq7GRRM+lCgE1cYasex/YEtA0KVS8B6FERNUloI=
+github.com/iris-contrib/middleware/cors v0.0.0-20230311205048-b568fe9b470f/go.mod h1:7eVziAp1yUwFB/ZMg71n84VWQH+7wukvxcHuF2e7cbg=
 github.com/iris-contrib/middleware/jwt v0.0.0-20191219204441-78279b78a367 h1:3jSxvUkS5gBMQQhe/TB1Musi6O8QcrBlUfEUAEc8XoU=
 github.com/iris-contrib/middleware/jwt v0.0.0-20191219204441-78279b78a367/go.mod h1:Vac9OVWLTCyUwkO/InJK92Y0jqkT/ryvTSAor5v13s4=
+github.com/iris-contrib/middleware/jwt v0.0.0-20230311205048-b568fe9b470f h1:Eqov8/aWFfXNeWC0y9U26+J4kYBJ11ZnbV91qB8Ebm4=
+github.com/iris-contrib/middleware/jwt v0.0.0-20230311205048-b568fe9b470f/go.mod h1:5471kchvmUoUTiP5L/MkgG1eTutYsAgHLWtIn5mJ80w=
 github.com/iris-contrib/pongo2 v0.0.1/go.mod h1:Ssh+00+3GAZqSQb30AvBRNxBx7rf0GqwkjqxNd0u65g=
 github.com/iris-contrib/schema v0.0.1/go.mod h1:urYA3uvUNG1TIIjOSCzHr9/LmbQo8LrOcOqfqxa4hXw=
 github.com/iris-contrib/schema v0.0.6 h1:CPSBLyx2e91H2yJzPuhGuifVRnZBBJ3pCOMbOvPZaTw=

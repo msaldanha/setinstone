@@ -158,7 +158,7 @@ func (s server) createAddress(ctx iris.Context) {
 		return
 	}
 
-	_, _ = ctx.JSON(Response{Payload: key})
+	_ = ctx.JSON(Response{Payload: key})
 }
 
 func (s server) deleteAddress(ctx iris.Context) {
@@ -203,7 +203,7 @@ func (s server) login(ctx iris.Context) {
 	// Sign and get the complete encoded token as a string using the secret
 	tokenString, _ := token.SignedString([]byte(s.secret))
 
-	_, _ = ctx.JSON(Response{Payload: tokenString})
+	_ = ctx.JSON(Response{Payload: tokenString})
 }
 
 func (s server) getRandomAddress(ctx iris.Context) {
@@ -213,7 +213,7 @@ func (s server) getRandomAddress(ctx iris.Context) {
 		returnError(ctx, er, getStatusCodeForError(er))
 		return
 	}
-	_, _ = ctx.JSON(Response{Payload: a})
+	_ = ctx.JSON(Response{Payload: a})
 }
 
 func (s server) getMedia(ctx iris.Context) {
@@ -226,9 +226,9 @@ func (s server) getMedia(ctx iris.Context) {
 		return
 	}
 	ctx.Header("Transfer-Encoding", "chunked")
-	ctx.StreamWriter(func(w io.Writer) bool {
+	ctx.StreamWriter(func(w io.Writer) error {
 		io.Copy(w, f)
-		return false
+		return nil
 	})
 }
 
@@ -243,7 +243,7 @@ func (s server) postMedia(ctx iris.Context) {
 	c := context.Background()
 	results := s.ps.postMedia(c, body.Files)
 
-	_, _ = ctx.JSON(Response{Payload: results})
+	_ = ctx.JSON(Response{Payload: results})
 }
 
 func (s server) getAddresses(ctx iris.Context) {
@@ -253,7 +253,7 @@ func (s server) getAddresses(ctx iris.Context) {
 		returnError(ctx, er, getStatusCodeForError(er))
 		return
 	}
-	_, _ = ctx.JSON(Response{Payload: addresses})
+	_ = ctx.JSON(Response{Payload: addresses})
 }
 
 func (s server) getItems(ctx iris.Context) {
@@ -272,7 +272,7 @@ func (s server) getItems(ctx iris.Context) {
 		return
 	}
 
-	_, er = ctx.JSON(Response{Payload: payload})
+	er = ctx.JSON(Response{Payload: payload})
 	if er != nil {
 		returnError(ctx, er, getStatusCodeForError(er))
 		return
@@ -296,7 +296,7 @@ func (s server) getItemByKey(ctx iris.Context) {
 		resp.Payload = item
 	}
 
-	_, er = ctx.JSON(resp)
+	er = ctx.JSON(resp)
 	if er != nil {
 		returnError(ctx, er, 500)
 		return
@@ -334,7 +334,7 @@ func (s server) createItem(ctx iris.Context) {
 		return
 	}
 
-	_, _ = ctx.JSON(Response{Payload: key})
+	_ = ctx.JSON(Response{Payload: key})
 }
 
 func (s *server) init() error {
@@ -364,7 +364,7 @@ func (s *server) init() error {
 
 func returnError(ctx iris.Context, er error, statusCode int) {
 	ctx.StatusCode(statusCode)
-	_, _ = ctx.JSON(Response{Error: er.Error()})
+	_ = ctx.JSON(Response{Error: er.Error()})
 }
 
 func getStatusCodeForError(er error) int {

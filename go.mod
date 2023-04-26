@@ -12,8 +12,8 @@ require (
 	github.com/ipfs/go-mfs v0.2.1
 	github.com/ipfs/interface-go-ipfs-core v0.7.0
 	github.com/ipfs/kubo v0.17.0
-	github.com/iris-contrib/middleware/cors v0.0.0-20191219204441-78279b78a367
-	github.com/iris-contrib/middleware/jwt v0.0.0-20191219204441-78279b78a367
+	github.com/iris-contrib/middleware/cors v0.0.0-20230311205048-b568fe9b470f
+	github.com/iris-contrib/middleware/jwt v0.0.0-20230311205048-b568fe9b470f
 	github.com/kataras/iris/v12 v12.2.0
 	github.com/libp2p/go-libp2p v0.23.4
 	github.com/libp2p/go-libp2p-core v0.20.1
@@ -71,6 +71,7 @@ require (
 	github.com/go-task/slim-sprig v0.0.0-20210107165309-348f09dbbbc0 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
+	github.com/golang-jwt/jwt/v4 v4.5.0 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
