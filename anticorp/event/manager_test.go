@@ -66,11 +66,11 @@ var _ = Describe("Event Manager", func() {
 
 		man, _ := event.NewManager(pubSubMock, id, testNameSpace, addr, addr, logger)
 
-		_, err := man.On("test_event", func(ev event.Event) {
+		sub := man.On("test_event", func(ev event.Event) {
 
 		})
 
-		Expect(err).To(BeNil())
+		Expect(sub).NotTo(BeNil())
 
 	})
 	It("Should subscribe to next event", func() {

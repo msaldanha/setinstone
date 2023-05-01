@@ -53,10 +53,7 @@ func NewTimeline(ns string, addr *address.Address, gr Graph, evmf event.ManagerF
 		logger:    logger,
 	}
 
-	_, er = evm.On(EventTypes.EventReferenced, tl.refAddedHandler)
-	if er != nil {
-		return nil, er
-	}
+	_ = evm.On(EventTypes.EventReferenced, tl.refAddedHandler)
 
 	return tl, nil
 }

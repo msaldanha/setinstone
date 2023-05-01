@@ -34,12 +34,11 @@ func (m *MockManager) EXPECT() *MockManagerMockRecorder {
 }
 
 // On mocks base method
-func (m *MockManager) On(eventName string, callback CallbackFunc) (DoneFunc, error) {
+func (m *MockManager) On(eventName string, callback CallbackFunc) *Subscription {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "On", eventName, callback)
-	ret0, _ := ret[0].(DoneFunc)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(*Subscription)
+	return ret0
 }
 
 // On indicates an expected call of On

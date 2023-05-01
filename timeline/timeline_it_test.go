@@ -43,7 +43,7 @@ var _ = Describe("Timeline", func() {
 
 		evf, evm := createMockFactoryAndManager(mockCtrl, ns)
 
-		evm.EXPECT().On(timeline.EventTypes.EventReferenced, gomock.Any()).Return(func() {}, nil)
+		evm.EXPECT().On(timeline.EventTypes.EventReferenced, gomock.Any()).Return(&event.Subscription{})
 		evm.EXPECT().Emit("TIMELINE.EVENT.POST.ADDED", gomock.Any()).Return(nil)
 
 		p, _ := timeline.NewTimeline(ns, addr, gr, evf, logger)
@@ -66,7 +66,7 @@ var _ = Describe("Timeline", func() {
 
 		evf, evm := createMockFactoryAndManager(mockCtrl, ns)
 
-		evm.EXPECT().On(timeline.EventTypes.EventReferenced, gomock.Any()).Return(func() {}, nil)
+		evm.EXPECT().On(timeline.EventTypes.EventReferenced, gomock.Any()).Return(&event.Subscription{})
 
 		p, _ := timeline.NewTimeline(ns, addr, gr, evf, logger)
 
@@ -82,7 +82,7 @@ var _ = Describe("Timeline", func() {
 		defer mockCtrl.Finish()
 
 		evf, evm := createMockFactoryAndManager(mockCtrl, ns)
-		evm.EXPECT().On(timeline.EventTypes.EventReferenced, gomock.Any()).Return(func() {}, nil)
+		evm.EXPECT().On(timeline.EventTypes.EventReferenced, gomock.Any()).Return(&event.Subscription{})
 		gr := timeline.NewMockGraph(mockCtrl)
 
 		tl1, _ := timeline.NewTimeline(ns, addr, gr, evf, logger)
@@ -117,7 +117,7 @@ var _ = Describe("Timeline", func() {
 		gr := timeline.NewMockGraph(mockCtrl)
 
 		evf, evm := createMockFactoryAndManager(mockCtrl, ns)
-		evm.EXPECT().On(timeline.EventTypes.EventReferenced, gomock.Any()).Return(func() {}, nil)
+		evm.EXPECT().On(timeline.EventTypes.EventReferenced, gomock.Any()).Return(&event.Subscription{})
 
 		p, _ := timeline.NewTimeline(ns, addr, gr, evf, logger)
 
@@ -143,7 +143,7 @@ var _ = Describe("Timeline", func() {
 		gr := timeline.NewMockGraph(mockCtrl)
 
 		evf, evm := createMockFactoryAndManager(mockCtrl, ns)
-		evm.EXPECT().On(timeline.EventTypes.EventReferenced, gomock.Any()).Return(func() {}, nil)
+		evm.EXPECT().On(timeline.EventTypes.EventReferenced, gomock.Any()).Return(&event.Subscription{})
 
 		p, _ := timeline.NewTimeline(ns, addr, gr, evf, logger)
 
@@ -168,7 +168,7 @@ var _ = Describe("Timeline", func() {
 		gr := timeline.NewMockGraph(mockCtrl)
 
 		evf, evm := createMockFactoryAndManager(mockCtrl, ns)
-		evm.EXPECT().On(timeline.EventTypes.EventReferenced, gomock.Any()).Return(func() {}, nil)
+		evm.EXPECT().On(timeline.EventTypes.EventReferenced, gomock.Any()).Return(&event.Subscription{})
 
 		tl1, _ := timeline.NewTimeline(ns, addr, gr, evf, logger)
 

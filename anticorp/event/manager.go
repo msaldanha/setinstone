@@ -3,11 +3,9 @@ package event
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff"
-	"github.com/google/uuid"
 	icore "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipfs/interface-go-ipfs-core/options"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -19,11 +17,10 @@ import (
 
 //go:generate mockgen -source=manager.go -destination=manager_mock.go -package=event
 
-type DoneFunc func()
 type CallbackFunc func(ev Event)
 
 type Manager interface {
-	On(eventName string, callback CallbackFunc) (DoneFunc, error)
+	On(eventName string, callback CallbackFunc) *Subscription
 	Next(ctx context.Context, eventName string) (Event, error)
 	Emit(eventName string, data []byte) error
 }
@@ -31,8 +28,7 @@ type Manager interface {
 type manager struct {
 	pubSub        icore.PubSubAPI
 	id            peer.ID
-	subscriptions map[string]*subscription
-	subLock       sync.Mutex
+	subscriptions *subscriptions
 	nameSpace     string
 	rootSub       icore.PubSubSubscription
 	signerAddr    *address.Address
@@ -40,18 +36,12 @@ type manager struct {
 	logger        *zap.Logger
 }
 
-type subscription struct {
-	eventName string
-	callbacks map[string]CallbackFunc
-	mutex     sync.Mutex
-}
-
 // NewManager creates a new event manager and sets up its event loop
 func NewManager(pubSub icore.PubSubAPI, id peer.ID, nameSpace string, signerAddr, managedAddr *address.Address, logger *zap.Logger) (Manager, error) {
 	m := &manager{
 		pubSub:        pubSub,
 		id:            id,
-		subscriptions: make(map[string]*subscription, 0),
+		subscriptions: newSubscriptions(),
 		nameSpace:     nameSpace,
 		signerAddr:    signerAddr,
 		managedAddr:   managedAddr,
@@ -69,40 +59,19 @@ func NewManager(pubSub icore.PubSubAPI, id peer.ID, nameSpace string, signerAddr
 }
 
 // On sets up callback to be called every time eventName happens on the namespace
-func (m *manager) On(eventName string, callback CallbackFunc) (DoneFunc, error) {
-	m.subLock.Lock()
-	defer m.subLock.Unlock()
-	id := uuid.New()
-	sub, ok := m.subscriptions[eventName]
-	if ok {
-		sub.mutex.Lock()
-		defer sub.mutex.Unlock()
-
-		sub.callbacks[id.String()] = callback
-		m.logger.Info("Added subscription for event", zap.String("eventName", eventName))
-		return m.createDoneFunc(sub, id.String()), nil
-	}
-
-	sub = &subscription{
-		eventName: eventName,
-		callbacks: map[string]CallbackFunc{id.String(): callback},
-	}
-	m.subscriptions[eventName] = sub
-
-	return m.createDoneFunc(sub, id.String()), nil
+func (m *manager) On(eventName string, callback CallbackFunc) *Subscription {
+	sub := m.subscriptions.Subscribe(eventName, callback)
+	return sub
 }
 
 // Next returns the next eventName occurrence. It blocks until the event happens or the context is canceled.
 func (m *manager) Next(ctx context.Context, eventName string) (Event, error) {
 	doneChan := make(chan Event)
 
-	done, er := m.On(eventName, func(ev Event) {
+	sub := m.On(eventName, func(ev Event) {
 		doneChan <- ev
 	})
-	if er != nil {
-		return nil, er
-	}
-	defer done()
+	defer sub.Unsubscribe()
 
 	select {
 	case ev := <-doneChan:
@@ -179,25 +148,15 @@ func (m *manager) loopOperation() error {
 	}
 	logger.Info("Even extracted from message", zap.String("eventName", ev.Name()),
 		zap.String("data", string(ev.Data())))
-	m.subLock.Lock()
-	defer m.subLock.Unlock()
-	sub, found := m.subscriptions[ev.Name()]
-	if !found {
+	callbacks := m.subscriptions.Get(ev.Name())
+	if len(callbacks) == 0 {
 		logger.Warn("No subscription for event. Ignoring.", zap.String("eventName", ev.Name()))
 		return nil
 	}
-	for _, callback := range sub.callbacks {
+	for _, callback := range callbacks {
 		callback(ev)
 	}
 	return nil
-}
-
-func (m *manager) createDoneFunc(sub *subscription, callbackKey string) func() {
-	return func() {
-		sub.mutex.Lock()
-		defer sub.mutex.Unlock()
-		delete(sub.callbacks, callbackKey)
-	}
 }
 
 func (m *manager) getTopicName() string {

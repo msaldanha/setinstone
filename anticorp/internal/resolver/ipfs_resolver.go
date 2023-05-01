@@ -26,10 +26,10 @@ import (
 const prefix = "IPFS Resolver"
 
 type resource struct {
-	addr                    *address.Address
-	evm                     event.Manager
-	queryNameRequestDoneFn  event.DoneFunc
-	queryNameResponseDoneFn event.DoneFunc
+	addr                 *address.Address
+	evm                  event.Manager
+	subNameRequestEvent  *event.Subscription
+	subNameResponseEvent *event.Subscription
 }
 
 type ipfsResolver struct {
@@ -178,8 +178,8 @@ func (r *ipfsResolver) Handle(addr string) (resource, error) {
 func (r *ipfsResolver) Remove(addr string) {
 	if rs, exists, _ := r.resourceCache.Get(addr); exists {
 		res := rs.(resource)
-		res.queryNameRequestDoneFn()
-		res.queryNameResponseDoneFn()
+		res.subNameRequestEvent.Unsubscribe()
+		res.subNameResponseEvent.Unsubscribe()
 		_ = r.resourceCache.Delete(addr)
 	}
 }
@@ -432,16 +432,8 @@ func (r *ipfsResolver) handle(addr *address.Address) (resource, error) {
 		evm:  evm,
 	}
 
-	res.queryNameResponseDoneFn, er = evm.On(QueryTypes.QueryNameResponse, r.handleEvent)
-	if er != nil {
-		return resource{}, er
-	}
-
-	res.queryNameRequestDoneFn, er = evm.On(QueryTypes.QueryNameRequest, r.handleEvent)
-	if er != nil {
-		res.queryNameResponseDoneFn()
-		return resource{}, er
-	}
+	res.subNameResponseEvent = evm.On(QueryTypes.QueryNameResponse, r.handleEvent)
+	res.subNameRequestEvent = evm.On(QueryTypes.QueryNameRequest, r.handleEvent)
 
 	return res, r.resourceCache.Add(addr.Address, res)
 }
