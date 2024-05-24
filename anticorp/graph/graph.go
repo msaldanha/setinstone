@@ -173,7 +173,7 @@ func (d *Graph) GetIterator(ctx context.Context, keyRoot, branch string, from st
 		}
 		nextNode, nextNodeKey, er = d.da.GetLast(ctx, keyRoot, branch)
 	} else {
-		nextNode, er = d.get(ctx, from)
+		nextNode, er = d.getNext(ctx, from)
 		nextNodeKey = from
 	}
 	if er != nil && !errors.Is(er, ErrNotFound) {
@@ -223,6 +223,23 @@ func (d *Graph) get(ctx context.Context, key string) (*dag.Node, error) {
 		return nil, d.translateError(er)
 	}
 	return node, nil
+}
+
+func (d *Graph) getNext(ctx context.Context, key string) (*dag.Node, error) {
+	var node *dag.Node
+	var er error
+	node, er = d.da.Get(ctx, key)
+	if er != nil {
+		return nil, d.translateError(er)
+	}
+	if node == nil || node.Previous == "" {
+		return nil, nil
+	}
+	next, er := d.get(ctx, node.Previous)
+	if er != nil {
+		return nil, d.translateError(er)
+	}
+	return next, nil
 }
 
 func (d *Graph) createFirstNode(ctx context.Context, node NodeData) (Node, error) {
