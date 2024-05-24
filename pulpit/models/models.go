@@ -1,4 +1,4 @@
-package pulpit
+package models
 
 import "github.com/msaldanha/setinstone/timeline"
 

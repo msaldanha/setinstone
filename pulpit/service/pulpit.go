@@ -1,4 +1,4 @@
-package pulpit
+package service
 
 import (
 	"context"
@@ -21,10 +21,11 @@ import (
 	"github.com/msaldanha/setinstone/anticorp/crypto"
 	"github.com/msaldanha/setinstone/anticorp/event"
 	"github.com/msaldanha/setinstone/anticorp/graph"
+	"github.com/msaldanha/setinstone/pulpit/models"
 	"github.com/msaldanha/setinstone/timeline"
 )
 
-type pulpitService struct {
+type PulpitService struct {
 	store      KeyValueStore
 	timelines  map[string]timeline.Timeline
 	ipfs       icore.CoreAPI
@@ -34,9 +35,9 @@ type pulpitService struct {
 	logger     *zap.Logger
 }
 
-func newPulpitService(store KeyValueStore,
-	ipfs icore.CoreAPI, node *core.IpfsNode, evmFactory event.ManagerFactory, logger *zap.Logger) pulpitService {
-	return pulpitService{
+func NewPulpitService(store KeyValueStore,
+	ipfs icore.CoreAPI, node *core.IpfsNode, evmFactory event.ManagerFactory, logger *zap.Logger) *PulpitService {
+	return &PulpitService{
 		store:      store,
 		ipfs:       ipfs,
 		node:       node,
@@ -47,7 +48,7 @@ func newPulpitService(store KeyValueStore,
 	}
 }
 
-func (s pulpitService) createAddress(ctx context.Context, pass string) (string, error) {
+func (s *PulpitService) CreateAddress(ctx context.Context, pass string) (string, error) {
 	if pass == "" {
 		return "", fmt.Errorf("password cannot be empty")
 	}
@@ -74,7 +75,7 @@ func (s pulpitService) createAddress(ctx context.Context, pass string) (string, 
 	return a.Address, nil
 }
 
-func (s pulpitService) deleteAddress(ctx context.Context, addr string) error {
+func (s *PulpitService) DeleteAddress(ctx context.Context, addr string) error {
 	_, found, er := s.store.Get(addr)
 	if er != nil {
 		return er
@@ -89,7 +90,7 @@ func (s pulpitService) deleteAddress(ctx context.Context, addr string) error {
 	return nil
 }
 
-func (s pulpitService) login(ctx context.Context, addr, password string) error {
+func (s *PulpitService) Login(ctx context.Context, addr, password string) error {
 	if addr == "" {
 		return fmt.Errorf("address cannot be empty")
 	}
@@ -108,7 +109,7 @@ func (s pulpitService) login(ctx context.Context, addr, password string) error {
 	return nil
 }
 
-func (s pulpitService) getRandomAddress(ctx context.Context) (*address.Address, error) {
+func (s *PulpitService) GetRandomAddress(ctx context.Context) (*address.Address, error) {
 	a, er := address.NewAddressWithKeys()
 	if er != nil {
 		return nil, er
@@ -116,7 +117,7 @@ func (s pulpitService) getRandomAddress(ctx context.Context) (*address.Address, 
 	return a, nil
 }
 
-func (s pulpitService) getMedia(ctx context.Context, id string) (io.Reader, error) {
+func (s *PulpitService) GetMedia(ctx context.Context, id string) (io.Reader, error) {
 	p := path.New(id)
 
 	node, er := s.ipfs.Unixfs().Get(ctx, p)
@@ -133,19 +134,19 @@ func (s pulpitService) getMedia(ctx context.Context, id string) (io.Reader, erro
 	return f, nil
 }
 
-func (s pulpitService) postMedia(ctx context.Context, f []string) []AddMediaResult {
-	results := []AddMediaResult{}
+func (s *PulpitService) PostMedia(ctx context.Context, f []string) []models.AddMediaResult {
+	results := []models.AddMediaResult{}
 	c := context.Background()
 	for _, v := range f {
 		id, er := s.addFile(c, v)
 		if er != nil {
-			results = append(results, AddMediaResult{
+			results = append(results, models.AddMediaResult{
 				File:  v,
 				Id:    id,
 				Error: er.Error(),
 			})
 		} else {
-			results = append(results, AddMediaResult{
+			results = append(results, models.AddMediaResult{
 				File:  v,
 				Id:    id,
 				Error: "",
@@ -156,7 +157,7 @@ func (s pulpitService) postMedia(ctx context.Context, f []string) []AddMediaResu
 	return results
 }
 
-func (s pulpitService) getAddresses(ctx context.Context) ([]*address.Address, error) {
+func (s *PulpitService) GetAddresses(ctx context.Context) ([]*address.Address, error) {
 	all, er := s.store.GetAll()
 	if er != nil {
 		return nil, er
@@ -170,7 +171,7 @@ func (s pulpitService) getAddresses(ctx context.Context) ([]*address.Address, er
 	return addresses, nil
 }
 
-func (s pulpitService) getItems(ctx context.Context, addr, ns, keyRoot, connector, from, to string, count int) ([]interface{}, error) {
+func (s *PulpitService) GetItems(ctx context.Context, addr, ns, keyRoot, connector, from, to string, count int) ([]interface{}, error) {
 	if connector == "" {
 		connector = "main"
 	}
@@ -193,7 +194,7 @@ func (s pulpitService) getItems(ctx context.Context, addr, ns, keyRoot, connecto
 	return payload, nil
 }
 
-func (s pulpitService) getItemByKey(ctx context.Context, addr, ns, key string) (interface{}, error) {
+func (s *PulpitService) GetItemByKey(ctx context.Context, addr, ns, key string) (interface{}, error) {
 	tl, er := s.getTimeline(ns, addr)
 	if er != nil {
 		return nil, er
@@ -211,7 +212,7 @@ func (s pulpitService) getItemByKey(ctx context.Context, addr, ns, key string) (
 	return nil, nil
 }
 
-func (s pulpitService) createItem(ctx context.Context, addr, ns, keyRoot, connector string, body AddItemRequest) (string, error) {
+func (s *PulpitService) CreateItem(ctx context.Context, addr, ns, keyRoot, connector string, body models.AddItemRequest) (string, error) {
 	if connector == "" {
 		connector = "main"
 	}
@@ -235,7 +236,7 @@ func (s pulpitService) createItem(ctx context.Context, addr, ns, keyRoot, connec
 	return key, er
 }
 
-func (s pulpitService) createPost(ctx context.Context, tl timeline.Timeline, postItem PostItem, keyRoot, connector string) (string, error) {
+func (s *PulpitService) createPost(ctx context.Context, tl timeline.Timeline, postItem models.PostItem, keyRoot, connector string) (string, error) {
 	if len(postItem.Connectors) == 0 {
 		er := fmt.Errorf("reference types cannot be empty")
 		return "", er
@@ -258,7 +259,7 @@ func (s pulpitService) createPost(ctx context.Context, tl timeline.Timeline, pos
 	return key, nil
 }
 
-func (s pulpitService) createReference(ctx context.Context, tl timeline.Timeline, postItem ReferenceItem, keyRoot, connector string) (string, error) {
+func (s *PulpitService) createReference(ctx context.Context, tl timeline.Timeline, postItem models.ReferenceItem, keyRoot, connector string) (string, error) {
 	if postItem.Target == "" {
 		er := fmt.Errorf("target cannot be empty")
 		return "", er
@@ -273,7 +274,7 @@ func (s pulpitService) createReference(ctx context.Context, tl timeline.Timeline
 	return key, nil
 }
 
-func (s pulpitService) getTimeline(ns, addr string) (timeline.Timeline, error) {
+func (s *PulpitService) getTimeline(ns, addr string) (timeline.Timeline, error) {
 	tl, found := s.timelines[ns+addr]
 	if found {
 		return tl, nil
@@ -289,7 +290,7 @@ func (s pulpitService) getTimeline(ns, addr string) (timeline.Timeline, error) {
 	return s.createTimeLine(ns, a)
 }
 
-func (s pulpitService) getAddress(addr, pass string) (*address.Address, error) {
+func (s *PulpitService) getAddress(addr, pass string) (*address.Address, error) {
 	var a address.Address
 	a = address.Address{Address: addr}
 	if pass != "" {
@@ -315,7 +316,7 @@ func (s pulpitService) getAddress(addr, pass string) (*address.Address, error) {
 	return &a, nil
 }
 
-func (s *pulpitService) createTimeLine(ns string, a *address.Address) (timeline.Timeline, error) {
+func (s *PulpitService) createTimeLine(ns string, a *address.Address) (timeline.Timeline, error) {
 	gr := graph.New(ns, a, s.node, s.logger)
 	tl, er := timeline.NewTimeline(ns, a, gr, s.evmFactory, s.logger)
 	if er != nil {
@@ -325,7 +326,7 @@ func (s *pulpitService) createTimeLine(ns string, a *address.Address) (timeline.
 	return tl, nil
 }
 
-func (s pulpitService) toTimelineReference(referenceItem ReferenceItem) timeline.ReferenceItem {
+func (s *PulpitService) toTimelineReference(referenceItem models.ReferenceItem) timeline.ReferenceItem {
 	return timeline.ReferenceItem{
 		Reference: timeline.Reference{
 			Target:    referenceItem.Target,
@@ -336,7 +337,7 @@ func (s pulpitService) toTimelineReference(referenceItem ReferenceItem) timeline
 		},
 	}
 }
-func (s pulpitService) toTimelinePost(postItem PostItem) (timeline.PostItem, error) {
+func (s *PulpitService) toTimelinePost(postItem models.PostItem) (timeline.PostItem, error) {
 	post := timeline.Post{}
 	post.Part = postItem.Part
 	post.Links = postItem.Links
@@ -370,7 +371,7 @@ func (s pulpitService) toTimelinePost(postItem PostItem) (timeline.PostItem, err
 	return mi, nil
 }
 
-func (s pulpitService) addFile(ctx context.Context, name string) (string, error) {
+func (s *PulpitService) addFile(ctx context.Context, name string) (string, error) {
 	someFile, er := getUnixfsNode(name)
 	if er != nil {
 		return "", er

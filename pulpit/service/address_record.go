@@ -1,9 +1,11 @@
-package pulpit
+package service
 
 import (
 	"bytes"
 	"fmt"
+
 	xdr "github.com/davecgh/go-xdr/xdr2"
+
 	"github.com/msaldanha/setinstone/anticorp/address"
 )
 

@@ -1,9 +1,11 @@
-package pulpit
+package service
 
 import (
 	"time"
 
 	bolt "go.etcd.io/bbolt"
+
+	"github.com/msaldanha/setinstone/pulpit"
 )
 
 type KeyValueStore interface {
@@ -30,12 +32,12 @@ func NewBoltKeyValueStore() KeyValueStore {
 
 func (st *BoltKeyValueStore) Init(options interface{}) error {
 	if _, ok := options.(BoltKeyValueStoreOptions); !ok {
-		return ErrExpectedBoltKeyValueStoreOptions
+		return pulpit.ErrExpectedBoltKeyValueStoreOptions
 	}
 
 	opt := options.(BoltKeyValueStoreOptions)
 	if opt.BucketName == "" {
-		return ErrInvalidBucketName
+		return pulpit.ErrInvalidBucketName
 	}
 
 	db, er := bolt.Open(opt.DbFile, 0600, &bolt.Options{Timeout: 1 * time.Second})

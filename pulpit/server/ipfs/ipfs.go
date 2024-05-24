@@ -1,4 +1,4 @@
-package pulpit
+package ipfs
 
 import (
 	"context"
@@ -19,20 +19,26 @@ import (
 	"go.uber.org/zap"
 )
 
-type ipfsServer struct {
+type ServerOptions struct {
+	IpfsPort        string
+	IpfsApiPort     string
+	IpfsGatewayPort string
+}
+
+type IpfsServer struct {
 	logger *zap.Logger
 	opts   ServerOptions
 }
 
-func newIpfsServer(logger *zap.Logger, opts ServerOptions) *ipfsServer {
-	return &ipfsServer{
+func NewIpfsServer(logger *zap.Logger, opts ServerOptions) *IpfsServer {
+	return &IpfsServer{
 		logger: logger.Named("IPFS Server"),
 		opts:   opts,
 	}
 }
 
 // Spawns a node to be used just for this run (i.e. creates a tmp repo)
-func (s *ipfsServer) spawnEphemeral(ctx context.Context) (*core.IpfsNode, error) {
+func (s *IpfsServer) SpawnEphemeral(ctx context.Context) (*core.IpfsNode, error) {
 	if err := s.setupPlugins(""); err != nil {
 		return nil, err
 	}
@@ -48,7 +54,7 @@ func (s *ipfsServer) spawnEphemeral(ctx context.Context) (*core.IpfsNode, error)
 }
 
 // Creates an IPFS node and returns its coreAPI
-func (s *ipfsServer) createNode(ctx context.Context, repoPath string) (*core.IpfsNode, error) {
+func (s *IpfsServer) createNode(ctx context.Context, repoPath string) (*core.IpfsNode, error) {
 	// Open the repo
 	repo, err := fsrepo.Open(repoPath)
 	if err != nil {
@@ -109,7 +115,7 @@ func (s *ipfsServer) createNode(ctx context.Context, repoPath string) (*core.Ipf
 	return node, err
 }
 
-func (s *ipfsServer) setupPlugins(externalPluginsPath string) error {
+func (s *IpfsServer) setupPlugins(externalPluginsPath string) error {
 	// Load any external plugins if available on externalPluginsPath
 	plugins, err := loader.NewPluginLoader(filepath.Join(externalPluginsPath, "plugins"))
 	if err != nil {
@@ -128,7 +134,7 @@ func (s *ipfsServer) setupPlugins(externalPluginsPath string) error {
 	return nil
 }
 
-func (s *ipfsServer) createTempRepo(ctx context.Context) (string, error) {
+func (s *IpfsServer) createTempRepo(ctx context.Context) (string, error) {
 	repoPath, err := ioutil.TempDir("", "ipfs-shell")
 	if err != nil {
 		return "", fmt.Errorf("failed to get temp dir: %s", err)
@@ -152,7 +158,7 @@ func (s *ipfsServer) createTempRepo(ctx context.Context) (string, error) {
 	return repoPath, nil
 }
 
-func (s *ipfsServer) addressesConfig() config.Addresses {
+func (s *IpfsServer) addressesConfig() config.Addresses {
 	return config.Addresses{
 		Swarm: []string{
 			"/ip4/0.0.0.0/tcp/" + s.opts.IpfsPort,
@@ -166,7 +172,7 @@ func (s *ipfsServer) addressesConfig() config.Addresses {
 	}
 }
 
-func (s *ipfsServer) connectToPeers(ctx context.Context, ipfs icore.CoreAPI, peers []string) error {
+func (s *IpfsServer) connectToPeers(ctx context.Context, ipfs icore.CoreAPI, peers []string) error {
 	var wg sync.WaitGroup
 	peerInfos := make(map[peer.ID]*peer.AddrInfo, len(peers))
 	for _, addrStr := range peers {

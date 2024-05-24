@@ -3,11 +3,11 @@ package main
 import (
 	"flag"
 
-	"github.com/msaldanha/setinstone/pulpit"
+	"github.com/msaldanha/setinstone/pulpit/server"
 )
 
 func main() {
-	opts := pulpit.ServerOptions{}
+	opts := server.Options{}
 
 	flag.StringVar(&opts.Url, "url", ":8080", "Listening address. Should have the form of [host]:port, i.e localhost:8080 or :8080")
 	flag.StringVar(&opts.DataStore, "data", "8080.dat", "Data Store file")
@@ -17,6 +17,6 @@ func main() {
 
 	flag.Parse()
 
-	p, _ := pulpit.NewServer(opts)
+	p, _ := server.NewServer(opts)
 	_ = p.Run()
 }
