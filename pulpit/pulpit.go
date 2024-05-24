@@ -356,7 +356,7 @@ func (s pulpitService) toTimelinePost(postItem PostItem) (timeline.PostItem, err
 			Part: timeline.Part{
 				MimeType: mimeType,
 				Encoding: "",
-				Data:     "ipfs://" + cid,
+				Body:     "ipfs://" + cid,
 			},
 		})
 	}

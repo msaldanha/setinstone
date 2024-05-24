@@ -19,7 +19,8 @@ type Base struct {
 type Part struct {
 	MimeType string `json:"mimeType,omitempty"`
 	Encoding string `json:"encoding,omitempty"`
-	Data     string `json:"data,omitempty"`
+	Title    string `json:"title,omitempty"`
+	Body     string `json:"body,omitempty"`
 }
 
 type PostPart struct {

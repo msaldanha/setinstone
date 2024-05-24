@@ -48,7 +48,7 @@ var _ = Describe("Timeline", func() {
 
 		p, _ := timeline.NewTimeline(ns, addr, gr, evf, logger)
 
-		post := timeline.PostItem{Post: timeline.Post{Part: timeline.Part{MimeType: "plain/text", Data: "some text"}}}
+		post := timeline.PostItem{Post: timeline.Post{Part: timeline.Part{MimeType: "plain/text", Body: "some text"}}}
 		key, er := p.AppendPost(ctx, post, "", "main")
 		Expect(er).To(BeNil())
 		Expect(key).ToNot(Equal(""))
@@ -58,7 +58,7 @@ var _ = Describe("Timeline", func() {
 		mockCtrl := gomock.NewController(GinkgoT())
 		defer mockCtrl.Finish()
 
-		expectedPost := timeline.PostItem{Base: timeline.Base{Type: timeline.TypePost}, Post: timeline.Post{Part: timeline.Part{MimeType: "plain/text", Data: "some text"}}}
+		expectedPost := timeline.PostItem{Base: timeline.Base{Type: timeline.TypePost}, Post: timeline.Post{Part: timeline.Part{MimeType: "plain/text", Body: "some text"}}}
 
 		gr := timeline.NewMockGraph(mockCtrl)
 		data, _ := json.Marshal(expectedPost)
@@ -92,7 +92,7 @@ var _ = Describe("Timeline", func() {
 		referenceKey := "refKey"
 		expectedPost := timeline.PostItem{
 			Base: timeline.Base{Type: timeline.TypePost, Connectors: []string{likeRef}},
-			Post: timeline.Post{Part: timeline.Part{MimeType: "plain/text", Data: "some text"}},
+			Post: timeline.Post{Part: timeline.Part{MimeType: "plain/text", Body: "some text"}},
 		}
 		postjson, _ := json.Marshal(expectedPost)
 		expectedLike := timeline.ReferenceItem{
@@ -124,7 +124,7 @@ var _ = Describe("Timeline", func() {
 		postKey := "postKey"
 		expectedPost := timeline.PostItem{
 			Base: timeline.Base{Type: timeline.TypePost, Connectors: []string{likeRef}},
-			Post: timeline.Post{Part: timeline.Part{MimeType: "plain/text", Data: "some text"}},
+			Post: timeline.Post{Part: timeline.Part{MimeType: "plain/text", Body: "some text"}},
 		}
 		postjson, _ := json.Marshal(expectedPost)
 		gr.EXPECT().Get(gomock.Any(), postKey).Return(graph.Node{Key: postKey, Address: addr.Address, Data: postjson, Branches: []string{likeRef}}, true, nil)
@@ -179,7 +179,7 @@ var _ = Describe("Timeline", func() {
 		for i := 0; i < n; i++ {
 			expectedPost := timeline.PostItem{
 				Base: timeline.Base{Type: timeline.TypePost, Connectors: []string{likeRef}},
-				Post: timeline.Post{Part: timeline.Part{MimeType: "plain/text", Data: "some text " +
+				Post: timeline.Post{Part: timeline.Part{MimeType: "plain/text", Body: "some text " +
 					strconv.Itoa(i)}}}
 			postjson, _ := json.Marshal(expectedPost)
 			postKey := fmt.Sprintf("postKey-%d", i)
