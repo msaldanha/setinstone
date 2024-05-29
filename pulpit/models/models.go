@@ -39,3 +39,7 @@ type LoginRequest struct {
 	Address  string `json:"address,omitempty"`
 	Password string `json:"password,omitempty"`
 }
+
+type AddSubscriptionRequest struct {
+	Address string `json:"address,omitempty"`
+}

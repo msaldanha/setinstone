@@ -35,11 +35,15 @@ func (s *Server) buildHandlers() {
 	tl := topLevel.Party("/tl", j.Serve)
 	ns := tl.Party("/{ns:string}")
 
-	ns.Get("/{addr:string}", s.getItems)
-	ns.Get("/{addr:string}/{key:string}", s.getItemByKey)
-	ns.Get("/{addr:string}/{key:string}/{connector:string}", s.getItems)
-	ns.Post("/{addr:string}", s.createItem)
-	ns.Post("/{addr:string}/{key:string}/{connector:string}", s.createItem)
+	ns.Get("/{addr:string}/items", s.getItems)
+	ns.Get("/{addr:string}/items/{key:string}", s.getItemByKey)
+	ns.Get("/{addr:string}/items/{key:string}/{connector:string}", s.getItems)
+	ns.Post("/{addr:string}/items", s.createItem)
+	ns.Post("/{addr:string}/items/{key:string}/{connector:string}", s.createItem)
+
+	ns.Get("/{addr:string}/subscriptions", s.getSubscriptions)
+	ns.Post("/{addr:string}/subscriptions", s.addSubscription)
+	ns.Delete("/{addr:string}/subscriptions", s.removeSubscription)
 }
 
 func (s *Server) createAddress(ctx iris.Context) {
@@ -241,4 +245,92 @@ func (s *Server) createItem(ctx iris.Context) {
 	}
 
 	_ = ctx.JSON(Response{Payload: key})
+}
+
+func (s *Server) getSubscriptions(ctx iris.Context) {
+	ns := ctx.Params().Get("ns")
+	addr := ctx.Params().Get("addr")
+	c := context.Background()
+	subscriptions, er := s.ps.GetSubscriptions(c, ns, addr)
+	if er != nil {
+		returnError(ctx, er, getStatusCodeForError(er))
+		return
+	}
+
+	resp := Response{}
+	if subscriptions != nil {
+		resp.Payload = subscriptions
+	}
+
+	er = ctx.JSON(resp)
+	if er != nil {
+		returnError(ctx, er, 500)
+		return
+	}
+}
+
+func (s *Server) addSubscription(ctx iris.Context) {
+	ns := ctx.Params().Get("ns")
+	addr := ctx.Params().Get("addr")
+
+	user := ctx.Values().Get("jwt").(*jwt.Token)
+	claims := user.Claims.(jwt.MapClaims)
+
+	if claims[addressClaim] != addr {
+		ctx.StatusCode(401)
+		return
+	}
+
+	body := models.AddSubscriptionRequest{}
+	er := ctx.ReadJSON(&body)
+	if er != nil {
+		returnError(ctx, er, getStatusCodeForError(er))
+		return
+	}
+
+	c := context.Background()
+	er = s.ps.AddSubscription(c, models.Subscription{
+		Ns:      ns,
+		Owner:   addr,
+		Address: body.Address,
+	})
+	if er != nil {
+		returnError(ctx, er, getStatusCodeForError(er))
+		return
+	}
+
+	_ = ctx.JSON(Response{})
+}
+
+func (s *Server) removeSubscription(ctx iris.Context) {
+	ns := ctx.Params().Get("ns")
+	addr := ctx.Params().Get("addr")
+
+	user := ctx.Values().Get("jwt").(*jwt.Token)
+	claims := user.Claims.(jwt.MapClaims)
+
+	if claims[addressClaim] != addr {
+		ctx.StatusCode(401)
+		return
+	}
+
+	body := models.AddSubscriptionRequest{}
+	er := ctx.ReadJSON(&body)
+	if er != nil {
+		returnError(ctx, er, getStatusCodeForError(er))
+		return
+	}
+
+	c := context.Background()
+	er = s.ps.RemoveSubscription(c, models.Subscription{
+		Ns:      ns,
+		Owner:   addr,
+		Address: body.Address,
+	})
+	if er != nil {
+		returnError(ctx, er, getStatusCodeForError(er))
+		return
+	}
+
+	_ = ctx.JSON(Response{})
 }

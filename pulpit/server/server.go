@@ -3,15 +3,22 @@ package server
 import (
 	"context"
 	"fmt"
+	"time"
 
 	icore "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipfs/kubo/core/coreapi"
+	bolt "go.etcd.io/bbolt"
 	"go.uber.org/zap"
 
 	"github.com/msaldanha/setinstone/anticorp/event"
 	"github.com/msaldanha/setinstone/pulpit/server/ipfs"
 	"github.com/msaldanha/setinstone/pulpit/server/rest"
 	"github.com/msaldanha/setinstone/pulpit/service"
+)
+
+const (
+	dbFile     = ".pulpit.db"
+	subsBucket = "subscriptions"
 )
 
 type Options struct {
@@ -68,8 +75,20 @@ func NewServer(opts Options) (*Server, error) {
 		panic(fmt.Errorf("failed to setup event manager factory: %s", er))
 	}
 
+	// TODO: use the same bold db here
 	store := service.NewBoltKeyValueStore()
-	ps := service.NewPulpitService(store, ipfs, node, evmf, logger)
+
+	db, er := bolt.Open(dbFile, 0600, &bolt.Options{Timeout: 1 * time.Second})
+	if er != nil {
+		panic(fmt.Errorf("failed to setup DB: %s", er))
+	}
+
+	subsStore, er := service.NewSubscriptionsStore(db, subsBucket)
+	if er != nil {
+		panic(fmt.Errorf("failed to setup subscriptions DB: %s", er))
+	}
+
+	ps := service.NewPulpitService(store, ipfs, node, evmf, logger, subsStore)
 
 	restServer, er := rest.NewServer(rest.Options{
 		Url:           opts.Url,

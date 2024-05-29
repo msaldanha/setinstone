@@ -33,10 +33,11 @@ type PulpitService struct {
 	logins     map[string]string
 	evmFactory event.ManagerFactory
 	logger     *zap.Logger
+	subsStore  SubscriptionsStore
 }
 
-func NewPulpitService(store KeyValueStore,
-	ipfs icore.CoreAPI, node *core.IpfsNode, evmFactory event.ManagerFactory, logger *zap.Logger) *PulpitService {
+func NewPulpitService(store KeyValueStore, ipfs icore.CoreAPI, node *core.IpfsNode, evmFactory event.ManagerFactory,
+	logger *zap.Logger, subsStore SubscriptionsStore) *PulpitService {
 	return &PulpitService{
 		store:      store,
 		ipfs:       ipfs,
@@ -45,6 +46,7 @@ func NewPulpitService(store KeyValueStore,
 		logins:     map[string]string{},
 		evmFactory: evmFactory,
 		logger:     logger.Named("Pulpit"),
+		subsStore:  subsStore,
 	}
 }
 
@@ -234,6 +236,18 @@ func (s *PulpitService) CreateItem(ctx context.Context, addr, ns, keyRoot, conne
 	}
 
 	return key, er
+}
+
+func (s *PulpitService) AddSubscription(ctx context.Context, sub models.Subscription) error {
+	return s.subsStore.AddSubscription(sub)
+}
+
+func (s *PulpitService) RemoveSubscription(ctx context.Context, sub models.Subscription) error {
+	return s.subsStore.RemoveSubscription(sub)
+}
+
+func (s *PulpitService) GetSubscriptions(ctx context.Context, ns, owner string) ([]models.Subscription, error) {
+	return s.subsStore.GetAllSubscriptions(ns, owner)
 }
 
 func (s *PulpitService) createPost(ctx context.Context, tl timeline.Timeline, postItem models.PostItem, keyRoot, connector string) (string, error) {
