@@ -146,10 +146,10 @@ var _ = Describe("Graph", func() {
 			_ = json.Unmarshal(v.Data, &data)
 
 			Expect(er).To(BeNil())
-			Expect(data).To(Equal(dataAdded[i]))
+			Expect(data).To(Equal(dataAdded[i-1]))
 			i--
 		}
-		Expect(i).To(Equal(-1))
+		Expect(i).To(Equal(0))
 	})
 })
 

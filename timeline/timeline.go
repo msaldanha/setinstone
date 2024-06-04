@@ -25,6 +25,10 @@ type timeline struct {
 }
 
 func NewTimeline(ns string, addr *address.Address, gr Graph, evmf event.ManagerFactory, logger *zap.Logger) (Timeline, error) {
+	return newTimeline(ns, addr, gr, evmf, logger)
+}
+
+func newTimeline(ns string, addr *address.Address, gr Graph, evmf event.ManagerFactory, logger *zap.Logger) (*timeline, error) {
 
 	if gr == nil {
 		return nil, ErrInvalidParameterGraph
@@ -36,7 +40,7 @@ func NewTimeline(ns string, addr *address.Address, gr Graph, evmf event.ManagerF
 
 	logger = logger.Named("Timeline").With(zap.String("namespace", ns), zap.String("addr", addr.Address))
 
-	evm, er := evmf.Build(ns, addr, addr, logger)
+	evm, er := evmf.Build(addr, addr, logger)
 	if er != nil {
 		return nil, er
 	}
@@ -286,7 +290,7 @@ func (t *timeline) getEvmForTimeline(addr string) (event.Manager, error) {
 		evm := v.(event.Manager)
 		return evm, nil
 	}
-	evm, er := t.evmf.Build(t.ns, t.addr, &address.Address{Address: addr}, t.logger)
+	evm, er := t.evmf.Build(t.addr, &address.Address{Address: addr}, t.logger)
 	if er != nil {
 		return nil, er
 	}

@@ -35,15 +35,17 @@ func (s *Server) buildHandlers() {
 	tl := topLevel.Party("/tl", j.Serve)
 	ns := tl.Party("/{ns:string}")
 
-	ns.Get("/{addr:string}/items", s.getItems)
-	ns.Get("/{addr:string}/items/{key:string}", s.getItemByKey)
-	ns.Get("/{addr:string}/items/{key:string}/{connector:string}", s.getItems)
-	ns.Post("/{addr:string}/items", s.createItem)
-	ns.Post("/{addr:string}/items/{key:string}/{connector:string}", s.createItem)
+	ns.Get("/{addr:string}/publications", s.getItems)
+	ns.Get("/{addr:string}/publications/{key:string}", s.getItemByKey)
+	ns.Get("/{addr:string}/publications/{key:string}/{connector:string}", s.getItems)
+	ns.Post("/{addr:string}/publications", s.createItem)
+	ns.Post("/{addr:string}/publications/{key:string}/{connector:string}", s.createItem)
 
 	ns.Get("/{addr:string}/subscriptions", s.getSubscriptions)
 	ns.Post("/{addr:string}/subscriptions", s.addSubscription)
 	ns.Delete("/{addr:string}/subscriptions", s.removeSubscription)
+	ns.Get("/{addr:string}/subscriptions/publications", s.getSubscriptionsPublications)
+	ns.Delete("/{addr:string}/subscriptions/publications", s.clearSubscriptionPublications)
 }
 
 func (s *Server) createAddress(ctx iris.Context) {
@@ -167,7 +169,6 @@ func (s *Server) getAddresses(ctx iris.Context) {
 }
 
 func (s *Server) getItems(ctx iris.Context) {
-	ns := ctx.Params().Get("ns")
 	addr := ctx.Params().Get("addr")
 	keyRoot := ctx.Params().Get("key")
 	connector := ctx.Params().Get("connector")
@@ -176,7 +177,7 @@ func (s *Server) getItems(ctx iris.Context) {
 	count := ctx.URLParamIntDefault("count", defaultCount)
 
 	c := context.Background()
-	payload, er := s.ps.GetItems(c, addr, ns, keyRoot, connector, from, to, count)
+	payload, er := s.ps.GetItems(c, addr, keyRoot, connector, from, to, count)
 	if er != nil {
 		returnError(ctx, er, getStatusCodeForError(er))
 		return
@@ -190,12 +191,11 @@ func (s *Server) getItems(ctx iris.Context) {
 }
 
 func (s *Server) getItemByKey(ctx iris.Context) {
-	ns := ctx.Params().Get("ns")
 	addr := ctx.Params().Get("addr")
 	key := ctx.Params().Get("key")
 
 	c := context.Background()
-	item, er := s.ps.GetItemByKey(c, addr, ns, key)
+	item, er := s.ps.GetItemByKey(c, addr, key)
 	if er != nil {
 		returnError(ctx, er, getStatusCodeForError(er))
 		return
@@ -214,7 +214,6 @@ func (s *Server) getItemByKey(ctx iris.Context) {
 }
 
 func (s *Server) createItem(ctx iris.Context) {
-	ns := ctx.Params().Get("ns")
 	addr := ctx.Params().Get("addr")
 	keyRoot := ctx.Params().Get("key")
 	connector := ctx.Params().Get("connector")
@@ -238,7 +237,7 @@ func (s *Server) createItem(ctx iris.Context) {
 	}
 
 	c := context.Background()
-	key, er := s.ps.CreateItem(c, addr, ns, keyRoot, connector, body)
+	key, er := s.ps.CreateItem(c, addr, keyRoot, connector, body)
 	if er != nil {
 		returnError(ctx, er, getStatusCodeForError(er))
 		return
@@ -248,10 +247,9 @@ func (s *Server) createItem(ctx iris.Context) {
 }
 
 func (s *Server) getSubscriptions(ctx iris.Context) {
-	ns := ctx.Params().Get("ns")
-	addr := ctx.Params().Get("addr")
+	owner := ctx.Params().Get("addr")
 	c := context.Background()
-	subscriptions, er := s.ps.GetSubscriptions(c, ns, addr)
+	subscriptions, er := s.ps.GetSubscriptions(c, owner)
 	if er != nil {
 		returnError(ctx, er, getStatusCodeForError(er))
 		return
@@ -269,8 +267,48 @@ func (s *Server) getSubscriptions(ctx iris.Context) {
 	}
 }
 
+func (s *Server) getSubscriptionsPublications(ctx iris.Context) {
+	owner := ctx.Params().Get("addr")
+	from := ctx.URLParam("from")
+	count := ctx.URLParamIntDefault("count", defaultCount)
+	c := context.Background()
+	publications, er := s.ps.GetSubscriptionsPublications(c, owner, from, count)
+	if er != nil {
+		returnError(ctx, er, getStatusCodeForError(er))
+		return
+	}
+
+	resp := Response{}
+	if publications != nil {
+		resp.Payload = publications
+	}
+
+	er = ctx.JSON(resp)
+	if er != nil {
+		returnError(ctx, er, 500)
+		return
+	}
+}
+
+func (s *Server) clearSubscriptionPublications(ctx iris.Context) {
+	owner := ctx.Params().Get("addr")
+	c := context.Background()
+	er := s.ps.ClearSubscriptionsPublications(c, owner)
+	if er != nil {
+		returnError(ctx, er, getStatusCodeForError(er))
+		return
+	}
+
+	resp := Response{}
+
+	er = ctx.JSON(resp)
+	if er != nil {
+		returnError(ctx, er, 500)
+		return
+	}
+}
+
 func (s *Server) addSubscription(ctx iris.Context) {
-	ns := ctx.Params().Get("ns")
 	addr := ctx.Params().Get("addr")
 
 	user := ctx.Values().Get("jwt").(*jwt.Token)
@@ -290,7 +328,6 @@ func (s *Server) addSubscription(ctx iris.Context) {
 
 	c := context.Background()
 	er = s.ps.AddSubscription(c, models.Subscription{
-		Ns:      ns,
 		Owner:   addr,
 		Address: body.Address,
 	})
@@ -303,7 +340,6 @@ func (s *Server) addSubscription(ctx iris.Context) {
 }
 
 func (s *Server) removeSubscription(ctx iris.Context) {
-	ns := ctx.Params().Get("ns")
 	addr := ctx.Params().Get("addr")
 
 	user := ctx.Values().Get("jwt").(*jwt.Token)
@@ -323,7 +359,6 @@ func (s *Server) removeSubscription(ctx iris.Context) {
 
 	c := context.Background()
 	er = s.ps.RemoveSubscription(c, models.Subscription{
-		Ns:      ns,
 		Owner:   addr,
 		Address: body.Address,
 	})

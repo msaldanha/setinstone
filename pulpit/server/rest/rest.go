@@ -43,10 +43,6 @@ type Response struct {
 }
 
 func NewServer(opts Options) (*Server, error) {
-	er := opts.Store.Init(service.BoltKeyValueStoreOptions{BucketName: "addresses", DbFile: opts.DataStore})
-	if er != nil {
-		return nil, er
-	}
 
 	app := iris.New()
 	app.Use(recover.New())

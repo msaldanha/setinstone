@@ -35,11 +35,7 @@ func (s *SubscriptionsStoreImpl) init() error {
 func (s *SubscriptionsStoreImpl) AddSubscription(subscription models.Subscription) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(s.BucketName))
-		byNs, err := b.CreateBucketIfNotExists([]byte(subscription.Ns))
-		if err != nil {
-			return err
-		}
-		byOwner, err := byNs.CreateBucketIfNotExists([]byte(subscription.Owner))
+		byOwner, err := b.CreateBucketIfNotExists([]byte(subscription.Owner))
 		if err != nil {
 			return err
 		}
@@ -58,11 +54,7 @@ func (s *SubscriptionsStoreImpl) AddSubscription(subscription models.Subscriptio
 func (s *SubscriptionsStoreImpl) RemoveSubscription(subscription models.Subscription) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(s.BucketName))
-		byNs, err := b.CreateBucketIfNotExists([]byte(subscription.Ns))
-		if err != nil {
-			return err
-		}
-		byOwner, err := byNs.CreateBucketIfNotExists([]byte(subscription.Owner))
+		byOwner, err := b.CreateBucketIfNotExists([]byte(subscription.Owner))
 		if err != nil {
 			return err
 		}
@@ -70,15 +62,11 @@ func (s *SubscriptionsStoreImpl) RemoveSubscription(subscription models.Subscrip
 	})
 }
 
-func (s *SubscriptionsStoreImpl) GetAllSubscriptions(ns string, owner string) ([]models.Subscription, error) {
+func (s *SubscriptionsStoreImpl) GetAllSubscriptionsForOwner(owner string) ([]models.Subscription, error) {
 	subscriptions := make([]models.Subscription, 0)
 	return subscriptions, s.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(s.BucketName))
-		byNs, err := b.CreateBucketIfNotExists([]byte(ns))
-		if err != nil {
-			return err
-		}
-		byOwner, err := byNs.CreateBucketIfNotExists([]byte(owner))
+		byOwner, err := b.CreateBucketIfNotExists([]byte(owner))
 		if err != nil {
 			return err
 		}
@@ -93,4 +81,44 @@ func (s *SubscriptionsStoreImpl) GetAllSubscriptions(ns string, owner string) ([
 		}
 		return nil
 	})
+}
+
+func (s *SubscriptionsStoreImpl) GetAllSubscriptions() ([]models.Subscription, error) {
+	subscriptions := make([]models.Subscription, 0)
+	return subscriptions, s.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(s.BucketName))
+		c := b.Cursor()
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			var subscription models.Subscription
+			err := json.Unmarshal(v, &subscription)
+			if err != nil {
+				return err
+			}
+			subscriptions = append(subscriptions, subscription)
+		}
+		return nil
+	})
+}
+
+func (s *SubscriptionsStoreImpl) GetOwners() ([]string, error) {
+	owners := make([]string, 0)
+	return owners, s.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(s.BucketName))
+		byOwnerCursor := b.Cursor()
+		for k, _ := byOwnerCursor.First(); k != nil; k, _ = byOwnerCursor.Next() {
+			owners = append(owners, string(k))
+		}
+		return nil
+	})
+}
+
+func (s *SubscriptionsStoreImpl) RemoveAllSubscriptions() error {
+	err := s.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(s.BucketName))
+		return b.ForEachBucket(func(k []byte) error {
+			err := b.DeleteBucket(k)
+			return err
+		})
+	})
+	return err
 }

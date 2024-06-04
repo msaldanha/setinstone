@@ -14,6 +14,7 @@ import (
 	icore "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipfs/interface-go-ipfs-core/path"
 	"github.com/ipfs/kubo/core"
+	bolt "go.etcd.io/bbolt"
 
 	"go.uber.org/zap"
 
@@ -26,27 +27,33 @@ import (
 )
 
 type PulpitService struct {
-	store      KeyValueStore
-	timelines  map[string]timeline.Timeline
-	ipfs       icore.CoreAPI
-	node       *core.IpfsNode
-	logins     map[string]string
-	evmFactory event.ManagerFactory
-	logger     *zap.Logger
-	subsStore  SubscriptionsStore
+	store              KeyValueStore
+	timelines          map[string]timeline.Timeline
+	ipfs               icore.CoreAPI
+	node               *core.IpfsNode
+	logins             map[string]string
+	evmFactory         event.ManagerFactory
+	logger             *zap.Logger
+	subsStore          SubscriptionsStore
+	compositeTimelines map[string]*timeline.CompositeTimeline
+	nameSpace          string
+	db                 *bolt.DB
 }
 
-func NewPulpitService(store KeyValueStore, ipfs icore.CoreAPI, node *core.IpfsNode, evmFactory event.ManagerFactory,
-	logger *zap.Logger, subsStore SubscriptionsStore) *PulpitService {
+func NewPulpitService(nameSpace string, store KeyValueStore, ipfs icore.CoreAPI, node *core.IpfsNode, evmFactory event.ManagerFactory,
+	logger *zap.Logger, subsStore SubscriptionsStore, compositeTimelines map[string]*timeline.CompositeTimeline, db *bolt.DB) *PulpitService {
 	return &PulpitService{
-		store:      store,
-		ipfs:       ipfs,
-		node:       node,
-		timelines:  map[string]timeline.Timeline{},
-		logins:     map[string]string{},
-		evmFactory: evmFactory,
-		logger:     logger.Named("Pulpit"),
-		subsStore:  subsStore,
+		store:              store,
+		ipfs:               ipfs,
+		node:               node,
+		timelines:          map[string]timeline.Timeline{},
+		logins:             map[string]string{},
+		evmFactory:         evmFactory,
+		logger:             logger.Named("Pulpit"),
+		subsStore:          subsStore,
+		compositeTimelines: compositeTimelines,
+		nameSpace:          nameSpace,
+		db:                 db,
 	}
 }
 
@@ -173,12 +180,12 @@ func (s *PulpitService) GetAddresses(ctx context.Context) ([]*address.Address, e
 	return addresses, nil
 }
 
-func (s *PulpitService) GetItems(ctx context.Context, addr, ns, keyRoot, connector, from, to string, count int) ([]interface{}, error) {
+func (s *PulpitService) GetItems(ctx context.Context, addr, keyRoot, connector, from, to string, count int) ([]interface{}, error) {
 	if connector == "" {
 		connector = "main"
 	}
 
-	tl, er := s.getTimeline(ns, addr)
+	tl, er := s.getTimeline(addr)
 	if er != nil {
 		return nil, er
 	}
@@ -196,8 +203,8 @@ func (s *PulpitService) GetItems(ctx context.Context, addr, ns, keyRoot, connect
 	return payload, nil
 }
 
-func (s *PulpitService) GetItemByKey(ctx context.Context, addr, ns, key string) (interface{}, error) {
-	tl, er := s.getTimeline(ns, addr)
+func (s *PulpitService) GetItemByKey(ctx context.Context, addr, key string) (interface{}, error) {
+	tl, er := s.getTimeline(addr)
 	if er != nil {
 		return nil, er
 	}
@@ -214,12 +221,12 @@ func (s *PulpitService) GetItemByKey(ctx context.Context, addr, ns, key string) 
 	return nil, nil
 }
 
-func (s *PulpitService) CreateItem(ctx context.Context, addr, ns, keyRoot, connector string, body models.AddItemRequest) (string, error) {
+func (s *PulpitService) CreateItem(ctx context.Context, addr, keyRoot, connector string, body models.AddItemRequest) (string, error) {
 	if connector == "" {
 		connector = "main"
 	}
 
-	tl, er := s.getTimeline(ns, addr)
+	tl, er := s.getTimeline(addr)
 	if er != nil {
 		return "", er
 	}
@@ -239,15 +246,68 @@ func (s *PulpitService) CreateItem(ctx context.Context, addr, ns, keyRoot, conne
 }
 
 func (s *PulpitService) AddSubscription(ctx context.Context, sub models.Subscription) error {
+	compositeTimeline, found := s.compositeTimelines[sub.Owner]
+	if !found {
+		var err error
+		compositeTimeline, err = timeline.NewCompositeTimeline(s.nameSpace, s.node, s.evmFactory, s.logger, sub.Owner)
+		if err != nil {
+			return fmt.Errorf("unable to create composite timeline for owner %s %w", sub.Owner, err)
+		}
+		err = compositeTimeline.Init(s.db)
+		if err != nil {
+			return fmt.Errorf("unable to init composite timeline for owner %s %w", sub.Owner, err)
+		}
+		s.compositeTimelines[sub.Owner] = compositeTimeline
+	}
+	err := compositeTimeline.LoadTimeline(sub.Address)
+	if err != nil {
+		return err
+	}
 	return s.subsStore.AddSubscription(sub)
 }
 
 func (s *PulpitService) RemoveSubscription(ctx context.Context, sub models.Subscription) error {
+	compositeTimeline, found := s.compositeTimelines[sub.Owner]
+	if !found {
+		return fmt.Errorf("no composite timeline for owner %s", sub.Owner)
+	}
+	err := compositeTimeline.RemoveTimeline(sub.Address)
+	if err != nil {
+		return err
+	}
 	return s.subsStore.RemoveSubscription(sub)
 }
 
-func (s *PulpitService) GetSubscriptions(ctx context.Context, ns, owner string) ([]models.Subscription, error) {
-	return s.subsStore.GetAllSubscriptions(ns, owner)
+func (s *PulpitService) GetSubscriptions(ctx context.Context, owner string) ([]models.Subscription, error) {
+	return s.subsStore.GetAllSubscriptionsForOwner(owner)
+}
+
+func (s *PulpitService) GetSubscriptionsPublications(ctx context.Context, owner, from string, count int) ([]interface{}, error) {
+	compositeTimeline, found := s.compositeTimelines[owner]
+	if !found {
+		return nil, fmt.Errorf("no composite timeline for owner %s", owner)
+	}
+	items, err := compositeTimeline.GetFrom(ctx, from, count)
+	if err != nil {
+		return nil, err
+	}
+	results := make([]interface{}, 0, len(items))
+	for _, item := range items {
+		results = append(results, item)
+	}
+	return results, nil
+}
+
+func (s *PulpitService) ClearSubscriptionsPublications(ctx context.Context, owner string) error {
+	compositeTimeline, found := s.compositeTimelines[owner]
+	if !found {
+		return fmt.Errorf("no composite timeline for owner %s", owner)
+	}
+	err := compositeTimeline.Clear()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *PulpitService) createPost(ctx context.Context, tl timeline.Timeline, postItem models.PostItem, keyRoot, connector string) (string, error) {
@@ -288,8 +348,8 @@ func (s *PulpitService) createReference(ctx context.Context, tl timeline.Timelin
 	return key, nil
 }
 
-func (s *PulpitService) getTimeline(ns, addr string) (timeline.Timeline, error) {
-	tl, found := s.timelines[ns+addr]
+func (s *PulpitService) getTimeline(addr string) (timeline.Timeline, error) {
+	tl, found := s.timelines[addr]
 	if found {
 		return tl, nil
 	}
@@ -301,7 +361,7 @@ func (s *PulpitService) getTimeline(ns, addr string) (timeline.Timeline, error) 
 		return nil, er
 	}
 
-	return s.createTimeLine(ns, a)
+	return s.createTimeLine(a)
 }
 
 func (s *PulpitService) getAddress(addr, pass string) (*address.Address, error) {
@@ -330,13 +390,13 @@ func (s *PulpitService) getAddress(addr, pass string) (*address.Address, error) 
 	return &a, nil
 }
 
-func (s *PulpitService) createTimeLine(ns string, a *address.Address) (timeline.Timeline, error) {
-	gr := graph.New(ns, a, s.node, s.logger)
-	tl, er := timeline.NewTimeline(ns, a, gr, s.evmFactory, s.logger)
+func (s *PulpitService) createTimeLine(a *address.Address) (timeline.Timeline, error) {
+	gr := graph.New(s.nameSpace, a, s.node, s.logger)
+	tl, er := timeline.NewTimeline(s.nameSpace, a, gr, s.evmFactory, s.logger)
 	if er != nil {
 		return nil, er
 	}
-	s.timelines[ns+a.Address] = tl
+	s.timelines[a.Address] = tl
 	return tl, nil
 }
 

@@ -1,6 +1,10 @@
 package timeline
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/msaldanha/setinstone/anticorp/event"
+)
 
 type EventTypesEnum struct {
 	EventReferenced     string
@@ -26,4 +30,13 @@ func (e Event) Bytes() []byte {
 func (e Event) ToJson() []byte {
 	b, _ := json.Marshal(e)
 	return b
+}
+
+func extractEvent(ev event.Event) (Event, error) {
+	v := Event{}
+	er := json.Unmarshal(ev.Data(), &v)
+	if er != nil {
+		return Event{}, er
+	}
+	return v, nil
 }

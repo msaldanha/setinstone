@@ -1,11 +1,7 @@
 package service
 
 import (
-	"time"
-
 	bolt "go.etcd.io/bbolt"
-
-	"github.com/msaldanha/setinstone/pulpit"
 )
 
 type KeyValueStore interface {
@@ -18,7 +14,7 @@ type KeyValueStore interface {
 
 type BoltKeyValueStoreOptions struct {
 	BucketName string
-	DbFile     string
+	Db         *bolt.DB
 }
 
 type BoltKeyValueStore struct {
@@ -26,34 +22,19 @@ type BoltKeyValueStore struct {
 	BucketName string
 }
 
-func NewBoltKeyValueStore() KeyValueStore {
-	return &BoltKeyValueStore{}
-}
-
-func (st *BoltKeyValueStore) Init(options interface{}) error {
-	if _, ok := options.(BoltKeyValueStoreOptions); !ok {
-		return pulpit.ErrExpectedBoltKeyValueStoreOptions
-	}
-
-	opt := options.(BoltKeyValueStoreOptions)
-	if opt.BucketName == "" {
-		return pulpit.ErrInvalidBucketName
-	}
-
-	db, er := bolt.Open(opt.DbFile, 0600, &bolt.Options{Timeout: 1 * time.Second})
-	if er != nil {
-		return er
-	}
-
+func NewBoltKeyValueStore(db *bolt.DB, bucketName string) KeyValueStore {
+	b := &BoltKeyValueStore{db: db, BucketName: bucketName}
 	_ = db.Update(func(tx *bolt.Tx) error {
-		_, er := tx.CreateBucketIfNotExists([]byte(opt.BucketName))
+		_, er := tx.CreateBucketIfNotExists([]byte(b.BucketName))
 		if er != nil {
 			return er
 		}
 		return nil
 	})
-	st.db = db
-	st.BucketName = opt.BucketName
+	return b
+}
+
+func (st *BoltKeyValueStore) Init(_ interface{}) error {
 	return nil
 }
 

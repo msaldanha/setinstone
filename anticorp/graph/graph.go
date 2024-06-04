@@ -60,7 +60,7 @@ func New(ns string, addr *address.Address, node *core.IpfsNode, logger *zap.Logg
 		panic(fmt.Errorf("failed to setup ipfs data store: %s", er))
 	}
 
-	evmf, er := event.NewManagerFactory(ipfs.PubSub(), node.Identity)
+	evmf, er := event.NewManagerFactory(ns, ipfs.PubSub(), node.Identity)
 	if er != nil {
 		panic(fmt.Errorf("failed to setup event manager factory: %s", er))
 	}

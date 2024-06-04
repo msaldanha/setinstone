@@ -423,7 +423,7 @@ func (r *ipfsResolver) handle(addr *address.Address) (resource, error) {
 		return res.(resource), nil
 	}
 
-	evm, er := r.evmFactory.Build(addr.Address, r.signerAddr, addr, r.logger)
+	evm, er := r.evmFactory.Build(r.signerAddr, addr, r.logger)
 	if er != nil {
 		return resource{}, er
 	}

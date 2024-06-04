@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	icore "github.com/ipfs/interface-go-ipfs-core"
@@ -14,11 +15,14 @@ import (
 	"github.com/msaldanha/setinstone/pulpit/server/ipfs"
 	"github.com/msaldanha/setinstone/pulpit/server/rest"
 	"github.com/msaldanha/setinstone/pulpit/service"
+	"github.com/msaldanha/setinstone/timeline"
 )
 
 const (
-	dbFile     = ".pulpit.db"
-	subsBucket = "subscriptions"
+	dbFile          = ".pulpit.db"
+	subsBucket      = "subscriptions"
+	addressesBucket = "addresses"
+	nameSpace       = "pulpit"
 )
 
 type Options struct {
@@ -35,15 +39,17 @@ type Response struct {
 }
 
 type Server struct {
-	opts        Options
-	store       service.KeyValueStore
-	ipfs        icore.CoreAPI
-	evmf        event.ManagerFactory
-	ps          *service.PulpitService
-	secret      string
-	logger      *zap.Logger
-	ipfsServer  *ipfs.IpfsServer
-	restService *rest.Server
+	opts               Options
+	store              service.KeyValueStore
+	ipfs               icore.CoreAPI
+	evmf               event.ManagerFactory
+	ps                 *service.PulpitService
+	secret             string
+	logger             *zap.Logger
+	ipfsServer         *ipfs.IpfsServer
+	restService        *rest.Server
+	compositeTimelines map[string]*timeline.CompositeTimeline
+	db                 *bolt.DB
 }
 
 func NewServer(opts Options) (*Server, error) {
@@ -70,29 +76,56 @@ func NewServer(opts Options) (*Server, error) {
 		panic(fmt.Errorf("failed to get ipfs api: %s", er))
 	}
 
-	evmf, er := event.NewManagerFactory(ipfs.PubSub(), node.Identity)
+	evmf, er := event.NewManagerFactory(nameSpace, ipfs.PubSub(), node.Identity)
 	if er != nil {
 		panic(fmt.Errorf("failed to setup event manager factory: %s", er))
 	}
 
-	// TODO: use the same bold db here
-	store := service.NewBoltKeyValueStore()
-
-	db, er := bolt.Open(dbFile, 0600, &bolt.Options{Timeout: 1 * time.Second})
+	db, er := bolt.Open(opts.DataStore, 0600, &bolt.Options{Timeout: 1 * time.Second})
 	if er != nil {
 		panic(fmt.Errorf("failed to setup DB: %s", er))
 	}
+
+	addressStore := service.NewBoltKeyValueStore(db, addressesBucket)
 
 	subsStore, er := service.NewSubscriptionsStore(db, subsBucket)
 	if er != nil {
 		panic(fmt.Errorf("failed to setup subscriptions DB: %s", er))
 	}
 
-	ps := service.NewPulpitService(store, ipfs, node, evmf, logger, subsStore)
+	compositeTimelines := make(map[string]*timeline.CompositeTimeline)
+
+	owners, er := subsStore.GetOwners()
+	if er != nil {
+		panic(fmt.Errorf("failed to read owners: %s", er))
+	}
+	for _, owner := range owners {
+		compositeTimeline, er := timeline.NewCompositeTimeline(nameSpace, node, evmf, logger, owner)
+		if er != nil {
+			panic(fmt.Errorf("failed to create composite timeline: %s", er.Error()))
+		}
+		er = compositeTimeline.Init(db)
+		if er != nil {
+			panic(fmt.Errorf("failed to init composite timeline: %s", er.Error()))
+		}
+		subs, er := subsStore.GetAllSubscriptionsForOwner(owner)
+		if er != nil {
+			panic(fmt.Errorf("failed to read subscriptions: %s", er.Error()))
+		}
+		for _, sub := range subs {
+			err := compositeTimeline.LoadTimeline(sub.Address)
+			if err != nil {
+				panic(fmt.Errorf("failed to load subscription: %s", er.Error()))
+			}
+		}
+		compositeTimelines[owner] = compositeTimeline
+	}
+
+	ps := service.NewPulpitService(nameSpace, addressStore, ipfs, node, evmf, logger, subsStore, compositeTimelines, db)
 
 	restServer, er := rest.NewServer(rest.Options{
 		Url:           opts.Url,
-		Store:         store,
+		Store:         addressStore,
 		DataStore:     opts.DataStore,
 		Logger:        logger,
 		PulpitService: ps,
@@ -102,18 +135,45 @@ func NewServer(opts Options) (*Server, error) {
 	}
 
 	return &Server{
-		opts:        opts,
-		store:       store,
-		ipfs:        ipfs,
-		evmf:        evmf,
-		ps:          ps,
-		secret:      "",
-		logger:      logger,
-		ipfsServer:  ipfsServer,
-		restService: restServer,
+		opts:               opts,
+		store:              addressStore,
+		ipfs:               ipfs,
+		evmf:               evmf,
+		ps:                 ps,
+		secret:             "",
+		logger:             logger,
+		ipfsServer:         ipfsServer,
+		restService:        restServer,
+		compositeTimelines: compositeTimelines,
+		db:                 db,
 	}, nil
 }
 
 func (s *Server) Run() error {
-	return s.restService.Run()
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	errCh := make(chan error, 2)
+	go func() {
+		defer wg.Done()
+		if err := s.restService.Run(); err != nil {
+			errCh <- err
+		}
+	}()
+	for _, tl := range s.compositeTimelines {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := tl.Run(); err != nil {
+				errCh <- err
+			}
+		}()
+	}
+
+	wg.Wait()
+	select {
+	case err := <-errCh:
+		return err
+	default:
+		return nil
+	}
 }

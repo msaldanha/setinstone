@@ -222,6 +222,6 @@ var _ = Describe("Timeline", func() {
 func createMockFactoryAndManager(mockCtrl *gomock.Controller, ns string) (*event.MockManagerFactory, *event.MockManager) {
 	evm := event.NewMockManager(mockCtrl)
 	evf := event.NewMockManagerFactory(mockCtrl)
-	evf.EXPECT().Build(ns, gomock.Any(), gomock.Any(), gomock.Any()).Return(evm, nil)
+	evf.EXPECT().Build(gomock.Any(), gomock.Any(), gomock.Any()).Return(evm, nil)
 	return evf, evm
 }

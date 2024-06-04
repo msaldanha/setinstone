@@ -11,23 +11,25 @@ import (
 //go:generate mockgen -source=manager_factory.go -destination=manager_factory_mock.go -package=event
 
 type ManagerFactory interface {
-	Build(nameSpace string, signerAddr, managedAddr *address.Address, logger *zap.Logger) (Manager, error)
+	Build(signerAddr, managedAddr *address.Address, logger *zap.Logger) (Manager, error)
 }
 
 type managerFactory struct {
-	pubSub icore.PubSubAPI
-	id     peer.ID
+	pubSub    icore.PubSubAPI
+	id        peer.ID
+	nameSpace string
 }
 
 // NewManagerFactory creates a new event manager factory
-func NewManagerFactory(pubSub icore.PubSubAPI, id peer.ID) (ManagerFactory, error) {
+func NewManagerFactory(nameSpace string, pubSub icore.PubSubAPI, id peer.ID) (ManagerFactory, error) {
 	m := &managerFactory{
-		pubSub: pubSub,
-		id:     id,
+		pubSub:    pubSub,
+		id:        id,
+		nameSpace: nameSpace,
 	}
 	return m, nil
 }
 
-func (m *managerFactory) Build(nameSpace string, signerAddr, managedAddr *address.Address, logger *zap.Logger) (Manager, error) {
-	return NewManager(m.pubSub, m.id, nameSpace, signerAddr, managedAddr, logger)
+func (m *managerFactory) Build(signerAddr, managedAddr *address.Address, logger *zap.Logger) (Manager, error) {
+	return NewManager(m.pubSub, m.id, m.nameSpace, signerAddr, managedAddr, logger)
 }
