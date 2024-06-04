@@ -22,6 +22,7 @@ const (
 	timelineIndexBucketName  = "timelineIndex"
 	compositeBucketName      = "compositeTimeline"
 	lastAddressKeyBucketName = "lastAddressKey"
+	defaultCount             = 20
 )
 
 var (
@@ -78,38 +79,9 @@ func (ct *CompositeTimeline) Init(db *bolt.DB) error {
 	return nil
 }
 
-func (ct *CompositeTimeline) Refresh(keyFrom string) error {
-	watchers := make([]*Watcher, 0, len(ct.watchers))
-	ct.criticalSession(func() {
-		for _, w := range ct.watchers {
-			watchers = append(watchers, w)
-		}
-	})
-	allItems := make([]Item, 0, len(watchers)*20)
-	for _, w := range watchers {
-		tl := w.GetTimeline()
-		items, err := tl.GetFrom(context.Background(), "", "main", keyFrom, "", 10)
-		if err != nil {
-			return err
-		}
-		for _, item := range items {
-			_, found, er := ct.Get(context.Background(), item.Key)
-			if er != nil {
-				return er
-			}
-			if found {
-				break
-			}
-			allItems = append(allItems, item)
-		}
-	}
-	// sort.Slice(allItems, func(i, j int) bool {
-	// 	return allItems[i].Timestamp < allItems[j].Timestamp
-	// })
-	for _, item := range allItems {
-		_ = ct.Save(item)
-	}
-	return nil
+func (ct *CompositeTimeline) Refresh() error {
+	_, er := ct.loadMore(defaultCount, false)
+	return er
 }
 
 func (ct *CompositeTimeline) Run() error {
@@ -122,7 +94,7 @@ func (ct *CompositeTimeline) Run() error {
 	for {
 		select {
 		case <-tk.C:
-			ct.Refresh("")
+			ct.Refresh()
 		}
 	}
 }
@@ -191,52 +163,28 @@ func (ct *CompositeTimeline) RemoveTimeline(addr string) error {
 	return nil
 }
 
-func (ct *CompositeTimeline) GetFrom(ctx context.Context, keyFrom string, count int) ([]Item, error) {
+func (ct *CompositeTimeline) GetFrom(_ context.Context, keyFrom string, count int) ([]Item, error) {
 	if !ct.initialized {
 		return nil, ErrNotInitialized
 	}
 	if count <= 0 {
 		return []Item{}, nil
 	}
-	results := make([]Item, 0, count)
-	er := ct.db.View(func(tx *bolt.Tx) error {
-		tl, tlIndex, _ := ct.getTimelineBuckets(tx)
-
-		from := tlIndex.Get([]byte(keyFrom))
-		tlCur := tl.Cursor()
-
-		// TODO: implement get next batch if keyFrom is not found
-		var start func() (key []byte, value []byte)
-		if from != nil {
-			start = func() (key []byte, value []byte) { return tlCur.Seek(from) }
-		} else {
-			start = func() (key []byte, value []byte) { return tlCur.Last() }
-		}
-
-		c := 1
-		for k, v := start(); k != nil && c <= count; k, v = tlCur.Prev() {
-			var item Item
-			er := json.Unmarshal(v, &item)
-			if er != nil {
-				return er
-			}
-			results = append(results, item)
-			c++
-			fmt.Printf("key=%s, value=%s\n", k, v)
-		}
-		s := results
-		for i, j := 0, len(s)-1; i < j; i, j = i+1, j-1 {
-			s[i], s[j] = s[j], s[i]
-		}
-		return nil
-	})
+	results, er := ct.readFrom(keyFrom, count)
 	if er != nil {
 		return nil, er
+	}
+	if len(results) < count {
+		toLoad := count - len(results)
+		more, er := ct.loadMore(toLoad, true)
+		if er == nil {
+			results = append(results, more...)
+		}
 	}
 	return results, nil
 }
 
-func (ct *CompositeTimeline) Get(ctx context.Context, key string) (Item, bool, error) {
+func (ct *CompositeTimeline) Get(_ context.Context, key string) (Item, bool, error) {
 	var item Item
 	found := false
 	er := ct.db.View(func(tx *bolt.Tx) error {
@@ -365,4 +313,82 @@ func (ct *CompositeTimeline) createTimelineBuckets(tx *bolt.Tx) error {
 		return er
 	}
 	return nil
+}
+
+func (ct *CompositeTimeline) loadMore(count int, getOlder bool) ([]Item, error) {
+	watchers := make(map[string]*Watcher)
+	ct.criticalSession(func() {
+		for k, w := range ct.watchers {
+			watchers[k] = w
+		}
+	})
+	totalToRetrieve := count
+	if defaultCount > totalToRetrieve {
+		totalToRetrieve = defaultCount
+	}
+	allItems := make([]Item, 0, len(watchers)*defaultCount)
+	for k, w := range watchers {
+		tl := w.GetTimeline()
+		tlLastKey := ""
+		if getOlder {
+			tlLastKey = ct.getLastKeyForAddress(k)
+		}
+		items, err := tl.GetFrom(context.Background(), "", "main", tlLastKey, "", totalToRetrieve)
+		if err != nil {
+			return nil, err
+		}
+		for _, item := range items {
+			_, found, er := ct.Get(context.Background(), item.Key)
+			if er != nil {
+				return nil, er
+			}
+			if found {
+				continue
+			}
+			allItems = append(allItems, item)
+		}
+	}
+	for _, item := range allItems {
+		_ = ct.Save(item)
+	}
+	return allItems, nil
+}
+
+func (ct *CompositeTimeline) readFrom(keyFrom string, count int) ([]Item, error) {
+	if !ct.initialized {
+		return nil, ErrNotInitialized
+	}
+	if count <= 0 {
+		return []Item{}, nil
+	}
+	results := make([]Item, 0, count)
+	return results, ct.db.View(func(tx *bolt.Tx) error {
+		tl, tlIndex, _ := ct.getTimelineBuckets(tx)
+
+		from := tlIndex.Get([]byte(keyFrom))
+		tlCur := tl.Cursor()
+
+		var start func() (key []byte, value []byte)
+		if from != nil {
+			k, _ := tlCur.Seek(from)
+			if k == nil {
+				return nil
+			}
+			start = func() (key []byte, value []byte) { return tlCur.Prev() }
+		} else {
+			start = func() (key []byte, value []byte) { return tlCur.Last() }
+		}
+
+		c := 1
+		for k, v := start(); k != nil && c <= count; k, v = tlCur.Prev() {
+			var item Item
+			er := json.Unmarshal(v, &item)
+			if er != nil {
+				return er
+			}
+			results = append(results, item)
+			c++
+		}
+		return nil
+	})
 }
