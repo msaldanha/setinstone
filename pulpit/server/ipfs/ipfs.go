@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"sync"
 
-	icore "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipfs/kubo/config"
 	"github.com/ipfs/kubo/core"
 	"github.com/ipfs/kubo/core/coreapi"
+	icore "github.com/ipfs/kubo/core/coreiface"
 	"github.com/ipfs/kubo/core/node/libp2p"
 	"github.com/ipfs/kubo/plugin/loader"
 	"github.com/ipfs/kubo/repo/fsrepo"

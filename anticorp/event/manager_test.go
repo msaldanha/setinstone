@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
-	iface "github.com/ipfs/interface-go-ipfs-core"
+	iface "github.com/ipfs/kubo/core/coreiface"
 	"github.com/libp2p/go-libp2p/core/peer"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -16,7 +16,7 @@ import (
 	"github.com/msaldanha/setinstone/anticorp/internal/message"
 )
 
-//go:generate mockgen -package event_test  -destination pubsub_mock_test.go github.com/ipfs/interface-go-ipfs-core PubSubAPI,PubSubSubscription,PubSubMessage
+//go:generate mockgen -package event_test  -destination pubsub_mock_test.go github.com/ipfs/kubo/core/coreiface PubSubAPI,PubSubSubscription,PubSubMessage
 
 var testNameSpace = "testNameSpace"
 var testEventString = `{"name":"test_event","data":"data"}`

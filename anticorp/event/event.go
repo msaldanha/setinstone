@@ -1,7 +1,7 @@
 package event
 
 import (
-	iface "github.com/ipfs/interface-go-ipfs-core"
+	iface "github.com/ipfs/kubo/core/coreiface"
 
 	"github.com/msaldanha/setinstone/anticorp/internal/message"
 )

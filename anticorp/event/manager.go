@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff"
-	icore "github.com/ipfs/interface-go-ipfs-core"
-	"github.com/ipfs/interface-go-ipfs-core/options"
+	icore "github.com/ipfs/kubo/core/coreiface"
+	"github.com/ipfs/kubo/core/coreiface/options"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"go.uber.org/zap"
 

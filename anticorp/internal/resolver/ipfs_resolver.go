@@ -9,11 +9,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ipfs/go-mfs"
-	icore "github.com/ipfs/interface-go-ipfs-core"
-	"github.com/ipfs/interface-go-ipfs-core/path"
+	"github.com/ipfs/boxo/mfs"
+	"github.com/ipfs/boxo/path"
+	"github.com/ipfs/go-cid"
 	"github.com/ipfs/kubo/core"
 	"github.com/ipfs/kubo/core/coreapi"
+	icore "github.com/ipfs/kubo/core/coreiface"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"go.uber.org/zap"
 
@@ -81,7 +82,12 @@ func (r *ipfsResolver) Add(ctx context.Context, name, value string) error {
 		return er
 	}
 
-	ipldNode, er := r.ipfs.ResolveNode(ctx, path.New(value))
+	c, er := cid.Parse(value)
+	if er != nil {
+		return er
+	}
+	p := path.FromCid(c)
+	ipldNode, er := r.ipfs.ResolveNode(ctx, p)
 	if er != nil {
 		logger.Error("Failed to get ipldNode", zap.Error(er))
 		return er

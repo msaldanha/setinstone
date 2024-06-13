@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	icore "github.com/ipfs/interface-go-ipfs-core"
 	"github.com/ipfs/kubo/core/coreapi"
+	icore "github.com/ipfs/kubo/core/coreiface"
 	bolt "go.etcd.io/bbolt"
 	"go.uber.org/zap"
 

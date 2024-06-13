@@ -1,7 +1,7 @@
 package event
 
 import (
-	icore "github.com/ipfs/interface-go-ipfs-core"
+	icore "github.com/ipfs/kubo/core/coreiface"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"go.uber.org/zap"
 

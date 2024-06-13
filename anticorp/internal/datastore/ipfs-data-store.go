@@ -8,11 +8,12 @@ import (
 	gopath "path"
 	"time"
 
-	files "github.com/ipfs/go-ipfs-files"
-	"github.com/ipfs/go-mfs"
-	"github.com/ipfs/interface-go-ipfs-core/path"
+	"github.com/ipfs/boxo/files"
+	"github.com/ipfs/boxo/mfs"
+	"github.com/ipfs/boxo/path"
+	"github.com/ipfs/go-cid"
 
-	icore "github.com/ipfs/interface-go-ipfs-core"
+	icore "github.com/ipfs/kubo/core/coreiface"
 
 	"github.com/ipfs/kubo/core"
 	"github.com/ipfs/kubo/core/coreapi"
@@ -47,7 +48,7 @@ func (d ipfsDataStore) Put(ctx context.Context, b []byte, pathFunc PathFunc) (st
 		return "", "", fmt.Errorf(IpfsErrPrefix+"could not add block: %s", er)
 	}
 
-	fmt.Printf("Added block to IPFS with CID %s \n", bs.Cid().String())
+	fmt.Printf("Added block to IPFS with CID %s \n", bs.RootCid().String())
 
 	p := ""
 	if pathFunc != nil {
@@ -56,7 +57,7 @@ func (d ipfsDataStore) Put(ctx context.Context, b []byte, pathFunc PathFunc) (st
 			return "", "", fmt.Errorf(IpfsErrPrefix+"could not resolve ipld node: %s", er)
 		}
 
-		p = pathFunc(bs.Cid().String())
+		p = pathFunc(bs.RootCid().String())
 		dirtomake := gopath.Dir(p)
 
 		er = mfs.Mkdir(d.ipfsNode.FilesRoot, dirtomake, mfs.MkdirOpts{
@@ -69,15 +70,20 @@ func (d ipfsDataStore) Put(ctx context.Context, b []byte, pathFunc PathFunc) (st
 
 		er = mfs.PutNode(d.ipfsNode.FilesRoot, p, ipldNode)
 		if er != nil {
-			return "", "", fmt.Errorf(IpfsErrPrefix+"could add node %s to path %s: %s", bs.Cid().String(), p, er)
+			return "", "", fmt.Errorf(IpfsErrPrefix+"could add node %s to path %s: %s", bs.RootCid().String(), p, er)
 		}
 	}
 
-	return bs.Cid().String(), p, nil
+	return bs.RootCid().String(), p, nil
 }
 
 func (d ipfsDataStore) Remove(ctx context.Context, key string, pathFunc PathFunc) error {
-	er := d.ipfs.Block().Rm(ctx, path.New(key))
+	c, er := cid.Parse(key)
+	if er != nil {
+		return er
+	}
+	p := path.FromCid(c)
+	er = d.ipfs.Block().Rm(ctx, p)
 	if er != nil {
 		return fmt.Errorf(IpfsErrPrefix+"could not remove data: %s", er)
 	}
@@ -91,7 +97,12 @@ func (d ipfsDataStore) Get(ctx context.Context, key string) (io.Reader, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel() // releases resources if slowOperation completes before timeout elapses
 
-	node, er := d.ipfs.Unixfs().Get(ctx, path.New(key))
+	c, er := cid.Parse(key)
+	if er != nil {
+		return nil, er
+	}
+	p := path.FromCid(c)
+	node, er := d.ipfs.Unixfs().Get(ctx, p)
 	if er != nil {
 		if errors.Is(er, context.DeadlineExceeded) {
 			// consider not found

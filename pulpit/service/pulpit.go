@@ -10,10 +10,11 @@ import (
 	"os"
 	"path/filepath"
 
-	files "github.com/ipfs/go-ipfs-files"
-	icore "github.com/ipfs/interface-go-ipfs-core"
-	"github.com/ipfs/interface-go-ipfs-core/path"
+	files "github.com/ipfs/boxo/files"
+	"github.com/ipfs/boxo/path"
+	"github.com/ipfs/go-cid"
 	"github.com/ipfs/kubo/core"
+	icore "github.com/ipfs/kubo/core/coreiface"
 	bolt "go.etcd.io/bbolt"
 
 	"go.uber.org/zap"
@@ -127,7 +128,11 @@ func (s *PulpitService) GetRandomAddress(ctx context.Context) (*address.Address,
 }
 
 func (s *PulpitService) GetMedia(ctx context.Context, id string) (io.Reader, error) {
-	p := path.New(id)
+	c, er := cid.Parse(id)
+	if er != nil {
+		return nil, er
+	}
+	p := path.FromCid(c)
 
 	node, er := s.ipfs.Unixfs().Get(ctx, p)
 	if er == context.DeadlineExceeded {
