@@ -254,11 +254,12 @@ func (s *PulpitService) AddSubscription(ctx context.Context, sub models.Subscrip
 	compositeTimeline, found := s.compositeTimelines[sub.Owner]
 	if !found {
 		var err error
-		compositeTimeline, err = timeline.NewCompositeTimeline(s.nameSpace, s.node, s.evmFactory, s.logger, sub.Owner)
+		dao := timeline.NewCompositeDao(s.db, sub.Owner)
+		compositeTimeline, err = timeline.NewCompositeTimeline(s.nameSpace, s.node, s.evmFactory, s.logger, sub.Owner, dao)
 		if err != nil {
 			return fmt.Errorf("unable to create composite timeline for owner %s %w", sub.Owner, err)
 		}
-		err = compositeTimeline.Init(s.db)
+		err = compositeTimeline.Init()
 		if err != nil {
 			return fmt.Errorf("unable to init composite timeline for owner %s %w", sub.Owner, err)
 		}

@@ -100,11 +100,12 @@ func NewServer(opts Options) (*Server, error) {
 		panic(fmt.Errorf("failed to read owners: %s", er))
 	}
 	for _, owner := range owners {
-		compositeTimeline, er := timeline.NewCompositeTimeline(nameSpace, node, evmf, logger, owner)
+		dao := timeline.NewCompositeDao(db, owner)
+		compositeTimeline, er := timeline.NewCompositeTimeline(nameSpace, node, evmf, logger, owner, dao)
 		if er != nil {
 			panic(fmt.Errorf("failed to create composite timeline: %s", er.Error()))
 		}
-		er = compositeTimeline.Init(db)
+		er = compositeTimeline.Init()
 		if er != nil {
 			panic(fmt.Errorf("failed to init composite timeline: %s", er.Error()))
 		}

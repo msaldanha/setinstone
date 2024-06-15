@@ -2,9 +2,7 @@ package timeline
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -26,25 +24,23 @@ const (
 )
 
 var (
-	ErrInvalidDbFileName = errors.New("invalid db file name")
-	ErrNotInitialized    = errors.New("not initialized")
+	ErrNotInitialized = errors.New("not initialized")
 )
 
 type CompositeTimeline struct {
 	watchers    map[string]*Watcher
 	mtx         *sync.Mutex
 	initialized bool
-	db          *bolt.DB
 	node        *core.IpfsNode
 	evm         event.Manager
 	evmf        event.ManagerFactory
 	ns          string
-	addr        *address.Address
 	logger      *zap.Logger
 	owner       string
+	dao         Dao
 }
 
-func NewCompositeTimeline(ns string, node *core.IpfsNode, evmf event.ManagerFactory, logger *zap.Logger, owner string) (*CompositeTimeline, error) {
+func NewCompositeTimeline(ns string, node *core.IpfsNode, evmf event.ManagerFactory, logger *zap.Logger, owner string, dao Dao) (*CompositeTimeline, error) {
 	if evmf == nil {
 		return nil, ErrInvalidParameterEventManager
 	}
@@ -59,22 +55,16 @@ func NewCompositeTimeline(ns string, node *core.IpfsNode, evmf event.ManagerFact
 		evmf:        evmf,
 		logger:      logger,
 		owner:       owner,
+		dao:         dao,
 	}, nil
 }
 
-func (ct *CompositeTimeline) Init(db *bolt.DB) error {
-	if db == nil {
-		return ErrInvalidDbFileName
-	}
-
-	er := db.Update(func(tx *bolt.Tx) error {
-		return ct.createTimelineBuckets(tx)
-	})
+func (ct *CompositeTimeline) Init() error {
+	er := ct.dao.Init()
 	if er != nil {
 		return er
 	}
 
-	ct.db = db
 	ct.initialized = true
 	return nil
 }
@@ -104,25 +94,6 @@ func (ct *CompositeTimeline) LoadTimeline(addr string) error {
 		return ErrNotInitialized
 	}
 
-	er := ct.db.Update(func(tx *bolt.Tx) error {
-		_, _, lastKey := ct.getTimelineBuckets(tx)
-
-		data := lastKey.Get([]byte(addr))
-		if data != nil {
-			return nil
-		}
-
-		er := lastKey.Put([]byte(addr), []byte(""))
-		if er != nil {
-			return er
-		}
-
-		return nil
-	})
-	if er != nil {
-		return er
-	}
-
 	return ct.loadTimeline(addr)
 }
 
@@ -146,14 +117,7 @@ func (ct *CompositeTimeline) loadTimeline(addr string) error {
 }
 
 func (ct *CompositeTimeline) RemoveTimeline(addr string) error {
-	er := ct.db.Update(func(tx *bolt.Tx) error {
-		_, _, lastKey := ct.getTimelineBuckets(tx)
-		err := lastKey.Delete([]byte(addr))
-		if err != nil {
-			return err
-		}
-		return nil
-	})
+	er := ct.dao.DeleteLastKeyForAddress(addr)
 	if er != nil {
 		return er
 	}
@@ -184,33 +148,8 @@ func (ct *CompositeTimeline) GetFrom(_ context.Context, keyFrom string, count in
 	return results, nil
 }
 
-func (ct *CompositeTimeline) Get(_ context.Context, key string) (Item, bool, error) {
-	var item Item
-	found := false
-	er := ct.db.View(func(tx *bolt.Tx) error {
-		tl, tlIndex, _ := ct.getTimelineBuckets(tx)
-
-		itemKey := tlIndex.Get([]byte(key))
-		if itemKey == nil {
-			return nil
-		}
-
-		v := tl.Get(itemKey)
-		if v == nil {
-			return nil
-		}
-
-		er := json.Unmarshal(v, &item)
-		if er != nil {
-			return er
-		}
-		found = true
-		return nil
-	})
-	if er != nil {
-		return item, found, er
-	}
-	return item, found, nil
+func (ct *CompositeTimeline) Get(ctx context.Context, key string) (Item, bool, error) {
+	return ct.dao.Get(ctx, key)
 }
 
 func (ct *CompositeTimeline) onPostAdded(post Post) {
@@ -218,60 +157,14 @@ func (ct *CompositeTimeline) onPostAdded(post Post) {
 }
 
 func (ct *CompositeTimeline) Save(item Item) error {
-	return ct.db.Update(func(tx *bolt.Tx) error {
-		tl, tlIndex, lastKey := ct.getTimelineBuckets(tx)
-
-		value, err := json.Marshal(item)
-		if err != nil {
-			return err
-		}
-
-		seq, _ := tl.NextSequence()
-		indexKey := fmt.Sprintf("%s|%09d", item.Timestamp, seq)
-
-		err = tlIndex.Put([]byte(item.Key), []byte(indexKey))
-		if err != nil {
-			return err
-		}
-
-		err = tl.Put([]byte(indexKey), value)
-		if err != nil {
-			return err
-		}
-
-		err = lastKey.Put([]byte(item.Address), []byte(item.Key))
-		if err != nil {
-			return err
-		}
-
-		return nil
-	})
+	return ct.dao.Put(item)
 }
 
 func (ct *CompositeTimeline) Clear() error {
-	return ct.db.Update(func(tx *bolt.Tx) error {
-		comp := tx.Bucket([]byte(compositeBucketName))
-		err := comp.DeleteBucket([]byte(ct.owner))
-		if err != nil {
-			return err
-		}
-
-		return ct.createTimelineBuckets(tx)
-	})
+	return ct.dao.DeleteAll()
 }
 func (ct *CompositeTimeline) getLastKeyForAddress(address string) string {
-	lastKey := ""
-	_ = ct.db.View(func(tx *bolt.Tx) error {
-		_, _, addresses := ct.getTimelineBuckets(tx)
-		if addresses == nil {
-			return fmt.Errorf("bucket %s not found", lastAddressKeyBucketName)
-		}
-		value := addresses.Get([]byte(address))
-		lastKey = string(value)
-		return nil
-	})
-
-	return lastKey
+	return ct.dao.GetLastKeyForAddress(address)
 }
 
 func (ct *CompositeTimeline) criticalSession(session func()) {
@@ -362,33 +255,14 @@ func (ct *CompositeTimeline) readFrom(keyFrom string, count int) ([]Item, error)
 		return []Item{}, nil
 	}
 	results := make([]Item, 0, count)
-	return results, ct.db.View(func(tx *bolt.Tx) error {
-		tl, tlIndex, _ := ct.getTimelineBuckets(tx)
-
-		from := tlIndex.Get([]byte(keyFrom))
-		tlCur := tl.Cursor()
-
-		var start func() (key []byte, value []byte)
-		if from != nil {
-			k, _ := tlCur.Seek(from)
-			if k == nil {
-				return nil
-			}
-			start = func() (key []byte, value []byte) { return tlCur.Prev() }
-		} else {
-			start = func() (key []byte, value []byte) { return tlCur.Last() }
-		}
-
-		c := 1
-		for k, v := start(); k != nil && c <= count; k, v = tlCur.Prev() {
-			var item Item
-			er := json.Unmarshal(v, &item)
-			if er != nil {
-				return er
-			}
-			results = append(results, item)
-			c++
-		}
-		return nil
-	})
+	iter, er := ct.dao.GetIterator(keyFrom)
+	if er != nil {
+		return nil, er
+	}
+	c := 1
+	for item, er := iter.First(); er == nil && item != nil && c <= count; item, er = iter.Next() {
+		results = append(results, *item)
+		c++
+	}
+	return results, nil
 }
