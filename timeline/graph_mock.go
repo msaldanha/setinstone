@@ -95,12 +95,11 @@ func (mr *MockGraphMockRecorder) Append(ctx, keyRoot, node interface{}) *gomock.
 }
 
 // GetIterator mocks base method
-func (m *MockGraph) GetIterator(ctx context.Context, keyRoot, branch, from string) (*graph.Iterator, error) {
+func (m *MockGraph) GetIterator(ctx context.Context, keyRoot, branch, from string) graph.Iterator {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetIterator", ctx, keyRoot, branch, from)
-	ret0, _ := ret[0].(*graph.Iterator)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(graph.Iterator)
+	return ret0
 }
 
 // GetIterator indicates an expected call of GetIterator
@@ -160,33 +159,34 @@ func (m *MockIterator) EXPECT() *MockIteratorMockRecorder {
 	return m.recorder
 }
 
-// Next mocks base method
-func (m *MockIterator) Next(ctx context.Context) (graph.Node, error) {
+// Last mocks base method
+func (m *MockIterator) Last(ctx context.Context) (*graph.Node, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Next", ctx)
-	ret0, _ := ret[0].(graph.Node)
+	ret := m.ctrl.Call(m, "Last", ctx)
+	ret0, _ := ret[0].(*graph.Node)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// Next indicates an expected call of Next
-func (mr *MockIteratorMockRecorder) Next(ctx interface{}) *gomock.Call {
+// Last indicates an expected call of Last
+func (mr *MockIteratorMockRecorder) Last(ctx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockIterator)(nil).Next), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Last", reflect.TypeOf((*MockIterator)(nil).Last), ctx)
 }
 
-// HasNext mocks base method
-func (m *MockIterator) HasNext() bool {
+// Prev mocks base method
+func (m *MockIterator) Prev(ctx context.Context) (*graph.Node, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "HasNext")
-	ret0, _ := ret[0].(bool)
-	return ret0
+	ret := m.ctrl.Call(m, "Prev", ctx)
+	ret0, _ := ret[0].(*graph.Node)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
-// HasNext indicates an expected call of HasNext
-func (mr *MockIteratorMockRecorder) HasNext() *gomock.Call {
+// Prev indicates an expected call of Prev
+func (mr *MockIteratorMockRecorder) Prev(ctx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasNext", reflect.TypeOf((*MockIterator)(nil).HasNext))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Prev", reflect.TypeOf((*MockIterator)(nil).Prev), ctx)
 }
 
 // MockTimeline is a mock of Timeline interface

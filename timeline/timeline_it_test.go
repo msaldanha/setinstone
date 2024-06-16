@@ -172,7 +172,7 @@ var _ = Describe("Timeline", func() {
 
 		tl1, _ := timeline.NewTimeline(ns, addr, gr, evf, logger)
 
-		nodes := []graph.Node{}
+		nodes := []*graph.Node{}
 		posts := []timeline.PostItem{}
 		keys := []string{}
 		n := 10
@@ -183,26 +183,27 @@ var _ = Describe("Timeline", func() {
 					strconv.Itoa(i)}}}
 			postjson, _ := json.Marshal(expectedPost)
 			postKey := fmt.Sprintf("postKey-%d", i)
-			node := graph.Node{Key: postKey, Address: addr.Address, Data: postjson, Branches: []string{likeRef}}
+			node := &graph.Node{Key: postKey, Address: addr.Address, Data: postjson, Branches: []string{likeRef}}
 			nodes = append(nodes, node)
 			posts = append(posts, expectedPost)
 			keys = append(keys, postKey)
 		}
 
 		it := timeline.NewMockIterator(mockCtrl)
-		i := &graph.Iterator{
-			NextImpl:    it.Next,
-			HasNextImpl: it.HasNext,
-		}
-		gr.EXPECT().GetIterator(gomock.Any(), "", "", keys[5]).Return(i, nil)
+		gr.EXPECT().GetIterator(gomock.Any(), "", "", keys[5]).Return(it)
 
 		count := 3
 		index := count
-		it.EXPECT().HasNext().DoAndReturn(func() bool {
+		it.EXPECT().Last(gomock.Any()).DoAndReturn(func(_ context.Context) (*graph.Node, error) {
 			index--
-			return index >= 0
-		}).Times(count + 1)
-		it.EXPECT().Next(gomock.Any()).DoAndReturn(func(_ context.Context) (graph.Node, error) {
+			n := nodes[index]
+			return n, nil
+		}).Times(1)
+		it.EXPECT().Prev(gomock.Any()).DoAndReturn(func(_ context.Context) (*graph.Node, error) {
+			index--
+			if index < 0 {
+				return nil, nil
+			}
 			return nodes[index], nil
 		}).Times(count)
 

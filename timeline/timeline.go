@@ -205,18 +205,11 @@ func (t *timeline) Get(ctx context.Context, key string) (Item, bool, error) {
 
 // GetFrom retrieves count items (at most) from the timeline starting at keyFrom and stopping at keyTo
 func (t *timeline) GetFrom(ctx context.Context, keyRoot, connector, keyFrom, keyTo string, count int) ([]Item, error) {
-	it, er := t.gr.GetIterator(ctx, keyRoot, connector, keyFrom)
-	if er != nil {
-		return nil, t.translateError(er)
-	}
+	it := t.gr.GetIterator(ctx, keyRoot, connector, keyFrom)
 	i := 0
 	items := []Item{}
-	for it.HasNext() && (count == 0 || i < count) {
-		v, er := it.Next(ctx)
-		if er != nil {
-			return nil, t.translateError(er)
-		}
-		item, er := NewItemFromGraphNode(v)
+	for v, er := it.Last(ctx); er == nil && v != nil && (count == 0 || i < count); v, er = it.Prev(ctx) {
+		item, er := NewItemFromGraphNode(*v)
 		if er != nil {
 			return nil, t.translateError(er)
 		}

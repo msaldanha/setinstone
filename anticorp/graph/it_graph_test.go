@@ -100,14 +100,12 @@ var _ = Describe("Graph", func() {
 			keys = append(keys, nd.Key)
 		}
 
-		it, er := gr.GetIterator(ctx, "", "main", "")
-		Expect(er).To(BeNil())
+		it := gr.GetIterator(ctx, "", "main", "")
 		Expect(it).NotTo(BeNil())
 
 		i := len(dataAdded) - 1
-		for it.HasNext() {
+		for v, er := it.Last(ctx); er == nil && v != nil; v, er = it.Prev(ctx) {
 			data := testPayLoad{}
-			v, er := it.Next(ctx)
 			_ = json.Unmarshal(v.Data, &data)
 			Expect(er).To(BeNil())
 			Expect(data).To(Equal(dataAdded[i]))
@@ -135,16 +133,13 @@ var _ = Describe("Graph", func() {
 			keys = append(keys, v.Key)
 		}
 
-		it, er := gr.GetIterator(ctx, "", "main", keys[5])
-		Expect(er).To(BeNil())
+		it := gr.GetIterator(ctx, "", "main", keys[5])
 		Expect(it).NotTo(BeNil())
 
 		i := 5
-		for it.HasNext() {
+		for v, er := it.Last(ctx); er == nil && v != nil; v, er = it.Prev(ctx) {
 			data := testPayLoad{}
-			v, er := it.Next(ctx)
 			_ = json.Unmarshal(v.Data, &data)
-
 			Expect(er).To(BeNil())
 			Expect(data).To(Equal(dataAdded[i-1]))
 			i--

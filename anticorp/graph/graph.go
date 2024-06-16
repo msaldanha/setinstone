@@ -154,60 +154,8 @@ func (d *Graph) Append(ctx context.Context, keyRoot string, node NodeData) (Node
 	return d.toGraphNode(key, n), nil
 }
 
-func (d *Graph) GetIterator(ctx context.Context, keyRoot, branch string, from string) (*Iterator, error) {
-	hasNext := false
-	var nextNode *dag.Node
-	var nextNodeKey string
-	var er error
-
-	if from == "" {
-		if keyRoot == "" {
-			gn, gnKey, er := d.da.GetRoot(ctx, d.addr.Address)
-			if errors.Is(er, dag.ErrNodeNotFound) || gn == nil {
-				return nil, ErrNotFound
-			}
-			if er != nil {
-				return nil, er
-			}
-			keyRoot = gnKey
-		}
-		nextNode, nextNodeKey, er = d.da.GetLast(ctx, keyRoot, branch)
-	} else {
-		nextNode, nextNodeKey, er = d.getNext(ctx, from)
-	}
-	if er != nil && !errors.Is(er, ErrNotFound) {
-		return nil, er
-	}
-	hasNext = nextNode != nil
-	return &Iterator{
-		HasNextImpl: func() bool {
-			return hasNext
-		},
-		NextImpl: func(ictx context.Context) (Node, error) {
-			if !hasNext {
-				return Node{}, ErrInvalidIteratorState
-			}
-			hasNext = false
-			if errors.Is(er, ErrNotFound) {
-				return Node{}, d.translateError(er)
-			}
-			if er != nil {
-				return Node{}, d.translateError(er)
-			}
-			if nextNode == nil {
-				return Node{}, ErrInvalidIteratorState
-			}
-			item := d.toGraphNode(nextNodeKey, nextNode)
-			if nextNode.Previous == "" {
-				nextNode = nil
-				return item, nil
-			}
-			hasNext = true
-			nextNodeKey = nextNode.Previous
-			nextNode, er = d.get(ictx, nextNode.Previous)
-			return item, nil
-		},
-	}, nil
+func (d *Graph) GetIterator(ctx context.Context, keyRoot, branch string, from string) Iterator {
+	return NewIterator(d, from, keyRoot, branch)
 }
 
 func (d *Graph) Manage(addr *address.Address) error {
