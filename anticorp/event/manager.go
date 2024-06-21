@@ -83,7 +83,7 @@ func (m *manager) Next(ctx context.Context, eventName string) (Event, error) {
 
 // Emit emits eventName with data on the namespace.
 func (m *manager) Emit(eventName string, data []byte) error {
-	m.logger.Info("Signaling event", zap.String("eventName", eventName),
+	m.logger.Debug("Signaling event", zap.String("eventName", eventName),
 		zap.String("topic", m.getTopicName()), zap.String("data", string(data)))
 	if !m.signerAddr.HasKeys() {
 		return ErrAddressNoKeys
@@ -130,23 +130,23 @@ func (m *manager) startEventLoop() {
 
 func (m *manager) loopOperation() error {
 	logger := m.logger.With(zap.String("topic", m.getTopicName()))
-	logger.Info("Waiting next event")
 	msg, er := m.rootSub.Next(context.Background())
 	if er != nil {
 		logger.Error("Waiting for next event failed", zap.Error(er))
 		return er
 	}
-	logger.Info("Message arrived", zap.String("data", string(msg.Data())))
+
 	if msg.From() == m.id {
-		logger.Info("Message arrived was from ourselves")
+		// Message arrived was from ourselves. Ignore
 		return nil
 	}
+	logger.Debug("Message arrived", zap.String("data", string(msg.Data())))
 	ev, er := newEventFromPubSubMessage(msg)
 	if er != nil {
 		logger.Error("Failed to convert msg to event", zap.Error(er))
 		return nil
 	}
-	logger.Info("Even extracted from message", zap.String("eventName", ev.Name()),
+	logger.Debug("Even extracted from message", zap.String("eventName", ev.Name()),
 		zap.String("data", string(ev.Data())))
 	callbacks := m.subscriptions.Get(ev.Name())
 	if len(callbacks) == 0 {

@@ -71,7 +71,7 @@ func NewIpfsResolver(node *core.IpfsNode, signerAddr *address.Address, evmFactor
 
 func (r *ipfsResolver) Add(ctx context.Context, name, value string) error {
 	logger := r.logger.With(zap.String("name", name), zap.String("value", value))
-	logger.Info("Adding resolution")
+	logger.Debug("Adding resolution")
 	rec, er := getQueryNameRequestFromName(name)
 	if er != nil {
 		return er
@@ -139,7 +139,7 @@ func (r *ipfsResolver) Add(ctx context.Context, name, value string) error {
 
 func (r *ipfsResolver) Resolve(ctx context.Context, name string) (string, error) {
 	logger := r.logger.With(zap.String("name", name))
-	logger.Info("Resolve")
+	logger.Debug("Resolve")
 
 	rec, er := getQueryNameRequestFromName(name)
 	if er != nil {
@@ -148,7 +148,7 @@ func (r *ipfsResolver) Resolve(ctx context.Context, name string) (string, error)
 	}
 
 	if r.isManaged(rec) {
-		logger.Info("Is managed")
+		logger.Debug("Is managed")
 		resolution, er := r.get(ctx, name)
 		if er == nil {
 			logger.Info("Resolved", zap.String("resolution", resolution))
@@ -156,10 +156,10 @@ func (r *ipfsResolver) Resolve(ctx context.Context, name string) (string, error)
 		}
 		return resolution, er
 	}
-	logger.Info("Is NOT managed")
+	logger.Debug("Is NOT managed")
 	rc, er := r.getFromCache(ctx, rec.GetID())
 	if errors.Is(er, ErrNotFound) {
-		logger.Info("NOT found in cache")
+		logger.Debug("NOT found in cache")
 		rc, er = r.query(ctx, rec)
 	}
 	if er != nil {
@@ -192,12 +192,12 @@ func (r *ipfsResolver) Remove(addr string) {
 
 func (r *ipfsResolver) query(ctx context.Context, rec message.Message) (message.Message, error) {
 	logger := r.logger.With(zap.String("type", rec.Type), zap.String("addr", rec.Address))
-	logger.Info("Querying the network")
+	logger.Debug("Querying the network")
 	data, er := rec.ToJson()
 	if er != nil {
 		return message.Message{}, er
 	}
-	logger.Info("Subscribing to event")
+	logger.Debug("Subscribing to event")
 
 	res, er := r.Handle(rec.Address)
 	if er != nil {
@@ -216,13 +216,13 @@ func (r *ipfsResolver) query(ctx context.Context, rec message.Message) (message.
 	for {
 		found, er := r.getFromCache(ctx, key)
 		if er == nil {
-			logger.Info("Resolved", zap.String("query", ExtractQuery(rec).Data), zap.String("resolution", ExtractQuery(found).Data))
+			logger.Debug("Resolved", zap.String("query", ExtractQuery(rec).Data), zap.String("resolution", ExtractQuery(found).Data))
 			return found, nil
 		}
 		select {
 		case <-time.After(300 * time.Millisecond):
 		case <-ctx.Done():
-			logger.Info("ctx Done querying", zap.String("query", ExtractQuery(rec).Data))
+			logger.Debug("ctx Done querying", zap.String("query", ExtractQuery(rec).Data))
 			return message.Message{}, ctx.Err()
 		}
 	}
@@ -256,7 +256,7 @@ func (r *ipfsResolver) putInCache(ctx context.Context, rec message.Message) erro
 
 func (r *ipfsResolver) handleEvent(ev event.Event) {
 	logger := r.logger.With(zap.String("name", ev.Name()), zap.String("data", string(ev.Data())))
-	logger.Info("Received event")
+	logger.Debug("Received event")
 	rec := message.Message{}
 	er := rec.FromJson(ev.Data(), Query{})
 	if er != nil {
@@ -345,20 +345,20 @@ func (r *ipfsResolver) handleQuery(msg message.Message) {
 	r.addPendingQuery(msg)
 	q := ExtractQuery(msg)
 	logger := r.logger.With(zap.String("query", q.Data))
-	logger.Info("Query received")
+	logger.Debug("Query received")
 	resolution, er := r.resolve(context.Background(), msg)
 	if er != nil {
 		logger.Error("Failed to resolve", zap.Error(er))
 		return
 	}
-	logger.Info("Query resolved", zap.String("resolution", ExtractQuery(resolution).Data))
+	logger.Debug("Query resolved", zap.String("resolution", ExtractQuery(resolution).Data))
 	r.sendResolution(resolution)
 }
 
 func (r *ipfsResolver) handleResolution(msg message.Message) {
 	res := ExtractQuery(msg)
 	logger := r.logger.With(zap.String("resolution", res.Data), zap.String("type", msg.Type))
-	logger.Info("Resolution received")
+	logger.Debug("Resolution received")
 	if er := msg.VerifySignature(); er != nil {
 		logger.Error("Invalid query resolution", zap.Error(er))
 		return
@@ -369,7 +369,7 @@ func (r *ipfsResolver) handleResolution(msg message.Message) {
 		cached = v.(message.Message)
 	}
 	if !found || (found && cached.Older(msg)) {
-		logger.Info("Adding resolution to cache", zap.String("ref", res.Reference))
+		logger.Debug("Adding resolution to cache", zap.String("ref", res.Reference))
 		_ = r.putInCache(context.Background(), msg)
 	} else {
 		logger.Info("Already have a most recent resolution")
@@ -386,10 +386,10 @@ func (r *ipfsResolver) sendResolution(msg message.Message) {
 			return
 		}
 		if !r.canSendResolution(msg) {
-			logger.Info("Query already resolved by someone else")
+			logger.Debug("Query already resolved by someone else")
 			return
 		}
-		logger.Info("Sending resolution", zap.String("resolution", ExtractQuery(msg).Data))
+		logger.Debug("Sending resolution", zap.String("resolution", ExtractQuery(msg).Data))
 		res, er := r.Handle(msg.Address)
 		if er != nil {
 			logger.Error("Error getting resource", zap.Error(er))
@@ -406,7 +406,7 @@ func (r *ipfsResolver) sendResolution(msg message.Message) {
 func (r *ipfsResolver) canSendResolution(msg message.Message) bool {
 	delay := time.Duration(rand.Intn(1000))
 	res := ExtractQuery(msg)
-	r.logger.Info("Will sleep before sending resolution", zap.String("delay", delay.String()),
+	r.logger.Debug("Will sleep before sending resolution", zap.String("delay", delay.String()),
 		zap.String("type", msg.Type), zap.String("data", res.Data))
 	time.Sleep(delay * time.Millisecond)
 	_, exists := r.pending.Load(res.Reference)
