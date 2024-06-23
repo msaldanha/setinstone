@@ -150,7 +150,7 @@ func (m *manager) loopOperation() error {
 		zap.String("data", string(ev.Data())))
 	callbacks := m.subscriptions.Get(ev.Name())
 	if len(callbacks) == 0 {
-		logger.Warn("No subscription for event. Ignoring.", zap.String("eventName", ev.Name()))
+		logger.Debug("No subscription for event. Ignoring.", zap.String("eventName", ev.Name()))
 		return nil
 	}
 	for _, callback := range callbacks {
