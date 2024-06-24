@@ -73,7 +73,7 @@ var _ = Describe("Timeline", func() {
 		i, found, er := p.Get(ctx, "key")
 		Expect(er).To(BeNil())
 		Expect(found).To(BeTrue())
-		postItem, _ := i.Data.(timeline.PostItem)
+		postItem := i.Post
 		Expect(postItem.Part).To(Equal(expectedPost.Part))
 	})
 
@@ -211,11 +211,11 @@ var _ = Describe("Timeline", func() {
 
 		Expect(er).To(BeNil())
 		Expect(len(items)).To(Equal(count))
-		l, _ := items[0].Data.(timeline.PostItem)
+		l := items[0].Post
 		Expect(l.Part).To(Equal(posts[2].Part))
-		m, _ := items[1].Data.(timeline.PostItem)
+		m := items[1].Post
 		Expect(m.Part).To(Equal(posts[1].Part))
-		l, _ = items[2].Data.(timeline.PostItem)
+		l = items[2].Post
 		Expect(l.Part).To(Equal(posts[0].Part))
 	})
 })
