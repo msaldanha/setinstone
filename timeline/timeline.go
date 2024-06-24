@@ -93,7 +93,7 @@ func (t *timeline) AppendReference(ctx context.Context, ref ReferenceItem, keyRo
 	if er != nil {
 		return "", er
 	}
-	if _, ok := v.Data.(ReferenceItem); ok {
+	if v.Reference != nil {
 		return "", ErrCannotRefARef
 	}
 
@@ -141,8 +141,8 @@ func (t *timeline) AddReceivedReference(ctx context.Context, refKey string) (str
 		return "", ErrNotFound
 	}
 
-	receivedRef, ok := item.Data.(ReferenceItem)
-	if !ok {
+	receivedRef := item.Reference
+	if receivedRef == nil {
 		return "", ErrNotAReference
 	}
 
@@ -157,8 +157,7 @@ func (t *timeline) AddReceivedReference(ctx context.Context, refKey string) (str
 	if !found {
 		return "", ErrNotFound
 	}
-	_, ok = item.Data.(PostItem)
-	if !ok {
+	if item.Post == nil {
 		return "", ErrCannotAddReference
 	}
 

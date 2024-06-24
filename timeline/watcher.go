@@ -31,8 +31,8 @@ func (w *Watcher) OnPostAdded(callback func(post Post)) {
 		if !found {
 			return
 		}
-		if post, ok := v.Data.(PostItem); ok {
-			callback(post.Post)
+		if v.Post != nil {
+			callback(v.Post.Post)
 		}
 
 	})

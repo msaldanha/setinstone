@@ -53,7 +53,8 @@ type ReferenceItem struct {
 
 type Item struct {
 	graph.Node
-	Data interface{} `json:"data,omitempty"`
+	Post      *PostItem      `json:"post,omitempty"`
+	Reference *ReferenceItem `json:"reference,omitempty"`
 }
 
 func NewItemFromGraphNode(v graph.Node) (Item, error) {
@@ -67,16 +68,15 @@ func NewItemFromGraphNode(v graph.Node) (Item, error) {
 		Node: v,
 	}
 
-	var data interface{}
 	switch base.Type {
 	case TypeReference:
 		ri := ReferenceItem{}
 		er = json.Unmarshal(v.Data, &ri)
-		data = ri
+		item.Reference = &ri
 	case TypePost:
 		p := PostItem{}
 		er = json.Unmarshal(v.Data, &p)
-		data = p
+		item.Post = &p
 	default:
 		er = ErrUnknownType
 	}
@@ -84,8 +84,6 @@ func NewItemFromGraphNode(v graph.Node) (Item, error) {
 	if er != nil {
 		return Item{}, er
 	}
-
-	item.Data = data
 
 	return item, nil
 }
