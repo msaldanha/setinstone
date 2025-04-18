@@ -34,8 +34,8 @@ type resource struct {
 }
 
 type ipfsResolver struct {
-	resolutionCache cache.Cache
-	resourceCache   cache.Cache
+	resolutionCache cache.Cache[message.Message]
+	resourceCache   cache.Cache[interface{}]
 	pending         *sync.Map
 	ipfs            icore.CoreAPI
 	ipfsNode        *core.IpfsNode
@@ -46,7 +46,7 @@ type ipfsResolver struct {
 }
 
 func NewIpfsResolver(node *core.IpfsNode, signerAddr *address.Address, evmFactory event.ManagerFactory,
-	resCache cache.Cache, resourceCache cache.Cache, logger *zap.Logger) (Resolver, error) {
+	resCache cache.Cache[message.Message], resourceCache cache.Cache[interface{}], logger *zap.Logger) (Resolver, error) {
 	if !signerAddr.HasKeys() {
 		return nil, ErrNoPrivateKey
 	}
@@ -245,8 +245,7 @@ func (r *ipfsResolver) getFromCache(ctx context.Context, name string) (message.M
 	if !ok {
 		return message.Message{}, ErrNotFound
 	}
-	rec := v.(message.Message)
-	return rec, er
+	return v, er
 }
 
 func (r *ipfsResolver) putInCache(ctx context.Context, rec message.Message) error {
@@ -364,10 +363,7 @@ func (r *ipfsResolver) handleResolution(msg message.Message) {
 		return
 	}
 	var cached message.Message
-	v, found, _ := r.resolutionCache.Get(res.Reference)
-	if found {
-		cached = v.(message.Message)
-	}
+	cached, found, _ := r.resolutionCache.Get(res.Reference)
 	if !found || (found && cached.Older(msg)) {
 		logger.Debug("Adding resolution to cache", zap.String("ref", res.Reference))
 		_ = r.putInCache(context.Background(), msg)

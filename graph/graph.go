@@ -15,6 +15,7 @@ import (
 	"github.com/msaldanha/setinstone/event"
 	"github.com/msaldanha/setinstone/internal/dag"
 	"github.com/msaldanha/setinstone/internal/datastore"
+	"github.com/msaldanha/setinstone/internal/message"
 	"github.com/msaldanha/setinstone/internal/resolver"
 )
 
@@ -65,8 +66,8 @@ func New(ns string, addr *address.Address, node *core.IpfsNode, logger *zap.Logg
 		panic(fmt.Errorf("failed to setup event manager factory: %s", er))
 	}
 
-	resolutionCache := cache.NewMemoryCache(time.Second * 10)
-	resourceCache := cache.NewMemoryCache(0)
+	resolutionCache := cache.NewMemoryCache[message.Message](time.Second * 10)
+	resourceCache := cache.NewMemoryCache[interface{}](0)
 
 	signerAddr, er := address.NewAddressWithKeys()
 	if er != nil {

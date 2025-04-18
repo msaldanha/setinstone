@@ -11,7 +11,7 @@ var _ = Describe("Memory Cache", func() {
 	value := "data"
 	key := "key"
 	It("Should add item", func() {
-		c := NewMemoryCache(time.Hour)
+		c := NewMemoryCache[string](time.Hour)
 
 		er := c.Add(key, value)
 		Expect(er).To(BeNil())
@@ -22,7 +22,7 @@ var _ = Describe("Memory Cache", func() {
 		Expect(v).To(Equal(value))
 	})
 	It("Should NOT return expired item", func() {
-		c := NewMemoryCache(time.Millisecond * 100)
+		c := NewMemoryCache[string](time.Millisecond * 100)
 
 		er := c.Add(key, value)
 		Expect(er).To(BeNil())
@@ -32,10 +32,10 @@ var _ = Describe("Memory Cache", func() {
 		v, found, er := c.Get(key)
 		Expect(er).To(BeNil())
 		Expect(found).To(BeFalse())
-		Expect(v).To(BeNil())
+		Expect(v).To(Equal(""))
 	})
 	It("Should override default ttl", func() {
-		c := NewMemoryCache(time.Hour)
+		c := NewMemoryCache[string](time.Hour)
 
 		er := c.AddWithTTL(key, value, time.Millisecond*100)
 		Expect(er).To(BeNil())
@@ -45,6 +45,6 @@ var _ = Describe("Memory Cache", func() {
 		v, found, er := c.Get(key)
 		Expect(er).To(BeNil())
 		Expect(found).To(BeFalse())
-		Expect(v).To(BeNil())
+		Expect(v).To(Equal(""))
 	})
 })

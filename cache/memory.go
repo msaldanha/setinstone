@@ -5,28 +5,28 @@ import (
 	"time"
 )
 
-type memoryCache struct {
+type memoryCache[T any] struct {
 	data       *sync.Map
 	defaultTTL time.Duration
 }
 
-func NewMemoryCache(defaultTTL time.Duration) Cache {
-	return &memoryCache{
+func NewMemoryCache[T any](defaultTTL time.Duration) Cache[T] {
+	return &memoryCache[T]{
 		data:       &sync.Map{},
 		defaultTTL: defaultTTL,
 	}
 }
 
-func (m memoryCache) Add(key string, value interface{}) error {
+func (m memoryCache[T]) Add(key string, value T) error {
 	return m.AddWithTTL(key, value, m.defaultTTL)
 }
 
-func (m memoryCache) AddWithTTL(key string, value interface{}, ttl time.Duration) error {
+func (m memoryCache[T]) AddWithTTL(key string, value T, ttl time.Duration) error {
 	var expiresAt time.Time
 	if ttl > 0 {
 		expiresAt = time.Now().Add(ttl)
 	}
-	rec := cacheRecord{
+	rec := cacheRecord[T]{
 		expiresAt: expiresAt,
 		value:     value,
 	}
@@ -34,19 +34,20 @@ func (m memoryCache) AddWithTTL(key string, value interface{}, ttl time.Duration
 	return nil
 }
 
-func (m memoryCache) Get(key string) (interface{}, bool, error) {
+func (m memoryCache[T]) Get(key string) (T, bool, error) {
+	var value T
 	r, found := m.data.Load(key)
 	if !found {
-		return nil, false, nil
+		return value, false, nil
 	}
-	rec := r.(cacheRecord)
+	rec := r.(cacheRecord[T])
 	if rec.IsExpired() {
-		return nil, false, nil
+		return value, false, nil
 	}
 	return rec.value, true, nil
 }
 
-func (m memoryCache) Delete(key string) error {
+func (m memoryCache[T]) Delete(key string) error {
 	m.data.Delete(key)
 	return nil
 }

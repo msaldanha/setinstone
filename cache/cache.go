@@ -2,19 +2,19 @@ package cache
 
 import "time"
 
-type Cache interface {
-	Add(key string, value interface{}) error
-	AddWithTTL(key string, value interface{}, ttl time.Duration) error
-	Get(key string) (interface{}, bool, error)
+type Cache[T any] interface {
+	Add(key string, value T) error
+	AddWithTTL(key string, value T, ttl time.Duration) error
+	Get(key string) (T, bool, error)
 	Delete(key string) error
 }
 
-type cacheRecord struct {
+type cacheRecord[T any] struct {
 	expiresAt time.Time
-	value     interface{}
+	value     T
 }
 
-func (r cacheRecord) IsExpired() bool {
+func (r cacheRecord[T]) IsExpired() bool {
 	if r.expiresAt.IsZero() {
 		return false
 	}
