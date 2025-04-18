@@ -67,7 +67,7 @@ func New(ns string, addr *address.Address, node *core.IpfsNode, logger *zap.Logg
 	}
 
 	resolutionCache := cache.NewMemoryCache[message.Message](time.Second * 10)
-	resourceCache := cache.NewMemoryCache[interface{}](0)
+	resourceCache := cache.NewMemoryCache[resolver.Resource](0)
 
 	signerAddr, er := address.NewAddressWithKeys()
 	if er != nil {

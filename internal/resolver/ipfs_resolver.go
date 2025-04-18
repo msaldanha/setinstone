@@ -26,7 +26,7 @@ import (
 
 const prefix = "IPFS Resolver"
 
-type resource struct {
+type Resource struct {
 	addr                 *address.Address
 	evm                  event.Manager
 	subNameRequestEvent  *event.Subscription
@@ -35,7 +35,7 @@ type resource struct {
 
 type ipfsResolver struct {
 	resolutionCache cache.Cache[message.Message]
-	resourceCache   cache.Cache[interface{}]
+	resourceCache   cache.Cache[Resource]
 	pending         *sync.Map
 	ipfs            icore.CoreAPI
 	ipfsNode        *core.IpfsNode
@@ -46,7 +46,7 @@ type ipfsResolver struct {
 }
 
 func NewIpfsResolver(node *core.IpfsNode, signerAddr *address.Address, evmFactory event.ManagerFactory,
-	resCache cache.Cache[message.Message], resourceCache cache.Cache[interface{}], logger *zap.Logger) (Resolver, error) {
+	resCache cache.Cache[message.Message], resourceCache cache.Cache[Resource], logger *zap.Logger) (Resolver, error) {
 	if !signerAddr.HasKeys() {
 		return nil, ErrNoPrivateKey
 	}
@@ -177,13 +177,12 @@ func (r *ipfsResolver) Manage(addr *address.Address) error {
 	return er
 }
 
-func (r *ipfsResolver) Handle(addr string) (resource, error) {
+func (r *ipfsResolver) Handle(addr string) (Resource, error) {
 	return r.handle(&address.Address{Address: addr})
 }
 
 func (r *ipfsResolver) Remove(addr string) {
-	if rs, exists, _ := r.resourceCache.Get(addr); exists {
-		res := rs.(resource)
+	if res, exists, _ := r.resourceCache.Get(addr); exists {
 		res.subNameRequestEvent.Unsubscribe()
 		res.subNameResponseEvent.Unsubscribe()
 		_ = r.resourceCache.Delete(addr)
@@ -326,7 +325,7 @@ func (r *ipfsResolver) resolveUnManaged(ctx context.Context, rc message.Message)
 
 func (r *ipfsResolver) isManaged(rec message.Message) bool {
 	if res, exists, _ := r.resourceCache.Get(rec.Address); exists {
-		return res.(resource).addr.HasKeys()
+		return res.addr.HasKeys()
 	}
 	return false
 }
@@ -420,16 +419,16 @@ func (r *ipfsResolver) removePendingQuery(msg message.Message) {
 	r.pending.Delete(ExtractQuery(msg).Reference)
 }
 
-func (r *ipfsResolver) handle(addr *address.Address) (resource, error) {
+func (r *ipfsResolver) handle(addr *address.Address) (Resource, error) {
 	if res, exists, _ := r.resourceCache.Get(addr.Address); exists {
-		return res.(resource), nil
+		return res, nil
 	}
 
 	evm, er := r.evmFactory.Build(r.signerAddr, addr, r.logger)
 	if er != nil {
-		return resource{}, er
+		return Resource{}, er
 	}
-	res := resource{
+	res := Resource{
 		addr: addr,
 		evm:  evm,
 	}
