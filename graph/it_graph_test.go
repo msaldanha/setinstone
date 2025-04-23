@@ -104,9 +104,19 @@ var _ = Describe("Graph", func() {
 		Expect(it).NotTo(BeNil())
 
 		i := len(dataAdded) - 1
-		for v, er := it.Last(ctx); er == nil && v != nil; v, er = it.Prev(ctx) {
+		for v, er := it.Last(); er == nil && v != nil; v, er = it.Prev() {
 			data := testPayLoad{}
 			_ = json.Unmarshal(v.Data, &data)
+			Expect(er).To(BeNil())
+			Expect(data).To(Equal(dataAdded[i]))
+			i--
+		}
+		Expect(i).To(Equal(-1))
+
+		i = len(dataAdded) - 1
+		for v := range it.All() {
+			data := testPayLoad{}
+			er := json.Unmarshal(v.Data, &data)
 			Expect(er).To(BeNil())
 			Expect(data).To(Equal(dataAdded[i]))
 			i--
@@ -137,9 +147,19 @@ var _ = Describe("Graph", func() {
 		Expect(it).NotTo(BeNil())
 
 		i := 5
-		for v, er := it.Last(ctx); er == nil && v != nil; v, er = it.Prev(ctx) {
+		for v, er := it.Last(); er == nil && v != nil; v, er = it.Prev() {
 			data := testPayLoad{}
 			_ = json.Unmarshal(v.Data, &data)
+			Expect(er).To(BeNil())
+			Expect(data).To(Equal(dataAdded[i-1]))
+			i--
+		}
+		Expect(i).To(Equal(0))
+
+		i = 5
+		for v := range it.All() {
+			data := testPayLoad{}
+			er := json.Unmarshal(v.Data, &data)
 			Expect(er).To(BeNil())
 			Expect(data).To(Equal(dataAdded[i-1]))
 			i--
