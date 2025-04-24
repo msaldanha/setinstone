@@ -8,7 +8,13 @@ import (
 	"github.com/msaldanha/setinstone/internal/dag"
 )
 
-type Iterator struct {
+type Iterator interface {
+	Last() (*Node, error)
+	Prev() (*Node, error)
+	All() iter.Seq[*Node]
+}
+
+type iterator struct {
 	graph    *Graph
 	ctx      context.Context
 	start    string
@@ -17,11 +23,11 @@ type Iterator struct {
 	previous string
 }
 
-func NewIterator(ctx context.Context, graph *Graph, start, keyRoot, branch string) *Iterator {
-	return &Iterator{ctx: ctx, graph: graph, start: start, keyRoot: keyRoot, branch: branch}
+func newIterator(ctx context.Context, graph *Graph, start, keyRoot, branch string) *iterator {
+	return &iterator{ctx: ctx, graph: graph, start: start, keyRoot: keyRoot, branch: branch}
 }
 
-func (it *Iterator) Last() (*Node, error) {
+func (it *iterator) Last() (*Node, error) {
 	var node *dag.Node
 	var key string
 	var err error
@@ -51,7 +57,7 @@ func (it *Iterator) Last() (*Node, error) {
 	return &item, nil
 }
 
-func (it *Iterator) Prev() (*Node, error) {
+func (it *iterator) Prev() (*Node, error) {
 	if it.previous == "" {
 		return nil, nil
 	}
@@ -67,7 +73,7 @@ func (it *Iterator) Prev() (*Node, error) {
 	return &item, nil
 }
 
-func (it *Iterator) All() iter.Seq[*Node] {
+func (it *iterator) All() iter.Seq[*Node] {
 	return func(yield func(*Node) bool) {
 		for v, er := it.Last(); er == nil && v != nil; v, er = it.Prev() {
 			if !yield(v) {

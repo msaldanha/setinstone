@@ -155,8 +155,8 @@ func (d *Graph) Append(ctx context.Context, keyRoot string, node NodeData) (Node
 	return d.toGraphNode(key, n), nil
 }
 
-func (d *Graph) GetIterator(ctx context.Context, keyRoot, branch string, from string) *Iterator {
-	return NewIterator(ctx, d, from, keyRoot, branch)
+func (d *Graph) GetIterator(ctx context.Context, keyRoot, branch string, from string) Iterator {
+	return newIterator(ctx, d, from, keyRoot, branch)
 }
 
 func (d *Graph) Manage(addr *address.Address) error {
