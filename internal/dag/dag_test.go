@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"go.uber.org/mock/gomock"
 
 	"github.com/msaldanha/setinstone/address"
 	"github.com/msaldanha/setinstone/internal/dag"

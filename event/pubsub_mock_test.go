@@ -6,10 +6,10 @@ package event_test
 
 import (
 	context "context"
-	gomock "github.com/golang/mock/gomock"
 	iface "github.com/ipfs/kubo/core/coreiface"
 	options "github.com/ipfs/kubo/core/coreiface/options"
 	peer "github.com/libp2p/go-libp2p/core/peer"
+	gomock "go.uber.org/mock/gomock"
 	reflect "reflect"
 )
 

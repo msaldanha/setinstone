@@ -5,8 +5,8 @@
 package event
 
 import (
-	gomock "github.com/golang/mock/gomock"
 	address "github.com/msaldanha/setinstone/address"
+	gomock "go.uber.org/mock/gomock"
 	zap "go.uber.org/zap"
 	reflect "reflect"
 )

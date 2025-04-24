@@ -1,10 +1,10 @@
 package address_test
 
 import (
-	"github.com/golang/mock/gomock"
 	"github.com/msaldanha/setinstone/address"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"go.uber.org/mock/gomock"
 )
 
 var _ = Describe("Address", func() {

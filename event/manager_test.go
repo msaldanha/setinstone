@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	iface "github.com/ipfs/kubo/core/coreiface"
 	"github.com/libp2p/go-libp2p/core/peer"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"go.uber.org/mock/gomock"
 	"go.uber.org/zap"
 
 	"github.com/msaldanha/setinstone/address"
