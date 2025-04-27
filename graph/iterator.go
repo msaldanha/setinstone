@@ -52,6 +52,9 @@ func (it *iterator) Last() (*Node, error) {
 	if err != nil {
 		return nil, err
 	}
+	if node == nil {
+		return nil, nil
+	}
 	item := it.graph.toGraphNode(key, node)
 	it.previous = node.Previous
 	return &item, nil
