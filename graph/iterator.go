@@ -71,6 +71,9 @@ func (it *iterator) Prev() (*Node, error) {
 	if er != nil {
 		return nil, er
 	}
+	if node == nil {
+		return nil, nil
+	}
 	item := it.graph.toGraphNode(it.previous, node)
 	it.previous = node.Previous
 	return &item, nil

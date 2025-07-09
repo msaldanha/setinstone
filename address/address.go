@@ -68,6 +68,9 @@ func IsValid(addr string) (bool, error) {
 		return false, ErrInvalidChecksum
 	}
 	pubKeyHash := Base58Decode([]byte(addr))
+	if len(pubKeyHash) <= addressChecksumLen {
+		return false, ErrInvalidChecksum
+	}
 	var chksum [4]byte
 	copy(chksum[:], pubKeyHash[len(pubKeyHash)-addressChecksumLen:])
 	chkCalc := checksum(pubKeyHash[:len(pubKeyHash)-addressChecksumLen])
