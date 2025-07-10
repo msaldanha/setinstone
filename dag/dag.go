@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"github.com/msaldanha/setinstone/address"
-	"github.com/msaldanha/setinstone/internal/datastore"
-	"github.com/msaldanha/setinstone/internal/resolver"
+	"github.com/msaldanha/setinstone/datastore"
+	"github.com/msaldanha/setinstone/resolver"
 )
 
-type Dag interface {
+type DagInterface interface {
 	SetRoot(ctx context.Context, rootNode *Node) (string, error)
 	GetLast(ctx context.Context, branchRootNodeKey, branch string) (*Node, string, error)
 	GetRoot(ctx context.Context, addr string) (*Node, string, error)
@@ -22,17 +22,19 @@ type Dag interface {
 	Manage(addr *address.Address) error
 }
 
-type dag struct {
+type Dag struct {
 	nameSpace string
 	dt        datastore.DataStore
 	resolver  resolver.Resolver
 }
 
-func NewDag(nameSpace string, dt datastore.DataStore, resolver resolver.Resolver) Dag {
-	return &dag{nameSpace: nameSpace, dt: dt, resolver: resolver}
+var _ DagInterface = (*Dag)(nil)
+
+func NewDag(nameSpace string, dt datastore.DataStore, resolver resolver.Resolver) *Dag {
+	return &Dag{nameSpace: nameSpace, dt: dt, resolver: resolver}
 }
 
-func (da *dag) SetRoot(ctx context.Context, rootNode *Node) (string, error) {
+func (da *Dag) SetRoot(ctx context.Context, rootNode *Node) (string, error) {
 	if rootNode.Branch == "" {
 		return "", ErrInvalidBranch
 	}
@@ -49,14 +51,14 @@ func (da *dag) SetRoot(ctx context.Context, rootNode *Node) (string, error) {
 	return "", da.translateError(er)
 }
 
-func (da *dag) Append(ctx context.Context, node *Node, branchRootNodeKey string) (string, error) {
+func (da *Dag) Append(ctx context.Context, node *Node, branchRootNodeKey string) (string, error) {
 	if er := da.VerifyNode(ctx, node, branchRootNodeKey, true); er != nil {
 		return "", da.translateError(er)
 	}
 	return da.saveNode(ctx, node, branchRootNodeKey)
 }
 
-func (da *dag) GetLast(ctx context.Context, branchRootNodeKey, branch string) (*Node, string, error) {
+func (da *Dag) GetLast(ctx context.Context, branchRootNodeKey, branch string) (*Node, string, error) {
 	if branch == "" {
 		return nil, "", ErrInvalidBranch
 	}
@@ -78,7 +80,7 @@ func (da *dag) GetLast(ctx context.Context, branchRootNodeKey, branch string) (*
 	return fromTipTx, key, nil
 }
 
-func (da *dag) GetRoot(ctx context.Context, addr string) (*Node, string, error) {
+func (da *Dag) GetRoot(ctx context.Context, addr string) (*Node, string, error) {
 	key, er := da.resolveRootNodeKey(ctx, addr)
 	if er != nil {
 		return nil, "", da.translateError(er)
@@ -90,11 +92,11 @@ func (da *dag) GetRoot(ctx context.Context, addr string) (*Node, string, error) 
 	return n, key, nil
 }
 
-func (da *dag) Get(ctx context.Context, key string) (*Node, error) {
+func (da *Dag) Get(ctx context.Context, key string) (*Node, error) {
 	return da.getNodeByKey(ctx, key)
 }
 
-func (da *dag) VerifyNode(ctx context.Context, node *Node, branchRootNodeKey string, mustBeNew bool) error {
+func (da *Dag) VerifyNode(ctx context.Context, node *Node, branchRootNodeKey string, mustBeNew bool) error {
 	if ok, er := da.verifyAddress(node); !ok {
 		return da.translateError(er)
 	}
@@ -153,11 +155,11 @@ func (da *dag) VerifyNode(ctx context.Context, node *Node, branchRootNodeKey str
 	return nil
 }
 
-func (da *dag) Manage(addr *address.Address) error {
+func (da *Dag) Manage(addr *address.Address) error {
 	return da.resolver.Manage(addr)
 }
 
-func (da *dag) verifyTimeStamp(node *Node) bool {
+func (da *Dag) verifyTimeStamp(node *Node) bool {
 	_, er := time.Parse(time.RFC3339, node.Timestamp)
 	if er != nil {
 		return false
@@ -165,11 +167,11 @@ func (da *dag) verifyTimeStamp(node *Node) bool {
 	return true
 }
 
-func (da *dag) findPrevious(ctx context.Context, node *Node) (*Node, error) {
+func (da *Dag) findPrevious(ctx context.Context, node *Node) (*Node, error) {
 	return da.getNodeByKey(ctx, node.Previous)
 }
 
-func (da *dag) verifyAddress(node *Node) (bool, error) {
+func (da *Dag) verifyAddress(node *Node) (bool, error) {
 	if ok, er := address.IsValid(string(node.Address)); !ok {
 		return ok, da.translateError(er)
 	}
@@ -179,7 +181,7 @@ func (da *dag) verifyAddress(node *Node) (bool, error) {
 	return true, nil
 }
 
-func (da *dag) getPreviousNode(ctx context.Context, node *Node) (*Node, error) {
+func (da *Dag) getPreviousNode(ctx context.Context, node *Node) (*Node, error) {
 	previous, er := da.getNodeByKey(ctx, node.Previous)
 	if er != nil {
 		return nil, da.translateError(er)
@@ -190,7 +192,7 @@ func (da *dag) getPreviousNode(ctx context.Context, node *Node) (*Node, error) {
 	return previous, nil
 }
 
-func (da *dag) saveNode(ctx context.Context, node *Node, branchRootNodeKey string) (string, error) {
+func (da *Dag) saveNode(ctx context.Context, node *Node, branchRootNodeKey string) (string, error) {
 	branchRoot, er := da.getNodeByKey(ctx, branchRootNodeKey)
 	if er != nil {
 		return "", da.translateError(er)
@@ -226,7 +228,7 @@ func (da *dag) saveNode(ctx context.Context, node *Node, branchRootNodeKey strin
 	return key, nil
 }
 
-func (da *dag) saveRootNode(ctx context.Context, node *Node) (string, error) {
+func (da *Dag) saveRootNode(ctx context.Context, node *Node) (string, error) {
 	data, er := node.ToJson()
 	if er != nil {
 		return "", da.translateError(er)
@@ -259,7 +261,7 @@ func (da *dag) saveRootNode(ctx context.Context, node *Node) (string, error) {
 	return key, nil
 }
 
-func (da *dag) addResolutionForNodeBranches(ctx context.Context, node *Node, key string) error {
+func (da *Dag) addResolutionForNodeBranches(ctx context.Context, node *Node, key string) error {
 	for _, branch := range node.Branches {
 		lastNodeName := da.getLastNodeName(node, key, branch)
 		er := da.resolver.Add(ctx, lastNodeName, key)
@@ -270,7 +272,7 @@ func (da *dag) addResolutionForNodeBranches(ctx context.Context, node *Node, key
 	return nil
 }
 
-func (da *dag) hasBranch(p *Node, branch string) bool {
+func (da *Dag) hasBranch(p *Node, branch string) bool {
 	for _, b := range p.Branches {
 		if b == branch {
 			return true
@@ -279,7 +281,7 @@ func (da *dag) hasBranch(p *Node, branch string) bool {
 	return false
 }
 
-func (da *dag) getNodeByKey(ctx context.Context, key string) (*Node, error) {
+func (da *Dag) getNodeByKey(ctx context.Context, key string) (*Node, error) {
 	f, er := da.dt.Get(ctx, key)
 	if er != nil {
 		return nil, da.translateError(er)
@@ -314,17 +316,17 @@ func (da *dag) getNodeByKey(ctx context.Context, key string) (*Node, error) {
 	return n, nil
 }
 
-func (da *dag) resolveRootNodeKey(ctx context.Context, addr string) (string, error) {
+func (da *Dag) resolveRootNodeKey(ctx context.Context, addr string) (string, error) {
 	name := da.getRootNodeName(addr)
 	return da.resolveNodeKey(ctx, name)
 }
 
-func (da *dag) resolveLastNodeKey(ctx context.Context, node *Node, branchRootNodeKey, branch string) (string, error) {
+func (da *Dag) resolveLastNodeKey(ctx context.Context, node *Node, branchRootNodeKey, branch string) (string, error) {
 	name := da.getLastNodeName(node, branchRootNodeKey, branch)
 	return da.resolveNodeKey(ctx, name)
 }
 
-func (da *dag) resolveNodeKey(ctx context.Context, name string) (string, error) {
+func (da *Dag) resolveNodeKey(ctx context.Context, name string) (string, error) {
 	resolved, er := da.resolver.Resolve(ctx, name)
 	if er != nil {
 		return "", er
@@ -332,19 +334,19 @@ func (da *dag) resolveNodeKey(ctx context.Context, name string) (string, error) 
 	return resolved, nil
 }
 
-func (da *dag) getRootNodeName(addr string) string {
+func (da *Dag) getRootNodeName(addr string) string {
 	return da.getName(addr, "shortcuts", "root")
 }
 
-func (da *dag) getLastNodeName(node *Node, nodeKey, branch string) string {
+func (da *Dag) getLastNodeName(node *Node, nodeKey, branch string) string {
 	return da.getName(node.Address, "shortcuts", nodeKey, branch, "last")
 }
 
-func (da *dag) getName(addr string, parts ...string) string {
+func (da *Dag) getName(addr string, parts ...string) string {
 	return "/" + addr + "/" + da.nameSpace + "/dag/" + strings.Join(parts, "/")
 }
 
-func (da *dag) translateError(er error) error {
+func (da *Dag) translateError(er error) error {
 	switch {
 	case errors.Is(er, datastore.ErrNotFound):
 		return ErrNodeNotFound
@@ -352,7 +354,7 @@ func (da *dag) translateError(er error) error {
 	return er
 }
 
-func (da *dag) getFullPath(ctx context.Context, key string) (string, error) {
+func (da *Dag) getFullPath(ctx context.Context, key string) (string, error) {
 	path := ""
 	if key == "" {
 		return path, nil

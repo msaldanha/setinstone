@@ -1,7 +1,7 @@
 package resolver
 
 import (
-	"github.com/msaldanha/setinstone/internal/message"
+	"github.com/msaldanha/setinstone/message"
 )
 
 type QueryTypesEnum struct {

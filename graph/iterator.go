@@ -5,7 +5,7 @@ import (
 	"errors"
 	"iter"
 
-	"github.com/msaldanha/setinstone/internal/dag"
+	dag2 "github.com/msaldanha/setinstone/dag"
 )
 
 type Iterator interface {
@@ -28,13 +28,13 @@ func newIterator(ctx context.Context, graph *Graph, start, keyRoot, branch strin
 }
 
 func (it *iterator) Last() (*Node, error) {
-	var node *dag.Node
+	var node *dag2.Node
 	var key string
 	var err error
 	if it.start == "" {
 		if it.keyRoot == "" {
 			gn, gnKey, er := it.graph.da.GetRoot(it.ctx, it.graph.addr.Address)
-			if errors.Is(er, dag.ErrNodeNotFound) || gn == nil {
+			if errors.Is(er, dag2.ErrNodeNotFound) || gn == nil {
 				return nil, ErrNotFound
 			}
 			if er != nil {

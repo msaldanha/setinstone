@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/msaldanha/setinstone/address"
-	"github.com/msaldanha/setinstone/internal/message"
+	"github.com/msaldanha/setinstone/message"
 )
 
 type Resolver interface {

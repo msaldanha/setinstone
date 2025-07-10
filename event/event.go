@@ -3,7 +3,7 @@ package event
 import (
 	iface "github.com/ipfs/kubo/core/coreiface"
 
-	"github.com/msaldanha/setinstone/internal/message"
+	"github.com/msaldanha/setinstone/message"
 )
 
 type Event interface {

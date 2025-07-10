@@ -3,27 +3,19 @@ package graph
 import (
 	"context"
 	"errors"
-	"fmt"
-	"time"
 
-	"github.com/ipfs/kubo/core"
-	"github.com/ipfs/kubo/core/coreapi"
 	"go.uber.org/zap"
 
 	"github.com/msaldanha/setinstone/address"
-	"github.com/msaldanha/setinstone/cache"
-	"github.com/msaldanha/setinstone/event"
-	"github.com/msaldanha/setinstone/internal/dag"
-	"github.com/msaldanha/setinstone/internal/datastore"
-	"github.com/msaldanha/setinstone/internal/message"
-	"github.com/msaldanha/setinstone/internal/resolver"
+	"github.com/msaldanha/setinstone/dag"
 )
 
 type Graph struct {
 	name     string
 	metaData string
 	addr     *address.Address
-	da       dag.Dag
+	da       dag.DagInterface
+	logger   *zap.Logger
 }
 
 type Node struct {
@@ -49,45 +41,15 @@ type NodeData struct {
 	Properties map[string]string
 }
 
-func New(ns string, addr *address.Address, node *core.IpfsNode, logger *zap.Logger) *Graph {
-	// Attach the Core API to the node
-	ipfs, er := coreapi.NewCoreAPI(node)
-	if er != nil {
-		panic(fmt.Errorf("failed to get ipfs api: %s", er))
-	}
-
-	ds, er := datastore.NewIPFSDataStore(node) // .NewLocalFileStore()
-	if er != nil {
-		panic(fmt.Errorf("failed to setup ipfs data store: %s", er))
-	}
-
-	evmf, er := event.NewManagerFactory(ns, ipfs.PubSub(), node.Identity)
-	if er != nil {
-		panic(fmt.Errorf("failed to setup event manager factory: %s", er))
-	}
-
-	resolutionCache := cache.NewMemoryCache[message.Message](time.Second * 10)
-	resourceCache := cache.NewMemoryCache[resolver.Resource](0)
-
-	signerAddr, er := address.NewAddressWithKeys()
-	if er != nil {
-		panic(fmt.Errorf("failed to setup event manager factory: %s", er))
-	}
-
-	ipfsResolver, er := resolver.NewIpfsResolver(node, signerAddr, evmf, resolutionCache, resourceCache, logger)
-	if er != nil {
-		panic(fmt.Errorf("failed to setup resolver: %s", er))
-	}
-
-	da := dag.NewDag(ns, ds, ipfsResolver)
-
+func New(addr *address.Address, da dag.DagInterface, logger *zap.Logger) *Graph {
 	if addr.Keys != nil && addr.Keys.PrivateKey != "" {
 		_ = da.Manage(addr)
 	}
 
 	return &Graph{
-		da:   da,
-		addr: addr,
+		da:     da,
+		addr:   addr,
+		logger: logger,
 	}
 }
 

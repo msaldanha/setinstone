@@ -21,7 +21,7 @@ import (
 	"github.com/msaldanha/setinstone/address"
 	"github.com/msaldanha/setinstone/cache"
 	"github.com/msaldanha/setinstone/event"
-	"github.com/msaldanha/setinstone/internal/message"
+	"github.com/msaldanha/setinstone/message"
 )
 
 const prefix = "IPFS Resolver"

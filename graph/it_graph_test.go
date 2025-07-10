@@ -9,10 +9,9 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/msaldanha/setinstone/address"
-
-	"github.com/msaldanha/setinstone/internal/dag"
-	"github.com/msaldanha/setinstone/internal/datastore"
-	"github.com/msaldanha/setinstone/internal/resolver"
+	"github.com/msaldanha/setinstone/dag"
+	datastore2 "github.com/msaldanha/setinstone/datastore"
+	resolver2 "github.com/msaldanha/setinstone/resolver"
 )
 
 type testPayLoad struct {
@@ -22,17 +21,17 @@ type testPayLoad struct {
 
 var _ = Describe("Graph", func() {
 
-	var ld dag.Dag
+	var ld *dag.Dag
 	var ctx context.Context
-	var lts datastore.DataStore
-	var res resolver.Resolver
+	var lts datastore2.DataStore
+	var res resolver2.Resolver
 
 	addr, _ := address.NewAddressWithKeys()
 
 	BeforeEach(func() {
 		ctx = context.Background()
-		lts = datastore.NewLocalFileStore()
-		res = resolver.NewLocalResolver()
+		lts = datastore2.NewLocalFileStore()
+		res = resolver2.NewLocalResolver()
 		_ = res.Manage(addr)
 		ld = dag.NewDag("test-graph", lts, res)
 	})
@@ -173,7 +172,7 @@ func toBytes(data interface{}) []byte {
 	return js
 }
 
-func newGraph(da dag.Dag, addr *address.Address) Graph {
+func newGraph(da *dag.Dag, addr *address.Address) Graph {
 	return Graph{
 		da:   da,
 		addr: addr,

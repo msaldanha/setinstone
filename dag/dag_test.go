@@ -9,17 +9,17 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/msaldanha/setinstone/address"
-	"github.com/msaldanha/setinstone/internal/dag"
-	"github.com/msaldanha/setinstone/internal/datastore"
-	"github.com/msaldanha/setinstone/internal/resolver"
+	"github.com/msaldanha/setinstone/dag"
+	"github.com/msaldanha/setinstone/datastore"
 	"github.com/msaldanha/setinstone/internal/util"
+	"github.com/msaldanha/setinstone/resolver"
 )
 
 const defaultBranch = "main"
 
 var _ = Describe("Dag", func() {
 
-	var da dag.Dag
+	var da *dag.Dag
 	var genesisNode *dag.Node
 	var genesisAddr *address.Address
 	var ctx context.Context

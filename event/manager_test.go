@@ -13,7 +13,7 @@ import (
 
 	"github.com/msaldanha/setinstone/address"
 	"github.com/msaldanha/setinstone/event"
-	"github.com/msaldanha/setinstone/internal/message"
+	"github.com/msaldanha/setinstone/message"
 )
 
 //go:generate mockgen -package event_test  -destination pubsub_mock_test.go github.com/ipfs/kubo/core/coreiface PubSubAPI,PubSubSubscription,PubSubMessage
