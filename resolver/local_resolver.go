@@ -11,6 +11,8 @@ type localResolver struct {
 	addresses map[string]*address.Address
 }
 
+var _ Resolver = (*localResolver)(nil)
+
 func NewLocalResolver() Resolver {
 	return &localResolver{
 		names:     map[string]string{},

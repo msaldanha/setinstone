@@ -14,6 +14,7 @@ require (
 	github.com/multiformats/go-multihash v0.2.3
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.37.0
+	go.etcd.io/bbolt v1.4.2
 	go.uber.org/mock v0.5.1
 	go.uber.org/zap v1.27.0
 	golang.org/x/crypto v0.37.0

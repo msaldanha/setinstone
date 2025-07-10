@@ -3,19 +3,11 @@ package resolver
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math/rand"
-	gopath "path"
 	"sync"
 	"time"
 
-	"github.com/ipfs/boxo/mfs"
-	"github.com/ipfs/boxo/path"
-	"github.com/ipfs/go-cid"
-	"github.com/ipfs/kubo/core"
-	"github.com/ipfs/kubo/core/coreapi"
 	icore "github.com/ipfs/kubo/core/coreiface"
-	"github.com/libp2p/go-libp2p/core/peer"
 	"go.uber.org/zap"
 
 	"github.com/msaldanha/setinstone/address"
@@ -24,8 +16,6 @@ import (
 	"github.com/msaldanha/setinstone/message"
 )
 
-const prefix = "IPFS Resolver"
-
 type Resource struct {
 	addr                 *address.Address
 	evm                  event.Manager
@@ -33,43 +23,77 @@ type Resource struct {
 	subNameResponseEvent *event.Subscription
 }
 
-type ipfsResolver struct {
-	resolutionCache cache.Cache[message.Message]
-	resourceCache   cache.Cache[Resource]
-	pending         *sync.Map
+type IpfsResolver struct {
 	ipfs            icore.CoreAPI
-	ipfsNode        *core.IpfsNode
-	Id              peer.ID
 	evmFactory      event.ManagerFactory
 	signerAddr      *address.Address
 	logger          *zap.Logger
+	resourceCache   cache.Cache[Resource]
+	resolutionCache cache.Cache[message.Message]
+	pending         sync.Map
+	backend         Backend
 }
 
-func NewIpfsResolver(node *core.IpfsNode, signerAddr *address.Address, evmFactory event.ManagerFactory,
-	resCache cache.Cache[message.Message], resourceCache cache.Cache[Resource], logger *zap.Logger) (Resolver, error) {
-	if !signerAddr.HasKeys() {
-		return nil, ErrNoPrivateKey
+var _ Resolver = (*IpfsResolver)(nil)
+
+type IpfsResolverOption func(*IpfsResolver)
+
+func WithBackend(backend Backend) IpfsResolverOption {
+	return func(r *IpfsResolver) {
+		r.backend = backend
 	}
-	ipfs, er := coreapi.NewCoreAPI(node)
+}
+
+func WithLogger(logger *zap.Logger) IpfsResolverOption {
+	return func(r *IpfsResolver) {
+		r.logger = logger
+	}
+}
+
+func WithSignerAddr(signerAddr *address.Address) IpfsResolverOption {
+	return func(r *IpfsResolver) {
+		r.signerAddr = signerAddr
+	}
+}
+
+func WithResourceCache(resourceCache cache.Cache[Resource]) IpfsResolverOption {
+	return func(r *IpfsResolver) {
+		r.resourceCache = resourceCache
+	}
+}
+
+func WithResolutionCache(resolutionCache cache.Cache[message.Message]) IpfsResolverOption {
+	return func(r *IpfsResolver) {
+		r.resolutionCache = resolutionCache
+	}
+}
+
+func NewIpfsResolver(ipfs icore.CoreAPI, evmFactory event.ManagerFactory,
+	options ...IpfsResolverOption) (*IpfsResolver, error) {
+
+	signerAddr, er := address.NewAddressWithKeys()
 	if er != nil {
 		return nil, er
 	}
-	r := &ipfsResolver{
+
+	r := &IpfsResolver{
 		ipfs:            ipfs,
-		ipfsNode:        node,
-		resolutionCache: resCache,
-		resourceCache:   resourceCache,
-		pending:         &sync.Map{},
-		Id:              node.Identity,
 		evmFactory:      evmFactory,
 		signerAddr:      signerAddr,
-		logger:          logger.Named("IPFS Resolver").With(zap.String("signerAddr", signerAddr.Address)),
+		resourceCache:   cache.NewMemoryCache[Resource](0),
+		resolutionCache: cache.NewMemoryCache[message.Message](time.Second * 10),
+		backend:         NewMemoryBackend(),
+		logger:          zap.NewNop(),
+	}
+
+	for _, option := range options {
+		option(r)
 	}
 
 	return r, nil
 }
 
-func (r *ipfsResolver) Add(ctx context.Context, name, value string) error {
+func (r *IpfsResolver) Add(ctx context.Context, name, value string) error {
 	logger := r.logger.With(zap.String("name", name), zap.String("value", value))
 	logger.Debug("Adding resolution")
 	rec, er := getQueryNameRequestFromName(name)
@@ -82,62 +106,11 @@ func (r *ipfsResolver) Add(ctx context.Context, name, value string) error {
 		return er
 	}
 
-	c, er := cid.Parse(value)
-	if er != nil {
-		return er
-	}
-	p := path.FromCid(c)
-	ipldNode, er := r.ipfs.ResolveNode(ctx, p)
-	if er != nil {
-		logger.Error("Failed to get ipldNode", zap.Error(er))
-		return er
-	}
-
-	_, er = mfs.Lookup(r.ipfsNode.FilesRoot, name)
-	filesExists := er == nil
-
-	dirtomake, file := gopath.Split(name)
-	er = mfs.Mkdir(r.ipfsNode.FilesRoot, dirtomake, mfs.MkdirOpts{
-		Mkparents: true,
-		Flush:     true,
-	})
-	if er != nil {
-		logger.Error("Failed to create mfs dir", zap.String("dirToMake", dirtomake), zap.Error(er))
-		return er
-	}
-
-	if filesExists {
-		parent, er := mfs.Lookup(r.ipfsNode.FilesRoot, dirtomake)
-		if er != nil {
-			logger.Error("Parent lookup failed", zap.String("dirToMake", dirtomake), zap.Error(er))
-			return fmt.Errorf("parent lookup: %s", er)
-		}
-
-		pdir, ok := parent.(*mfs.Directory)
-		if !ok {
-			er = fmt.Errorf("no such file or directory: %s", dirtomake)
-			logger.Error("Failed to get mfs dir", zap.String("dirToMake", dirtomake), zap.Error(er))
-			return er
-		}
-
-		er = pdir.Unlink(file)
-		if er != nil {
-			logger.Error("Failed to remove existing mfs file", zap.String("name", name), zap.Error(er))
-			return er
-		}
-
-		_ = pdir.Flush()
-	}
-
-	er = mfs.PutNode(r.ipfsNode.FilesRoot, name, ipldNode)
-	if er != nil {
-		logger.Error("Failed to put ipldNode into mfs path", zap.String("name", name), zap.Error(er))
-	}
 	// TODO: send new item event to subscribers
-	return nil
+	return r.backend.Add(ctx, name, value)
 }
 
-func (r *ipfsResolver) Resolve(ctx context.Context, name string) (string, error) {
+func (r *IpfsResolver) Resolve(ctx context.Context, name string) (string, error) {
 	logger := r.logger.With(zap.String("name", name))
 	logger.Debug("Resolve")
 
@@ -149,7 +122,7 @@ func (r *ipfsResolver) Resolve(ctx context.Context, name string) (string, error)
 
 	if r.isManaged(rec) {
 		logger.Debug("Is managed")
-		resolution, er := r.get(ctx, name)
+		resolution, er := r.backend.Resolve(ctx, name)
 		if er == nil {
 			logger.Info("Resolved", zap.String("resolution", resolution))
 			return resolution, nil
@@ -169,19 +142,19 @@ func (r *ipfsResolver) Resolve(ctx context.Context, name string) (string, error)
 	return ExtractQuery(rc).Data, er
 }
 
-func (r *ipfsResolver) Manage(addr *address.Address) error {
+func (r *IpfsResolver) Manage(addr *address.Address) error {
 	if addr.Keys.PrivateKey == "" {
 		return ErrNoPrivateKey
 	}
-	_, er := r.handle(addr)
+	_, er := r.subscribe(addr)
 	return er
 }
 
-func (r *ipfsResolver) Handle(addr string) (Resource, error) {
-	return r.handle(&address.Address{Address: addr})
+func (r *IpfsResolver) Subscribe(addr string) (Resource, error) {
+	return r.subscribe(&address.Address{Address: addr})
 }
 
-func (r *ipfsResolver) Remove(addr string) {
+func (r *IpfsResolver) Remove(addr string) {
 	if res, exists, _ := r.resourceCache.Get(addr); exists {
 		res.subNameRequestEvent.Unsubscribe()
 		res.subNameResponseEvent.Unsubscribe()
@@ -189,7 +162,7 @@ func (r *ipfsResolver) Remove(addr string) {
 	}
 }
 
-func (r *ipfsResolver) query(ctx context.Context, rec message.Message) (message.Message, error) {
+func (r *IpfsResolver) query(ctx context.Context, rec message.Message) (message.Message, error) {
 	logger := r.logger.With(zap.String("type", rec.Type), zap.String("addr", rec.Address))
 	logger.Debug("Querying the network")
 	data, er := rec.ToJson()
@@ -198,7 +171,7 @@ func (r *ipfsResolver) query(ctx context.Context, rec message.Message) (message.
 	}
 	logger.Debug("Subscribing to event")
 
-	res, er := r.Handle(rec.Address)
+	res, er := r.Subscribe(rec.Address)
 	if er != nil {
 		return message.Message{}, er
 	}
@@ -227,19 +200,14 @@ func (r *ipfsResolver) query(ctx context.Context, rec message.Message) (message.
 	}
 }
 
-func (r *ipfsResolver) get(ctx context.Context, name string) (string, error) {
-	node, er := mfs.Lookup(r.ipfsNode.FilesRoot, name)
-	if er != nil {
-		return "", er
+func (r *IpfsResolver) isManaged(rec message.Message) bool {
+	if res, exists, _ := r.resourceCache.Get(rec.Address); exists {
+		return res.addr.HasKeys()
 	}
-	n, er := node.GetNode()
-	if er != nil {
-		return "", er
-	}
-	return n.Cid().String(), nil
+	return false
 }
 
-func (r *ipfsResolver) getFromCache(ctx context.Context, name string) (message.Message, error) {
+func (r *IpfsResolver) getFromCache(ctx context.Context, name string) (message.Message, error) {
 	v, ok, er := r.resolutionCache.Get(name)
 	if !ok {
 		return message.Message{}, ErrNotFound
@@ -247,12 +215,12 @@ func (r *ipfsResolver) getFromCache(ctx context.Context, name string) (message.M
 	return v, er
 }
 
-func (r *ipfsResolver) putInCache(ctx context.Context, rec message.Message) error {
+func (r *IpfsResolver) putInCache(ctx context.Context, rec message.Message) error {
 	_ = r.resolutionCache.Add(ExtractQuery(rec).Reference, rec)
 	return nil
 }
 
-func (r *ipfsResolver) handleEvent(ev event.Event) {
+func (r *IpfsResolver) handleEvent(ev event.Event) {
 	logger := r.logger.With(zap.String("name", ev.Name()), zap.String("data", string(ev.Data())))
 	logger.Debug("Received event")
 	rec := message.Message{}
@@ -264,73 +232,7 @@ func (r *ipfsResolver) handleEvent(ev event.Event) {
 	r.dispatch(rec)
 }
 
-func (r *ipfsResolver) resolve(ctx context.Context, rc message.Message) (message.Message, error) {
-	if r.isManaged(rc) {
-		return r.resolveManaged(ctx, rc)
-	}
-	return r.resolveUnManaged(ctx, rc)
-}
-
-func (r *ipfsResolver) resolveManaged(ctx context.Context, rc message.Message) (message.Message, error) {
-	logger := r.logger.With(zap.String("type", rc.Type))
-	rec := message.Message{}
-	if !r.isManaged(rc) {
-		er := ErrUnmanagedAddress
-		logger.Error("Cannot resolve", zap.Error(er))
-		return rec, er
-	}
-	resolution, er := r.get(ctx, ExtractQuery(rc).Data)
-	if er != nil {
-		return rec, er
-	}
-	resource, er := r.Handle(rc.Address)
-	if er != nil {
-		return rec, er
-	}
-
-	if !resource.addr.HasKeys() {
-		er = ErrUnmanagedAddress
-		logger.Error("Cannot resolve", zap.Error(er))
-		return rec, er
-	}
-
-	res := Query{
-		Data:      resolution,
-		Reference: rc.GetID(),
-	}
-
-	rec = message.Message{
-		Timestamp: time.Now().Format(time.RFC3339),
-		Address:   rc.Address,
-		Type:      QueryTypes.QueryNameResponse,
-		Payload:   res,
-	}
-
-	er = rec.SignWithKey(resource.addr.Keys.ToEcdsaPrivateKey())
-	if er != nil {
-		logger.Error("Failed to sign resolution", zap.String("data", res.Data), zap.Error(er))
-		return message.Message{}, er
-	}
-
-	if er := rec.VerifySignature(); er != nil {
-		return rec, nil
-	}
-
-	return rec, nil
-}
-
-func (r *ipfsResolver) resolveUnManaged(ctx context.Context, rc message.Message) (message.Message, error) {
-	return r.getFromCache(ctx, ExtractQuery(rc).Reference)
-}
-
-func (r *ipfsResolver) isManaged(rec message.Message) bool {
-	if res, exists, _ := r.resourceCache.Get(rec.Address); exists {
-		return res.addr.HasKeys()
-	}
-	return false
-}
-
-func (r *ipfsResolver) dispatch(rec message.Message) {
+func (r *IpfsResolver) dispatch(rec message.Message) {
 	switch rec.Type {
 	case QueryTypes.QueryNameRequest:
 		r.handleQuery(rec)
@@ -339,21 +241,56 @@ func (r *ipfsResolver) dispatch(rec message.Message) {
 	}
 }
 
-func (r *ipfsResolver) handleQuery(msg message.Message) {
+func (r *IpfsResolver) handleQuery(msg message.Message) {
 	r.addPendingQuery(msg)
 	q := ExtractQuery(msg)
 	logger := r.logger.With(zap.String("query", q.Data))
 	logger.Debug("Query received")
-	resolution, er := r.resolve(context.Background(), msg)
+
+	resolution, er := r.backend.Resolve(context.Background(), ExtractQuery(msg).Data)
 	if er != nil {
 		logger.Error("Failed to resolve", zap.Error(er))
 		return
 	}
-	logger.Debug("Query resolved", zap.String("resolution", ExtractQuery(resolution).Data))
-	r.sendResolution(resolution)
+
+	resource, er := r.Subscribe(msg.Address)
+	if er != nil {
+		return
+	}
+
+	if !resource.addr.HasKeys() {
+		er = ErrUnmanagedAddress
+		logger.Error("Cannot resolve", zap.Error(er))
+		return
+	}
+
+	res := Query{
+		Data:      resolution,
+		Reference: msg.GetID(),
+	}
+
+	rec := message.Message{
+		Timestamp: time.Now().Format(time.RFC3339),
+		Address:   msg.Address,
+		Type:      QueryTypes.QueryNameResponse,
+		Payload:   res,
+	}
+
+	er = rec.SignWithKey(resource.addr.Keys.ToEcdsaPrivateKey())
+	if er != nil {
+		logger.Error("Failed to sign resolution", zap.String("data", res.Data), zap.Error(er))
+		return
+	}
+
+	if er := rec.VerifySignature(); er != nil {
+		return
+	}
+
+	logger.Debug("Query resolved", zap.String("resolution", resolution))
+	r.sendResolution(rec)
 }
 
-func (r *ipfsResolver) handleResolution(msg message.Message) {
+func (r *IpfsResolver) handleResolution(msg message.Message) {
 	res := ExtractQuery(msg)
 	logger := r.logger.With(zap.String("resolution", res.Data), zap.String("type", msg.Type))
 	logger.Debug("Resolution received")
@@ -372,7 +309,7 @@ func (r *ipfsResolver) handleResolution(msg message.Message) {
 	r.removePendingQuery(msg)
 }
 
-func (r *ipfsResolver) sendResolution(msg message.Message) {
+func (r *IpfsResolver) sendResolution(msg message.Message) {
 	go func() {
 		logger := r.logger.With(zap.String("type", msg.Type))
 		data, er := msg.ToJson()
@@ -385,7 +322,7 @@ func (r *ipfsResolver) sendResolution(msg message.Message) {
 			return
 		}
 		logger.Debug("Sending resolution", zap.String("resolution", ExtractQuery(msg).Data))
-		res, er := r.Handle(msg.Address)
+		res, er := r.Subscribe(msg.Address)
 		if er != nil {
 			logger.Error("Error getting resource", zap.Error(er))
 			return
@@ -398,7 +335,7 @@ func (r *ipfsResolver) sendResolution(msg message.Message) {
 	}()
 }
 
-func (r *ipfsResolver) canSendResolution(msg message.Message) bool {
+func (r *IpfsResolver) canSendResolution(msg message.Message) bool {
 	delay := time.Duration(rand.Intn(1000))
 	res := ExtractQuery(msg)
 	r.logger.Debug("Will sleep before sending resolution", zap.String("delay", delay.String()),
@@ -411,15 +348,15 @@ func (r *ipfsResolver) canSendResolution(msg message.Message) bool {
 	return exists
 }
 
-func (r *ipfsResolver) addPendingQuery(msg message.Message) {
+func (r *IpfsResolver) addPendingQuery(msg message.Message) {
 	r.pending.Store(msg.GetID(), true)
 }
 
-func (r *ipfsResolver) removePendingQuery(msg message.Message) {
+func (r *IpfsResolver) removePendingQuery(msg message.Message) {
 	r.pending.Delete(ExtractQuery(msg).Reference)
 }
 
-func (r *ipfsResolver) handle(addr *address.Address) (Resource, error) {
+func (r *IpfsResolver) subscribe(addr *address.Address) (Resource, error) {
 	if res, exists, _ := r.resourceCache.Get(addr.Address); exists {
 		return res, nil
 	}
