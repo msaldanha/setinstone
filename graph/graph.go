@@ -10,6 +10,13 @@ import (
 	"github.com/msaldanha/setinstone/dag"
 )
 
+// Graph provides a higher-level API over a DAG (Directed Acyclic Graph)
+// for managing application data as an append-only, branch-aware timeline.
+// It wraps a dag.DagInterface and the owner's address/keys, exposing
+// convenience methods for reading and appending nodes.
+//
+// A Graph is safe to copy by pointer; its zero value is not useful.
+// Use New to construct one.
 type Graph struct {
 	name     string
 	metaData string
@@ -18,6 +25,12 @@ type Graph struct {
 	logger   *zap.Logger
 }
 
+// Node is the public representation of a graph node returned by
+// read operations. It mirrors dag.Node but with JSON tags for external
+// serialization and without internal-only fields.
+//
+// Fields such as Key, Previous, Branch and BranchRoot help clients
+// navigate the graph, while Data and Properties hold the payload.
 type Node struct {
 	Key        string            `json:"key,omitempty"`
 	Seq        int32             `json:"seq,omitempty"`
@@ -33,6 +46,11 @@ type Node struct {
 	Signature  string            `json:"signature,omitempty"`
 }
 
+// NodeData contains the minimal information required to create
+// a new node in the graph. It is provided to Append when adding data.
+// Branch selects which branch to append to; Branches can declare
+// available branches when creating the first node of a graph.
+// Properties can store arbitrary key/value metadata alongside Data.
 type NodeData struct {
 	Address    string
 	Data       []byte
@@ -41,6 +59,9 @@ type NodeData struct {
 	Properties map[string]string
 }
 
+// New constructs a Graph bound to the provided address and backing DAG
+// implementation. If the address contains a private key, the underlying
+// DAG is placed into managed mode for that address.
 func New(addr *address.Address, da dag.DagInterface, logger *zap.Logger) *Graph {
 	if addr.Keys != nil && addr.Keys.PrivateKey != "" {
 		_ = da.Manage(addr)
@@ -53,19 +74,26 @@ func New(addr *address.Address, da dag.DagInterface, logger *zap.Logger) *Graph 
 	}
 }
 
+// GetName returns the human-readable name of this graph, if set.
 func (d *Graph) GetName() string {
 	return d.name
 }
 
+// GetMetaData returns auxiliary metadata associated with the graph, if any.
 func (d *Graph) GetMetaData() string {
 	return d.metaData
 }
 
+// GetAddress returns a copy of the owner address associated with this graph.
+// The returned value can be safely modified by the caller.
 func (d *Graph) GetAddress(ctx context.Context) *address.Address {
 	addr := *d.addr
 	return &addr
 }
 
+// Get retrieves a node by key.
+// It returns the node (if found), a boolean indicating presence, and an error.
+// When the key does not exist, ok=false and err=nil are returned.
 func (d *Graph) Get(ctx context.Context, key string) (Node, bool, error) {
 	node, er := d.get(ctx, key)
 	if er != nil {
@@ -77,6 +105,11 @@ func (d *Graph) Get(ctx context.Context, key string) (Node, bool, error) {
 	return d.toGraphNode(key, node), true, nil
 }
 
+// Append adds a new node to the graph on the specified branch.
+// If keyRoot is empty, the current root for this graph address is used.
+// When the graph is empty, Append creates the first node using the
+// provided NodeData and returns it. Requires write access (a private key)
+// associated with the graph's address; otherwise ErrReadOnly is returned.
 func (d *Graph) Append(ctx context.Context, keyRoot string, node NodeData) (Node, error) {
 	if d.addr.Keys == nil || d.addr.Keys.PrivateKey == "" {
 		return Node{}, ErrReadOnly
@@ -117,10 +150,15 @@ func (d *Graph) Append(ctx context.Context, keyRoot string, node NodeData) (Node
 	return d.toGraphNode(key, n), nil
 }
 
+// GetIterator creates an Iterator that walks nodes in the given branch
+// starting from the provided key (from). If keyRoot is empty, the graph's
+// current root is implied by the underlying DAG implementation.
 func (d *Graph) GetIterator(ctx context.Context, keyRoot, branch string, from string) Iterator {
 	return newIterator(ctx, d, from, keyRoot, branch)
 }
 
+// Manage configures the underlying DAG to use the provided address
+// (and its keys) for subsequent write operations.
 func (d *Graph) Manage(addr *address.Address) error {
 	return d.da.Manage(addr)
 }

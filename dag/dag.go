@@ -12,6 +12,8 @@ import (
 	"github.com/msaldanha/setinstone/resolver"
 )
 
+// DagInterface defines the public operations available to interact with a DAG of nodes.
+// Implementations handle storage, resolution, validation, and basic branch management.
 type DagInterface interface {
 	SetRoot(ctx context.Context, rootNode *Node) (string, error)
 	GetLast(ctx context.Context, branchRootNodeKey, branch string) (*Node, string, error)
@@ -22,6 +24,9 @@ type DagInterface interface {
 	Manage(addr *address.Address) error
 }
 
+// Dag is the default implementation of DagInterface. It stores nodes using a
+// datastore and resolves human-readable names using a Resolver in the provided
+// namespace.
 type Dag struct {
 	nameSpace string
 	dt        datastore.DataStore
@@ -30,10 +35,22 @@ type Dag struct {
 
 var _ DagInterface = (*Dag)(nil)
 
+// NewDag creates a new Dag bound to a namespace, a data store for node
+// persistence, and a resolver for name management.
+//   - nameSpace: logical namespace used to build resolver names
+//   - dt: implementation of DataStore used to persist and fetch nodes
+//   - resolver: implementation used to Resolve/Add names
+//
+// Returns a Dag instance.
 func NewDag(nameSpace string, dt datastore.DataStore, resolver resolver.Resolver) *Dag {
 	return &Dag{nameSpace: nameSpace, dt: dt, resolver: resolver}
 }
 
+// SetRoot initializes a DAG for the given address with the provided root node.
+// It stores the node, creates resolver shortcuts for the root and the branch
+// head, and returns the storage key. If a root already exists, it returns
+// ErrDagAlreadyInitialized. The node must include a default Branch that is
+// part of its Branches list.
 func (da *Dag) SetRoot(ctx context.Context, rootNode *Node) (string, error) {
 	if rootNode.Branch == "" {
 		return "", ErrInvalidBranch
@@ -51,6 +68,9 @@ func (da *Dag) SetRoot(ctx context.Context, rootNode *Node) (string, error) {
 	return "", da.translateError(er)
 }
 
+// Append verifies and stores a new node as the next element of a branch that
+// is rooted at branchRootNodeKey. It also updates resolver shortcuts for the
+// branch head. Returns the persisted node key.
 func (da *Dag) Append(ctx context.Context, node *Node, branchRootNodeKey string) (string, error) {
 	if er := da.VerifyNode(ctx, node, branchRootNodeKey, true); er != nil {
 		return "", da.translateError(er)
@@ -58,6 +78,10 @@ func (da *Dag) Append(ctx context.Context, node *Node, branchRootNodeKey string)
 	return da.saveNode(ctx, node, branchRootNodeKey)
 }
 
+// GetLast resolves and returns the head (last) node of a given branch,
+// together with its storage key, using the provided branchRootNodeKey as the
+// root of the branch. If the branch has no appended nodes, returns the branch
+// root node and its key.
 func (da *Dag) GetLast(ctx context.Context, branchRootNodeKey, branch string) (*Node, string, error) {
 	if branch == "" {
 		return nil, "", ErrInvalidBranch
@@ -80,6 +104,8 @@ func (da *Dag) GetLast(ctx context.Context, branchRootNodeKey, branch string) (*
 	return fromTipTx, key, nil
 }
 
+// GetRoot resolves the root node for a given address using the resolver and
+// returns the root node and its storage key.
 func (da *Dag) GetRoot(ctx context.Context, addr string) (*Node, string, error) {
 	key, er := da.resolveRootNodeKey(ctx, addr)
 	if er != nil {
@@ -92,10 +118,21 @@ func (da *Dag) GetRoot(ctx context.Context, addr string) (*Node, string, error) 
 	return n, key, nil
 }
 
+// Get fetches and deserializes a node by its storage key.
 func (da *Dag) Get(ctx context.Context, key string) (*Node, error) {
 	return da.getNodeByKey(ctx, key)
 }
 
+// VerifyNode validates a node before it is appended or accepted.
+// It checks:
+//   - Address is valid and matches the public key
+//   - Timestamp is RFC3339-formatted
+//   - Seq is non-zero and consistent with the previous node and branch rules
+//   - Signature is valid
+//   - Branch is specified and, when mustBeNew is true, exists under the branch root
+//
+// When mustBeNew is true, it also verifies that the previous node is the current
+// branch head and enforces sequencing constraints for branch changes.
 func (da *Dag) VerifyNode(ctx context.Context, node *Node, branchRootNodeKey string, mustBeNew bool) error {
 	if ok, er := da.verifyAddress(node); !ok {
 		return da.translateError(er)
@@ -155,6 +192,8 @@ func (da *Dag) VerifyNode(ctx context.Context, node *Node, branchRootNodeKey str
 	return nil
 }
 
+// Manage prepares the resolver to manage names for a given address. It is a
+// thin wrapper around the underlying resolver.Manage implementation.
 func (da *Dag) Manage(addr *address.Address) error {
 	return da.resolver.Manage(addr)
 }
