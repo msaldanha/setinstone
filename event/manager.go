@@ -45,7 +45,7 @@ func NewManager(pubSub icore.PubSubAPI, id peer.ID, nameSpace string, signerAddr
 		nameSpace:     nameSpace,
 		signerAddr:    signerAddr,
 		managedAddr:   managedAddr,
-		logger:        logger.Named("Event Manager"),
+		logger:        logger.Named("EventManager"),
 	}
 	topic := m.getTopicName()
 	rootSub, er := pubSub.Subscribe(context.Background(), topic, options.PubSub.Discover(true))

@@ -46,7 +46,7 @@ func WithBackend(backend Backend) IpfsResolverOption {
 
 func WithLogger(logger *zap.Logger) IpfsResolverOption {
 	return func(r *IpfsResolver) {
-		r.logger = logger
+		r.logger = logger.Named("IpfsResolver")
 	}
 }
 
